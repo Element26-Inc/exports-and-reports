@@ -549,17 +549,21 @@ er_report(
 	'status ' . $er_export->get_status() . ', ' . ( '' !== $er_file ? $er_file . ', logged ' . $er_logged : wp_json_encode( $er_body ) )
 );
 
+// The serving filter streams the file itself after closing every output buffer, so the test checks its
+// decision on the two kinds of response and reads the file through the function it calls.
 $er_download = er_rest( 'GET', $er_route . '/exports/' . $er_file, array( 'token' => 'er-test-token' ) );
-$er_request  = new WP_REST_Request( 'GET', $er_route . '/exports/' . $er_file );
+$er_body     = $er_download->get_data();
+$er_request  = new WP_REST_Request( 'GET', $er_route . '/data' );
+$er_passed   = exports_reports_rest_serve_file( false, $er_full, $er_request );
+$er_other    = er_rest( 'GET', $er_route . '/exports/other_report.csv', array( 'token' => 'er-test-token' ) );
 ob_start();
-$er_served = exports_reports_rest_serve_file( false, $er_download, $er_request );
-$er_sent   = ob_get_clean();
-$er_other  = er_rest( 'GET', $er_route . '/exports/other_report.csv', array( 'token' => 'er-test-token' ) );
+$er_sent_ok = exports_reports_send_export_file( $er_file );
+$er_sent    = ob_get_clean();
 $er_on_disk = '' === $er_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 er_report(
-	'REST download serves the logged export and refuses other names',
-	200 === $er_download->get_status() && true === $er_served && "\xEF\xBB\xBF" === substr( $er_sent, 0, 3 ) && $er_sent === $er_on_disk && 404 === $er_other->get_status(),
-	'status ' . $er_download->get_status() . ', served ' . var_export( $er_served, true ) . ', ' . strlen( $er_sent ) . ' bytes, other ' . $er_other->get_status()
+	'REST download names the logged export for serving and refuses other names',
+	200 === $er_download->get_status() && isset( $er_body['download'], $er_body['file'] ) && true === $er_body['download'] && $er_file === $er_body['file'] && false === $er_passed && true === $er_sent_ok && '' !== $er_sent && $er_sent === $er_on_disk && 404 === $er_other->get_status(),
+	'status ' . $er_download->get_status() . ', download ' . wp_json_encode( isset( $er_body['download'] ) ? $er_body['download'] : null ) . ', data response left alone ' . var_export( false === $er_passed, true ) . ', ' . strlen( $er_sent ) . ' bytes, other ' . $er_other->get_status()
 );
 
 $wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 1 ), array( 'id' => $er_report_id ) );
