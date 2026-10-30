@@ -61,8 +61,34 @@ function exports_reports_wp_admin_ui_export() {
 function exports_reports_assets() {
 	wp_register_script( 'exports-reports-admin', plugins_url( 'exports-and-reports/assets/admin.js' ), [ 'jquery' ], EXPORTS_REPORTS_VERSION, [ 'in_footer' => true ] );
 	wp_register_style( 'exports-reports-admin', plugins_url( 'exports-and-reports/assets/admin.css' ), [], EXPORTS_REPORTS_VERSION );
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only the admin page slug is read.
+	if ( isset( $_GET['page'] ) && 'exports-reports-admin-reports' === $_GET['page'] ) {
+		exports_reports_sql_editor();
+	}
 }
 add_action( 'admin_enqueue_scripts', 'exports_reports_assets' );
+
+/**
+ * CodeMirror with SQL highlighting on the report form's query fields.
+ *
+ * Nothing is enqueued when the user has turned syntax highlighting off in their profile.
+ */
+function exports_reports_sql_editor() {
+	$settings = wp_enqueue_code_editor( [ 'type' => 'text/x-sql' ] );
+
+	if ( false === $settings ) {
+		return;
+	}
+
+	wp_add_inline_script(
+		'code-editor',
+		sprintf(
+			'jQuery( function() { [ "admin_ui_sql_query", "admin_ui_sql_query_count" ].forEach( function( id ) { var field = document.getElementById( id ); if ( field ) { wp.codeEditor.initialize( field, %s ); } } ); } );',
+			wp_json_encode( $settings )
+		)
+	);
+}
 
 /**
  *
