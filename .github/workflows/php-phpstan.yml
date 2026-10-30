@@ -11,29 +11,28 @@ jobs:
     strategy:
       matrix:
         phpVersion: [
-          "7.4",
           "8.0",
           "8.1",
           "8.2",
-          "8.3"
+          "8.3",
+          "8.4"
         ]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       # ------------------------------------------------------------------------------
       # Checkout the repository
       # ------------------------------------------------------------------------------
       - name: Checkout the repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       # ------------------------------------------------------------------------------
-      # Get the changed files in a space separated list.
+      # Get the changed PHP files (the plugin's own; vendor/ is third-party code) in a space separated list.
       # ------------------------------------------------------------------------------
       - name: Get all changed files and use a space separator in the output
         id: changed-files
-        uses: tj-actions/changed-files@v44
-        with:
-          separator: " "
-          files: |
-            **.php
+        run: |
+          echo "all_changed_files=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | paste -sd' ' - || true)" >> "$GITHUB_OUTPUT"
       # ------------------------------------------------------------------------------
       # Set up PHP and run phpstan
       # ------------------------------------------------------------------------------
@@ -55,4 +54,5 @@ jobs:
       # Run phpstan
       # ------------------------------------------------------------------------------
       - name: Run phpstan
+        if: steps.changed-files.outputs.all_changed_files != ''
         run: ./vendor/bin/phpstan analyse --error-format=table -c phpstan.neon ${{ steps.changed-files.outputs.all_changed_files }}
