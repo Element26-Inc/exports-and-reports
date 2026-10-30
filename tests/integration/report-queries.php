@@ -609,6 +609,69 @@ er_report(
 	'converted ' . implode( ', ', $er_converted ) . '; now ' . $er_after
 );
 
+// --- the report form's field editor renders the saved fields and saves what it posts ---
+$er_form_row      = new stdClass();
+$er_form_row->row = array(
+	'field_data' => wp_json_encode(
+		array(
+			array(
+				'name'        => 'revenue',
+				'type'        => 'decimal',
+				'label'       => 'Revenue',
+				'hide_report' => '1',
+				'search'      => '1',
+				'filter'      => '1',
+				'width'       => '20',
+			),
+			array(
+				'name'    => 'channel',
+				'type'    => 'related',
+				'related' => 'wp_users',
+			),
+		)
+	),
+);
+ob_start();
+exports_reports_report_field( 'field_data', array(), $er_form_row );
+$er_form_html = (string) ob_get_clean();
+$er_form_ok   = 3 === substr_count( $er_form_html, 'class="er-field"' )
+	&& 1 === preg_match( '#name="field_type\[0\]".*?<option value="decimal" selected#s', $er_form_html )
+	&& 1 === preg_match( '#name="field_type\[1\]".*?<option value="related" selected#s', $er_form_html )
+	&& 1 === preg_match( '#type="checkbox" name="field_hide_report\[0\]" value="1" checked#', $er_form_html )
+	&& 1 === preg_match( '#type="checkbox" name="field_search\[0\]" value="0" />#', $er_form_html )
+	&& 1 === preg_match( '#type="checkbox" name="field_search\[1\]" value="0" checked#', $er_form_html )
+	&& 1 === preg_match( '#name="width\[0\]" value="20"#', $er_form_html )
+	&& false !== strpos( $er_form_html, 'name="field_name[__i__]"' );
+er_report( 'report field editor renders the saved fields and a template', $er_form_ok, strlen( $er_form_html ) . ' bytes, ' . substr_count( $er_form_html, 'class="er-field"' ) . ' rows' );
+
+$_POST = array(
+	'field_name'        => array(
+		3 => 'revenue',
+		7 => 'channel',
+		9 => '',
+	),
+	'field_type'        => array(
+		3 => 'decimal',
+		7 => 'text',
+	),
+	'field_hide_report' => array(
+		3 => '1',
+		7 => '0',
+	),
+	'field_search'      => array(
+		3 => '1',
+		7 => '0',
+	),
+	'width'             => array( 3 => '20' ),
+);
+$er_saved = json_decode( exports_reports_report_field_save( '', 'field_data', array(), $er_form_row ), true );
+$_POST    = array();
+er_report(
+	'report field editor saves the posted rows in order',
+	is_array( $er_saved ) && 2 === count( $er_saved ) && 'revenue' === $er_saved[0]['name'] && 'decimal' === $er_saved[0]['type'] && 1 === $er_saved[0]['hide_report'] && 1 === $er_saved[0]['search'] && '20' === $er_saved[0]['width'] && 'channel' === $er_saved[1]['name'] && 0 === $er_saved[1]['search'],
+	is_array( $er_saved ) ? count( $er_saved ) . ' fields: ' . wp_json_encode( array_map( static fn( $f ) => $f['name'] . ':' . $f['type'] . ':' . $f['search'], $er_saved ) ) : 'not an array'
+);
+
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 // --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
