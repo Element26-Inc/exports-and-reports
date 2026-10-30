@@ -6,11 +6,14 @@ on:
       - '*.php'
       - 'composer.json'
       - '.github/workflows/php-phpcs.yml'
+permissions:
+  contents: read
+  pull-requests: write
 jobs:
   phpcs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -22,7 +25,7 @@ jobs:
         id: get-composer-cache-dir
         run: |
           echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: composer-cache
         with:
           path: ${{ steps.get-composer-cache-dir.outputs.dir }}
@@ -32,29 +35,30 @@ jobs:
 
       - uses: "shivammathur/setup-php@v2"
         with:
-          php-version: 7.4
-      - uses: "ramsey/composer-install@v2"
+          php-version: 8.1
+      - uses: "ramsey/composer-install@v3"
 
       - name: "Give permissions"
         run: |
           sudo chown -R root:root $GITHUB_WORKSPACE
 
       # ------------------------------------------------------------------------------
-      # Get changed files
+      # Get changed files (the plugin's own PHP; vendor/ is third-party code)
       # ------------------------------------------------------------------------------
       - name: Get list of changed files
         id: files
         run: |
-          echo "CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | tr '\n' ' ')" >> $GITHUB_ENV
+          echo "CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | paste -sd' ' - || true)" >> $GITHUB_ENV
 
       # ------------------------------------------------------------------------------
-      # PHPCS
+      # PHPCS, reported on the pull request; the repository token serves when no bot token is set
       # ------------------------------------------------------------------------------
       - uses: reviewdog/action-setup@v1
         with:
           reviewdog_version: latest # Optional. [latest,nightly,v.X.Y.Z]
       - name: Run reviewdog
         env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GH_BOT_TOKEN || github.token }}
         run: |
-          vendor/bin/phpcs --report=json ${CHANGED_FILES} | jq -r ' .files | to_entries[] | .key as $path | .value.messages[] as $msg | "\($path):\($msg.line):\($msg.column):`\($msg.source)`<br>\($msg.message)" ' | reviewdog -efm="%f:%l:%c:%m" -name="phpcs" -filter-mode="added" -fail-on-error=true -reporter=github-pr-review
+          if [ -z "${CHANGED_FILES}" ]; then echo "No PHP files changed."; exit 0; fi
+          ( vendor/bin/phpcs --report=json ${CHANGED_FILES} || true ) | jq -r ' .files | to_entries[] | .key as $path | .value.messages[] as $msg | "\($path):\($msg.line):\($msg.column):`\($msg.source)`<br>\($msg.message)" ' | reviewdog -efm="%f:%l:%c:%m" -name="phpcs" -filter-mode="added" -fail-level=any -reporter=github-pr-review

@@ -6,25 +6,48 @@ on:
       - '*.php'
       - 'composer.json'
       - '.github/workflows/php-compatibility.yml'
+permissions:
+  contents: read
+  pull-requests: write
 jobs:
   phpcs-compatibility:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
       - name: Get Composer Cache Directory
         id: composer-cache
         run: |
           echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
-      - name: Run PHPCS inspection
-        uses: rtCamp/action-phpcs-code-review@v3
+      - uses: "shivammathur/setup-php@v2"
+        with:
+          php-version: 8.1
+      - uses: "ramsey/composer-install@v3"
+
+      # ------------------------------------------------------------------------------
+      # Get changed files (the plugin's own PHP; vendor/ is third-party code)
+      # ------------------------------------------------------------------------------
+      - name: Get list of changed files
+        run: |
+          echo "CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | paste -sd' ' - || true)" >> $GITHUB_ENV
+
+      # ------------------------------------------------------------------------------
+      # PHPCompatibilityWP (.phpcs.compat.xml), reported on the pull request like PHPCS
+      # ------------------------------------------------------------------------------
+      - uses: reviewdog/action-setup@v1
+        with:
+          reviewdog_version: latest
+      - name: Run PHPCompatibility inspection
         env:
-          GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-          PHPCS_STANDARD_FILE_NAME: .phpcs.compat.xml
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GH_BOT_TOKEN || github.token }}
+        run: |
+          if [ -z "${CHANGED_FILES}" ]; then echo "No PHP files changed."; exit 0; fi
+          ( vendor/bin/phpcs --standard=.phpcs.compat.xml --report=json ${CHANGED_FILES} || true ) | jq -r ' .files | to_entries[] | .key as $path | .value.messages[] as $msg | "\($path):\($msg.line):\($msg.column):`\($msg.source)`<br>\($msg.message)" ' | reviewdog -efm="%f:%l:%c:%m" -name="phpcompatibility" -filter-mode="added" -fail-level=any -reporter=github-pr-review

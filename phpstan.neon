@@ -6,4 +6,6 @@ parameters:
     - api.php
     - exports-and-reports.php
   excludePaths:
-    - tests
+    - tests (?)
+  scanDirectories:
+    - wp-admin-ui
