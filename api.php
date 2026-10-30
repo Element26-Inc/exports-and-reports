@@ -11,6 +11,10 @@ if ( ! is_object( $wpdb ) ) {
 	ob_end_clean();
 }
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
 	define( 'WP_ADMIN_UI_EXPORT_URL', WP_CONTENT_URL . '/exports' );
 }

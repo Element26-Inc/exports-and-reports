@@ -18,6 +18,10 @@
  * @version 1.11.7
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
 }
@@ -1193,8 +1197,10 @@ class Exports_Reports_Admin_UI {
 		if ( $create === 0 && $this->id > 0 ) {
 			$this->insert_id = $this->id;
 			$values[]        = $this->id;
+			// phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column_sql is sanitized column names with placeholders; the values go through prepare().
 			$check           = $wpdb->query( $wpdb->prepare( "UPDATE $this->table SET $column_sql WHERE id=%d", $values ) );
 		} else {
+			// phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column_sql is sanitized column names with placeholders; the values go through prepare().
 			$check = $wpdb->query( $wpdb->prepare( "INSERT INTO $this->table SET $column_sql", $values ) );
 		}
 		if ( $check ) {

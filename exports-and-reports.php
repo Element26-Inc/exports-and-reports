@@ -22,6 +22,10 @@
  * Primary Branch:    main
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 define( 'EXPORTS_REPORTS_TBL', 'exportsreports_' );
 define( 'EXPORTS_REPORTS_VERSION', '094' );
 define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );

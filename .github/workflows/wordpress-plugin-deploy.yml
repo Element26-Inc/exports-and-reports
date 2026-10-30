@@ -7,11 +7,13 @@ jobs:
     name: New tag
     runs-on: ubuntu-24.04
     steps:
+    - name: Checkout the code
+      uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+    - name: Check that the release tag matches the version declared in the plugin
+      run: bin/check-version.sh "${{ github.event.release.tag_name }}"
     - name: Check the version number from package.json
       shell: bash
       run: echo "PLUGIN_VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
-    - name: Checkout the code
-      uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
     - name: WordPress Plugin Deploy
       uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
       env:
