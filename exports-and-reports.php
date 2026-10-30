@@ -461,6 +461,21 @@ function exports_reports_settings() {
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row">Export Directory</th>
+					<td>
+						<code><?php echo esc_html( WP_ADMIN_UI_EXPORT_DIR ); ?></code><br />
+						<span class="description">
+							Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.
+							<?php if ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ) : ?>
+								Apache: the plugin's .htaccess denies direct requests.
+							<?php else : ?>
+								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
+							<?php endif; ?>
+							nginx ignores .htaccess; add <code>location ~* /wp-content/exports/ { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+						</span>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><label for="cronjob_token">Cronjob/JSON API Token</label></th>
 					<td>
 						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
@@ -1503,6 +1518,60 @@ add_action( 'wp_admin_ui_post_export', 'exports_reports_log', 10, 2 );
 add_action( 'wp_admin_ui_post_remove_export', 'exports_reports_delete_log', 10, 2 );
 
 /**
+ * Sends a file from the export directory to the browser as an attachment.
+ *
+ * The directory refuses direct requests (Exports_Reports_Admin_UI::protect_export_dir() writes the
+ * rules), so every download comes through here after the caller's nonce or token check. The file
+ * is read in chunks; an export can be larger than the memory limit.
+ *
+ * @since 0.9.5
+ *
+ * @param string $filename The file's name inside the export directory, without a path.
+ * @return bool False when no such export exists; true once the file has been sent.
+ */
+function exports_reports_send_export_file( $filename ) {
+	$types = array(
+		'csv'    => 'text/csv; charset=utf-8',
+		'tsv'    => 'text/tab-separated-values; charset=utf-8',
+		'pipe'   => 'text/plain; charset=utf-8',
+		'custom' => 'text/plain; charset=utf-8',
+		'xlsx'   => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'xml'    => 'application/xml; charset=utf-8',
+		'json'   => 'application/json; charset=utf-8',
+		'pdf'    => 'application/pdf',
+	);
+
+	$filename  = basename( (string) $filename );
+	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
+	$directory = realpath( WP_ADMIN_UI_EXPORT_DIR );
+	$path      = realpath( WP_ADMIN_UI_EXPORT_DIR . '/' . $filename );
+
+	if ( '' === $filename || ! isset( $types[ $extension ] ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- read in chunks; WP_Filesystem would load the whole export into memory.
+	$handle = fopen( $path, 'rb' );
+
+	if ( false === $handle ) {
+		return false;
+	}
+
+	nocache_headers();
+	header( 'Content-Type: ' . $types[ $extension ] );
+	header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+	header( 'Content-Length: ' . (string) filesize( $path ) );
+	header( 'X-Content-Type-Options: nosniff' );
+
+	fpassthru( $handle );
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- paired with the fopen above.
+	fclose( $handle );
+
+	return true;
+}
+
+/**
  * @param $args
  * @param $obj
  */
@@ -1606,6 +1675,11 @@ function exports_reports_delete_dir_files( $directory ) {
 	$file_list = $wp_filesystem->dirlist( $directory, false );
 
 	foreach ( $file_list as $file ) {
+		// The rules that keep the directory from being served stay.
+		if ( in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ) {
+			continue;
+		}
+
 		$file_path = $directory . DIRECTORY_SEPARATOR . $file['name'];
 
 		// d = folder, f = file

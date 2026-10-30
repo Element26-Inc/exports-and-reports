@@ -214,17 +214,15 @@ if ( empty( $report ) ) {
 		if ( $download && ! empty( $data['export_file'] ) ) {
 			do_action( 'wp_admin_ui_export_download' );
 
-			$file = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $data['export_file'] ) );
-			$file = realpath( $file );
+			while ( ob_get_level() > 0 ) {
+				ob_end_clean();
+			}
 
-			$file_url = WP_ADMIN_UI_EXPORT_URL . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $data['export_file'] ) );
-
-			if ( ! $file || ! isset( $_GET['exports_and_reports_export'] ) || empty( $_GET['exports_and_reports_export'] ) || ! file_exists( $file ) ) {
+			if ( ! exports_reports_send_export_file( basename( $data['export_file'] ) ) ) {
 				wp_die( 'File not found.' );
 			}
 
-			wp_redirect( $file_url );
-			die();
+			exit;
 		}
 
 		wp_send_json_success( $data );
