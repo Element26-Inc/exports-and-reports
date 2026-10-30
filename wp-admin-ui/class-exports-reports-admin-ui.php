@@ -1674,7 +1674,6 @@ class Exports_Reports_Admin_UI {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$fp                   = fopen( $export_file_location, 'a+' );
 		$head                 = [];
-		$first                = true;
 		$stream               = null;
 
 		if ( '' !== $this->stream_sql ) {
@@ -1721,15 +1720,22 @@ class Exports_Reports_Admin_UI {
 				continue;
 			}
 
-			if ( $first ) {
-				$attributes['label'] .= ' ';
-				$first               = false;
-			}
-
 			$head[] = $attributes['label'];
 		}
 
+		// A UTF-8 byte order mark so spreadsheet applications read the encoding right. With the first label
+		// quoted it also keeps Excel from taking a file that starts with "ID" for SYLK, which the space the
+		// first label used to carry guarded against.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+		fwrite( $fp, "\xEF\xBB\xBF" );
 		$this->write_sv_line( $fp, $head, $export_delimiter );
+
+		/**
+		 * Filters whether values a spreadsheet would evaluate as formulas are written as text.
+		 *
+		 * @param array $args { @type bool $1 True by default. }
+		 */
+		$escape_formulas = false !== $this->do_hook( 'export_escape_formulas', true );
 
 		$rows = $stream instanceof mysqli_result ? $this->stream_rows( $stream ) : $this->full_data;
 
@@ -1754,9 +1760,10 @@ class Exports_Reports_Admin_UI {
 
 				$column_value = trim( str_replace( [ "\r", "\n" ], ' ', (string) $item[ $key ] ) );
 
-				// Maybe escape the first character to prevent formulas from getting used when opening the file with a spreadsheet app.
-				if ( 0 === strpos( $column_value, '=' ) || 0 === strpos( $column_value, '+' ) || 0 === strpos( $column_value, '-' ) || 0 === strpos( $column_value, '@' ) ) {
-					$column_value = '\\' . $column_value;
+				// A value a spreadsheet would evaluate as a formula is wrapped in a string formula, which shows the
+				// text and stays inert. Numbers are left alone: a negative amount starts with "-".
+				if ( $escape_formulas && ! is_numeric( $column_value ) && preg_match( '/^[=+\-@\t]/', $column_value ) ) {
+					$column_value = '="" & "' . str_replace( '"', '""', $column_value ) . '"';
 				}
 
 				$column_values[] = $column_value;
