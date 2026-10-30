@@ -47,10 +47,13 @@ jobs:
       - name: Set php version ${{ matrix.phpVersion }} in composer
         run: composer config platform.php ${{ matrix.phpVersion }}
       # ------------------------------------------------------------------------------
-      # Install dependencies - ignoring php requirements
+      # Install dependencies for the matrix PHP version (upper bounds ignored). 7.4 is below the
+      # plugin's own requirement, so that job relaxes it in the runner before resolving.
       # ------------------------------------------------------------------------------
       - name: Install dependencies
-        run: composer i --ignore-platform-req=php
+        run: |
+          if [ "${{ matrix.phpVersion }}" = "7.4" ]; then composer require --no-update --no-interaction "php:>=7.4"; fi
+          composer i --ignore-platform-req=php+
       # ------------------------------------------------------------------------------
       # Run phpstan
       # ------------------------------------------------------------------------------
