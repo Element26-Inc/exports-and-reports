@@ -36,7 +36,6 @@ tests/_support/_generated/* linguist-generated=true
 .travis.yml export-ignore
 
 # Other files
-composer.json export-ignore
 phpcs.xml export-ignore
 phpcs.xml.dist export-ignore
 phpstan.neon export-ignore
