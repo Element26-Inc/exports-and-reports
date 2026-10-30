@@ -1,0 +1,43 @@
+name: 'Report queries'
+on:
+  pull_request:
+    paths:
+      - 'wp-admin-ui/**.php'
+      - '*.php'
+      - 'tests/integration/**'
+      - '.github/workflows/report-queries.yml'
+  workflow_dispatch:
+jobs:
+  report-queries:
+    name: Report queries against MariaDB
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, zip
+          tools: wp-cli
+      - name: Install WordPress with the plugin active
+        run: |
+          mkdir -p "$RUNNER_TEMP/wp"
+          wp core download --path="$RUNNER_TEMP/wp"
+          wp config create --path="$RUNNER_TEMP/wp" --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
+          wp core install --path="$RUNNER_TEMP/wp" --url=http://localhost --title=Reports --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
+          ln -s "$GITHUB_WORKSPACE" "$RUNNER_TEMP/wp/wp-content/plugins/exports-and-reports"
+          wp plugin activate exports-and-reports --path="$RUNNER_TEMP/wp"
+      - name: Run the report queries through the plugin
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/integration/report-queries.php" --path="$RUNNER_TEMP/wp"
