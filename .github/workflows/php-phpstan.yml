@@ -5,6 +5,8 @@ on:
       - 'wp-admin-ui/**.php'
       - '*.php'
       - 'composer.json'
+      - 'phpstan.neon'
+      - 'phpstan-baseline.neon'
       - '.github/workflows/php-phpstan.yml'
 jobs:
   phpstan:
@@ -28,12 +30,22 @@ jobs:
         with:
           fetch-depth: 0
       # ------------------------------------------------------------------------------
-      # Get the changed PHP files (the plugin's own; vendor/ is third-party code) in a space separated list.
+      # The plugin's own changed PHP files (vendor/ is third-party code). A change to the
+      # configuration, the baseline, the dependencies or this workflow analyses every path in
+      # phpstan.neon instead, which is what keeps the baseline honest.
       # ------------------------------------------------------------------------------
-      - name: Get all changed files and use a space separator in the output
+      - name: Decide what to analyse
         id: changed-files
         run: |
-          echo "all_changed_files=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | paste -sd' ' - || true)" >> "$GITHUB_OUTPUT"
+          changed="$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
+          if grep -qxE 'phpstan\.neon|phpstan-baseline\.neon|composer\.json|\.github/workflows/php-phpstan\.yml' <<< "$changed"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "paths=" >> "$GITHUB_OUTPUT"
+          else
+            paths="$(grep '\.php$' <<< "$changed" | grep -v '^vendor/' | paste -sd' ' - || true)"
+            echo "run=$([ -n "$paths" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+            echo "paths=$paths" >> "$GITHUB_OUTPUT"
+          fi
       # ------------------------------------------------------------------------------
       # Set up PHP and run phpstan
       # ------------------------------------------------------------------------------
@@ -58,5 +70,5 @@ jobs:
       # Run phpstan
       # ------------------------------------------------------------------------------
       - name: Run phpstan
-        if: steps.changed-files.outputs.all_changed_files != ''
-        run: ./vendor/bin/phpstan analyse --error-format=table -c phpstan.neon ${{ steps.changed-files.outputs.all_changed_files }}
+        if: steps.changed-files.outputs.run == 'true'
+        run: ./vendor/bin/phpstan analyse --error-format=table -c phpstan.neon ${{ steps.changed-files.outputs.paths }}
