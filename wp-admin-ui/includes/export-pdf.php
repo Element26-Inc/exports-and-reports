@@ -88,13 +88,15 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 			$this->MultiCell( $cw, $cell_height, $headerdata['string'], 0, '', 0, 1, '', '', true, 0, false, true, 0, 'T', false );
 
 			// print an ending header line
-			$this->SetLineStyle( [
-				'width' => 0.85 / $this->k,
-				'cap'   => 'butt',
-				'join'  => 'miter',
-				'dash'  => 0,
-				'color' => $headerdata['line_color'],
-			] );
+			$this->SetLineStyle(
+				array(
+					'width' => 0.85 / $this->k,
+					'cap'   => 'butt',
+					'join'  => 'miter',
+					'dash'  => 0,
+					'color' => $headerdata['line_color'],
+				)
+			);
 			$this->SetY( ( 2.835 / $this->k ) + max( $imgy, $this->y ) );
 			if ( $this->rtl ) {
 				$this->SetX( $this->original_rMargin );
@@ -135,19 +137,21 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 
 		//set style for cell border
 		$line_width = ( 0.85 / $this->k );
-		$this->SetLineStyle( [
-			'width' => $line_width,
-			'cap'   => 'butt',
-			'join'  => 'miter',
-			'dash'  => 0,
-			'color' => $this->footer_line_color,
-		] );
+		$this->SetLineStyle(
+			array(
+				'width' => $line_width,
+				'cap'   => 'butt',
+				'join'  => 'miter',
+				'dash'  => 0,
+				'color' => $this->footer_line_color,
+			)
+		);
 		//print document barcode
 		$barcode = $this->getBarcode();
 		if ( ! empty( $barcode ) ) {
 			$this->Ln( $line_width );
 			$barcode_width = round( ( $this->w - $this->original_lMargin - $this->original_rMargin ) / 3 );
-			$style         = [
+			$style         = array(
 				'position'     => $this->rtl ? 'R' : 'L',
 				'align'        => $this->rtl ? 'R' : 'L',
 				'stretch'      => false,
@@ -155,10 +159,10 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 				'cellfitalign' => '',
 				'border'       => false,
 				'padding'      => 0,
-				'fgcolor'      => [ 0, 0, 0 ],
+				'fgcolor'      => array( 0, 0, 0 ),
 				'bgcolor'      => false,
 				'text'         => false,
-			];
+			);
 			$this->write1DBarcode( $barcode, 'C128', '', $cur_y + $line_width, '', ( ( $this->footer_margin / 3 ) - $line_width ), 0.3, $style, '' );
 		}
 		$w_page = isset( $this->l['w_page'] ) ? $this->l['w_page'] . ' ' : '';
@@ -188,7 +192,7 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 		$pdf              = self::setupPDFClass( $admin, $page_orientation, PDF_UNIT, 'LETTER', true, 'UTF-8', false );
 
 		// Display the current filter information in the header
-		$filter_output = [];
+		$filter_output = array();
 		foreach ( $admin->filters as $filter ) {
 			if ( ! isset( $admin->search_columns[ $filter ] ) ) {
 				continue;
@@ -201,7 +205,7 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 				$filter_label = empty( $selected_id ) ? 'All' : $filter_column['related_lookup'][ $selected_id ];
 
 				$filter_output[] = $filter_column['label'] . ': ' . $filter_label;
-			} elseif ( in_array( $filter_column['type'], [ 'date', 'datetime' ], true ) ) {
+			} elseif ( in_array( $filter_column['type'], array( 'date', 'datetime' ), true ) ) {
 				$start = $admin->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] );
 				$end   = $admin->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] );
 
@@ -229,8 +233,8 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 		$pdf->setHeaderData( '', 0, $admin->items, $filter_output );
 
 		// set header and footer fonts
-		$pdf->setHeaderFont( [ PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN ] );
-		$pdf->setFooterFont( [ PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA ] );
+		$pdf->setHeaderFont( array( PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN ) );
+		$pdf->setFooterFont( array( PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA ) );
 
 		// set default monospaced font
 		$pdf->SetDefaultMonospacedFont( PDF_FONT_MONOSPACED );
@@ -281,9 +285,11 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 			<thead>
 			<tr>
 				<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-					<?php if ( false === $attributes['display'] ) {
+					<?php
+					if ( false === $attributes['display'] ) {
 						continue;
-					} ?>
+					}
+					?>
 					<?php $col_label = $attributes['label']; ?>
 					<?php $col_width = ( ! empty( $attributes['width'] ) ) ? 'width="' . esc_attr( $attributes['width'] ) . '"' : ''; ?>
 					<th <?php echo esc_html( $col_width ); ?>><strong><?php echo wp_kses_post( $col_label ); ?></strong></th>
@@ -294,14 +300,18 @@ class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
 			<?php foreach ( $admin->full_data as $row_data ) { ?>
 				<tr>
 					<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-						<?php if ( false === $attributes['display'] ) {
+						<?php
+						if ( false === $attributes['display'] ) {
 							continue;
-						} ?>
-						<?php if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
+						}
+						?>
+						<?php
+						if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
 							$row_data[ $column ] = $attributes['custom_display']( $row_data[ $column ], $row_data, $column, $attributes, $admin );
 						}
 						$output    = self::format_field( $attributes['type'], $row_data[ $column ] );
-						$col_width = ( ! empty( $attributes['width'] ) ) ? 'width="' . esc_attr( $attributes['width'] ) . '"' : ''; ?>
+						$col_width = ( ! empty( $attributes['width'] ) ) ? 'width="' . esc_attr( $attributes['width'] ) . '"' : '';
+						?>
 						<td <?php echo esc_html( $col_width ); ?> style="overflow: hidden;"><?php echo wp_kses_post( $output ); ?></td>
 					<?php } ?>
 				</tr>

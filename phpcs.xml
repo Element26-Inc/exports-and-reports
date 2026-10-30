@@ -20,8 +20,6 @@
     <rule ref="WordPress-Extra">
         <!-- Exclude any rules here -->
         <exclude name="Universal.Operators.DisallowShortTernary"/>
-        <!-- The code base uses short array syntax throughout. -->
-        <exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
     </rule>
 
     <!-- Let's also check that everything is properly documented. -->
