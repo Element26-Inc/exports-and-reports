@@ -9,7 +9,16 @@ on:
   workflow_dispatch:
 jobs:
   report-queries:
-    name: Report queries against MariaDB
+    # The oldest WordPress and PHP the plugin declares, and the current WordPress on a current PHP.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.0'
+            php: '8.0'
+          - wordpress: latest
+            php: '8.3'
+    name: Report queries on WordPress ${{ matrix.wordpress }}, PHP ${{ matrix.php }}
     runs-on: ubuntu-24.04
     services:
       mariadb:
@@ -28,16 +37,18 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
           extensions: mysqli, mbstring, zip
           tools: wp-cli
       - name: Install WordPress with the plugin active
         run: |
           mkdir -p "$RUNNER_TEMP/wp"
-          wp core download --path="$RUNNER_TEMP/wp"
+          wp core download --path="$RUNNER_TEMP/wp" --version=${{ matrix.wordpress }}
           wp config create --path="$RUNNER_TEMP/wp" --dbname=wordpress --dbuser=root --dbpass=root --dbhost=127.0.0.1:3306 --skip-check
           wp core install --path="$RUNNER_TEMP/wp" --url=http://localhost --title=Reports --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
           ln -s "$GITHUB_WORKSPACE" "$RUNNER_TEMP/wp/wp-content/plugins/exports-and-reports"
           wp plugin activate exports-and-reports --path="$RUNNER_TEMP/wp"
       - name: Run the report queries through the plugin
-        run: wp eval-file "$GITHUB_WORKSPACE/tests/integration/report-queries.php" --path="$RUNNER_TEMP/wp"
+        run: |
+          wp core version --path="$RUNNER_TEMP/wp"
+          wp eval-file "$GITHUB_WORKSPACE/tests/integration/report-queries.php" --path="$RUNNER_TEMP/wp"
