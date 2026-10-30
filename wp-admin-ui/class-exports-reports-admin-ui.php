@@ -1852,7 +1852,7 @@ class Exports_Reports_Admin_UI {
 			}
 			$this->sql = "SELECT {$calc_found_sql} * FROM $this->table";
 		}
-		$sql            = ' ' . str_replace( [ "\n", "\r", '  ' ], ' ', ' ' . $this->sql ) . ' ';
+		$sql            = ' ' . str_replace( [ "\n", "\r", "\t", '  ' ], ' ', ' ' . $this->sql ) . ' ';
 		$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
 		if ( $full || false !== $this->sql_count ) {
 			$calc_found_sql = '';
@@ -2096,7 +2096,7 @@ class Exports_Reports_Admin_UI {
 
 			$limitsql .= (int) $start . ',' . (int) $this->limit;
 		} else {
-			$sql = str_replace( ' LIMIT %%LIMIT%% ', '', $sql );
+			$sql = preg_replace( '/\s+LIMIT\s+%%LIMIT%%\s*/i', ' ', $sql );
 		}
 		if ( stripos( $sql, '%%WHERE%%' ) === false && stripos( $sql, ' WHERE ' ) === false ) {
 			if ( stripos( $sql, ' GROUP BY ' ) !== false ) {
