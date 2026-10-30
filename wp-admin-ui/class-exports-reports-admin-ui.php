@@ -97,6 +97,9 @@ class Exports_Reports_Admin_UI {
 	var $data = [];
 	var $sum_data = [];
 	var $full_data = [];
+	// A CSV-style export reads its rows straight from the database (see export() and export_sv()).
+	public $stream_export = false;
+	public $stream_sql    = '';
 	var $row = [];
 	var $temp_row = [];
 	var $default_none = false;
@@ -1338,7 +1341,12 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['export'], $this );
 		}
 		if ( empty( $this->full_data ) ) {
+			// CSV-style exports stream their rows from the database in export_sv(), so the size of the
+			// result no longer decides whether the export fits in memory; the other formats still load it whole.
+			$this->stream_sql    = '';
+			$this->stream_export = in_array( $this->export_type, [ 'csv', 'tsv', 'pipe', 'custom' ], true ) && $this->can_stream_export();
 			$this->get_data( true );
+			$this->stream_export = false;
 		}
 		$dir = dirname( WP_ADMIN_UI_EXPORT_DIR );
 		if ( ! file_exists( WP_ADMIN_UI_EXPORT_DIR ) ) {
@@ -1564,7 +1572,48 @@ class Exports_Reports_Admin_UI {
 		$this->do_hook( 'post_export', $export_file );
 	}
 
+	/**
+	 * Whether every export column renders without a database query of its own: a "related" column may look
+	 * its values up while the rows are being read, which an unbuffered result does not allow.
+	 *
+	 * @return bool
+	 */
+	public function can_stream_export() {
+		foreach ( (array) $this->export_columns as $key => $attributes ) {
+			if ( ! is_array( $attributes ) ) {
+				$key        = $attributes;
+				$attributes = $this->setup_column( $key );
+			}
+
+			if ( isset( $attributes['type'], $attributes['related'] ) && 'related' === $attributes['type'] && false !== $attributes['related'] ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Write one line of a delimited export with every value quoted.
+	 *
+	 * @param resource $fp        The open export file.
+	 * @param array    $values    The values of the line.
+	 * @param string   $delimiter The delimiter between values.
+	 */
+	public function write_sv_line( $fp, $values, $delimiter ) {
+		$quoted = [];
+
+		foreach ( $values as $value ) {
+			$quoted[] = '"' . str_replace( '"', '""', (string) $value ) . '"';
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+		fwrite( $fp, implode( $delimiter, $quoted ) . "\n" );
+	}
+
 	function export_sv() {
+		global $wpdb;
+
 		$file_ext = [
 			'csv'    => 'csv',
 			'tsv'    => 'tsv',
@@ -1599,6 +1648,41 @@ class Exports_Reports_Admin_UI {
 		$fp                   = fopen( $export_file_location, 'a+' );
 		$head                 = [];
 		$first                = true;
+		$stream               = null;
+
+		if ( '' !== $this->stream_sql ) {
+			// An unbuffered result on wpdb's connection (the statement may read temporary tables and session
+			// variables that earlier statements of the report created there); one row is in memory at a time.
+			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query, WordPress.DB.PreparedSQL.NotPrepared
+			$stream = mysqli_query( $wpdb->dbh, $this->stream_sql, MYSQLI_USE_RESULT );
+
+			if ( ! $stream instanceof mysqli_result ) {
+				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
+				$wpdb->last_error = mysqli_error( $wpdb->dbh );
+				$this->stream_sql = '';
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				fclose( $fp );
+				wp_delete_file( $export_file_location );
+				$this->error( '<strong>Error:</strong> ' . esc_html( $wpdb->last_error ) );
+
+				return false;
+			}
+
+			if ( empty( $this->columns ) ) {
+				$names = [];
+
+				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_fields
+				foreach ( mysqli_fetch_fields( $stream ) as $field ) {
+					$name = trim( str_replace( '`', '', $field->name ) );
+
+					if ( 0 < strlen( $name ) ) {
+						$names[] = $name;
+					}
+				}
+
+				$this->columns = $this->setup_columns( $names, 'columns', true );
+			}
+		}
 
 		foreach ( $this->export_columns as $key => $attributes ) {
 			if ( ! is_array( $attributes ) ) {
@@ -1618,9 +1702,25 @@ class Exports_Reports_Admin_UI {
 			$head[] = $attributes['label'];
 		}
 
-		fputcsv( $fp, $head, $export_delimiter );
+		$this->write_sv_line( $fp, $head, $export_delimiter );
 
-		foreach ( $this->full_data as $item ) {
+		$items = array_values( (array) $this->full_data );
+		$index = 0;
+
+		while ( true ) {
+			if ( $stream instanceof mysqli_result ) {
+				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_assoc
+				$item = mysqli_fetch_assoc( $stream );
+
+				if ( ! is_array( $item ) ) {
+					break;
+				}
+			} elseif ( isset( $items[ $index ] ) ) {
+				$item = $items[ $index++ ];
+			} else {
+				break;
+			}
+
 			$column_values = [];
 
 			foreach ( $this->export_columns as $key => $attributes ) {
@@ -1639,8 +1739,7 @@ class Exports_Reports_Admin_UI {
 					$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
 				}
 
-				// Add extra content at the end of the line to prevent problems with quoting.
-				$column_value = trim( str_replace( [ "\r", "\n" ], ' ', $item[ $key ] ) ) . '#@ @#';
+				$column_value = trim( str_replace( [ "\r", "\n" ], ' ', (string) $item[ $key ] ) );
 
 				// Maybe escape the first character to prevent formulas from getting used when opening the file with a spreadsheet app.
 				if ( 0 === strpos( $column_value, '=' ) || 0 === strpos( $column_value, '+' ) || 0 === strpos( $column_value, '-' ) || 0 === strpos( $column_value, '@' ) ) {
@@ -1650,19 +1749,29 @@ class Exports_Reports_Admin_UI {
 				$column_values[] = $column_value;
 			}
 
-			fputcsv( $fp, $column_values, $export_delimiter );
+			$this->write_sv_line( $fp, $column_values, $export_delimiter );
+		}
+
+		if ( $stream instanceof mysqli_result ) {
+			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
+			$stream_error = mysqli_error( $wpdb->dbh );
+			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_free_result
+			mysqli_free_result( $stream );
+			$this->stream_sql = '';
+
+			if ( '' !== $stream_error ) {
+				$wpdb->last_error = $stream_error;
+				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+				fclose( $fp );
+				wp_delete_file( $export_file_location );
+				$this->error( '<strong>Error:</strong> ' . esc_html( $stream_error ) );
+
+				return false;
+			}
 		}
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $fp );
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
-		$contents = file_get_contents( $export_file_location );
-
-		$contents = str_replace( '#@ @#', '', $contents );
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
-		file_put_contents( $export_file_location, $contents );
 
 		$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your ' . esc_html( strtoupper( $export_ext ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
 					'remove_export' => urlencode( $export_file ),
@@ -2134,10 +2243,15 @@ class Exports_Reports_Admin_UI {
 		$total   = 0;
 
 		if ( false !== $sql ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			$results = $wpdb->get_results( $sql, ARRAY_A );
+			if ( $this->stream_export ) {
+				// export_sv() reads this statement row by row instead of the result being loaded here.
+				$this->stream_sql = $sql;
+			} else {
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				$results = $wpdb->get_results( $sql, ARRAY_A );
 
-			$total = @current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+				$total = @current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+			}
 		}
 
 		$total = $this->do_hook( 'get_data_total', $total, $full );
