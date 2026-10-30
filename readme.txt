@@ -2,8 +2,8 @@
 Contributors: sc0ttkclark
 Donate link: https://github.com/sponsors/sc0ttkclark
 Tags: exporting, reporting, csv, pdf, xml
-Requires at least: 4.9
-Tested up to: 6.6
+Requires at least: 6.0
+Tested up to: 7.1
 Requires PHP: 8.0
 Stable tag: 0.9.4
 License: GPLv2 or later
