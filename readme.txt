@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.9.4
+Stable tag: 0.9.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -94,6 +94,18 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 0.9.5 =
+* Security: the Settings page, the reorder form and the save path verify a nonce; the report field editor sanitises its inputs; the export directory is no longer served by the web server (an .htaccess and an index.php are written, downloads go through the plugin after a nonce or token check).
+* Added a REST API (`exports-reports/v1/reports/{id}/data`, `/export`, `/exports/{file}`): the cronjob token as a bearer token or as the `token` parameter, or the logged-in user's access. `api.php` answers through it and is deprecated.
+* Added the `wp_admin_ui_get_data_sql` and `wp_admin_ui_get_data_sql_count` filters, applied to the report query and its count query right before they run.
+* CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`wp_admin_ui_export_escape_formulas` turns that off).
+* Tabs around the `%%LIMIT%%` placeholder are handled like newlines.
+* PDF exports use tc-lib-pdf instead of the deprecated TCPDF. The plugin requires PHP 8.2.
+* The plugin's tables use the site's character set and collation; existing tables are converted on upgrade.
+* Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
+* The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.
+* Requires WordPress 6.0; tested up to 7.1.
 
 = 0.9.4 =
 * Fixed PHP compatibility issues.
