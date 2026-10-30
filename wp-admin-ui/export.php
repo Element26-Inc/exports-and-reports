@@ -1,4 +1,10 @@
 <?php
+/**
+ * Serves an export file to the user who asked for it: the admin-ajax action wp_admin_ui_export,
+ * reached from the link and the window the export page opens.
+ *
+ * @package Exports_And_Reports
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -8,26 +14,22 @@ if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
 }
 
-/** @var wpdb $wpdb */
-global $wpdb;
-
-if ( ! is_object( $wpdb ) ) {
-	wp_die( 'Access denied' );
+if ( ! isset( $_GET['exports_and_reports_download'], $_GET['_wpnonce'], $_GET['exports_and_reports_export'] ) ) {
+	return;
 }
 
-// FOR EXPORTS ONLY
-if ( isset( $_GET['exports_and_reports_download'] ) && isset( $_GET['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_text_field( $_GET['_wpnonce'] ), 'wp-admin-ui-export' ) ) {
-	do_action( 'wp_admin_ui_export_download' );
-
-	$file = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $_GET['exports_and_reports_export'] ) );
-	$file = realpath( $file );
-
-	$file_url = WP_ADMIN_UI_EXPORT_URL . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $_GET['exports_and_reports_export'] ) );
-
-	if ( ! $file || ! isset( $_GET['exports_and_reports_export'] ) || empty( $_GET['exports_and_reports_export'] ) || ! file_exists( $file ) ) {
-		wp_die( 'File not found.' );
-	}
-
-	wp_redirect( $file_url );
-	die();
+if ( false === wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wp-admin-ui-export' ) ) {
+	wp_die( 'Access denied', '', array( 'response' => 403 ) );
 }
+
+do_action( 'wp_admin_ui_export_download' );
+
+while ( ob_get_level() > 0 ) {
+	ob_end_clean();
+}
+
+if ( ! exports_reports_send_export_file( sanitize_file_name( wp_unslash( $_GET['exports_and_reports_export'] ) ) ) ) {
+	wp_die( 'File not found.', '', array( 'response' => 404 ) );
+}
+
+exit;

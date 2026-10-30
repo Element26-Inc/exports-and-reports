@@ -353,6 +353,29 @@ if ( 1 !== count( $er_new ) ) {
 }
 er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
 
+// --- the export directory refuses direct requests, and the download function serves only exports ---
+$er_guards = file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
+er_report( 'export directory carries .htaccess and index.php after an export', $er_guards, $er_guards ? 'both present' : 'missing' );
+
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/download_test.csv', "a,b\n1,2\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+ob_start();
+$er_sent = exports_reports_send_export_file( 'download_test.csv' );
+$er_body = ob_get_clean();
+ob_start();
+$er_refused = array(
+	exports_reports_send_export_file( '../index.php' ),
+	exports_reports_send_export_file( 'index.php' ),
+	exports_reports_send_export_file( '.htaccess' ),
+	exports_reports_send_export_file( 'missing.csv' ),
+);
+ob_end_clean();
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/download_test.csv' );
+er_report(
+	'download function streams an export and refuses anything else',
+	true === $er_sent && "a,b\n1,2\n" === $er_body && array( false, false, false, false ) === $er_refused,
+	'sent ' . var_export( $er_sent, true ) . ', body ' . str_replace( "\n", '\\n', $er_body ) . ', refused ' . wp_json_encode( $er_refused )
+);
+
 // --- TSV: the same writer with a tab ---
 list( $er_admin, , $er_error ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Export tsv', true, array(), 'tsv' );
 $er_out                       = er_export_contents( $er_admin );

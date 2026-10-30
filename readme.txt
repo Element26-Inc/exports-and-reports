@@ -33,6 +33,14 @@ A Report is defined by a Custom MySQL query and can be configured to display how
 
 As an admin, add &debug=1 to the end of the report URL to see the query that this plugin uses, take that query and use it in your own MySQL client or PHPMyAdmin to see if there are any errors in your own query.
 
+= Where do the export files go, and who can download them? =
+
+In wp-content/exports by default. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
+
+`location ~* /wp-content/exports/ { deny all; }`
+
+or define WP_ADMIN_UI_EXPORT_DIR in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
+
 == Installation ==
 
 1. Unpack the entire contents of this plugin zip file into your `wp-content/plugins/` folder locally
