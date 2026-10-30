@@ -1,0 +1,77 @@
+name: Release zip
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    name: Build and attach the plugin zip
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Configure PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      # ------------------------------------------------------------------------------
+      # A release is built for its tag; a manual run packages whatever the header says.
+      # Either way the header, readme.txt, package.json and the version constant must agree.
+      # ------------------------------------------------------------------------------
+      - name: Determine the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            version="${{ github.event.release.tag_name }}"
+            version="${version#v}"
+          else
+            version="$(sed -n 's/^ \* Version:[[:space:]]*//p' exports-and-reports.php | head -n1 | tr -d '[:space:]')"
+          fi
+          bin/check-version.sh "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------------------
+      # git archive applies the export-ignore entries of .gitattributes, the same list the
+      # wordpress.org deploy uses, so the zip holds exactly what the directory receives.
+      # ------------------------------------------------------------------------------
+      - name: Build the zip
+        run: |
+          zip="exports-and-reports-${{ steps.version.outputs.version }}.zip"
+          git archive --format=zip -9 --prefix=exports-and-reports/ -o "$zip" HEAD
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+          unzip -l "$zip" | tail -n1
+
+      # ------------------------------------------------------------------------------
+      # Nothing from the development tree, every PHP file parses, and the two autoloaders
+      # resolve the bundled libraries from the packaged paths.
+      # ------------------------------------------------------------------------------
+      - name: Check the packaged tree
+        run: |
+          rm -rf build && mkdir build && unzip -q "$ZIP" -d build
+          cd build/exports-and-reports
+          for f in tests .github bin composer.json phpcs.xml phpstan.neon phpstan-baseline.neon .gitattributes; do
+            if [ -e "$f" ]; then echo "::error::$f is in the zip"; exit 1; fi
+          done
+          find . -name '*.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | { grep -v '^No syntax errors' || true; }
+          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "TCPDF" ) && class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );'
+          echo "packaged tree ok: $(find . -type f | wc -l) files"
+
+      - name: Upload the zip as a workflow artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: exports-and-reports-${{ steps.version.outputs.version }}
+          path: ${{ env.ZIP }}
+          if-no-files-found: error
+
+      - name: Attach the zip to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$ZIP" --clobber
