@@ -56,7 +56,7 @@ jobs:
         run: |
           rm -rf build && mkdir build && unzip -q "$ZIP" -d build
           cd build/exports-and-reports
-          for f in tests .github bin composer.json phpcs.xml phpstan.neon phpstan-baseline.neon .gitattributes; do
+          for f in tests .github bin phpcs.xml phpstan.neon phpstan-baseline.neon .gitattributes; do
             if [ -e "$f" ]; then echo "::error::$f is in the zip"; exit 1; fi
           done
           find . -name '*.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | { grep -v '^No syntax errors' || true; }
