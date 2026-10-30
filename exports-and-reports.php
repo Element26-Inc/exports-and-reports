@@ -101,7 +101,7 @@ function exports_reports_sql_editor() {
 function exports_reports_sql_install( $upgrade = false ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	require_once( ABSPATH . 'wp-admin/includes/file.php' );
+	require_once ABSPATH . 'wp-admin/includes/file.php';
 
 	/**
 	 * @var $wp_filesystem WP_Filesystem_Base
@@ -418,8 +418,25 @@ function exports_reports_reset() {
  * Output the plugin settings page.
  */
 function exports_reports_settings() {
-	if ( ! empty( $_POST['cronjob_token'] ) ) {
-		update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( $_POST['cronjob_token'] ) ) );
+	$cleared = false;
+	$reset   = false;
+
+	if ( ! empty( $_POST['cronjob_token'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+		check_admin_referer( 'exports-reports-settings' );
+
+		if ( ! empty( $_POST['cronjob_token'] ) ) {
+			update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) ) );
+		}
+
+		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+			exports_reports_cleanup( true );
+			$cleared = true;
+		}
+
+		if ( ! empty( $_POST['reset'] ) ) {
+			exports_reports_reset();
+			$reset = true;
+		}
 	}
 
 	$rest_base  = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
@@ -433,28 +450,21 @@ function exports_reports_settings() {
 			<br /></div>
 		<h2>Exports and Reports - Settings</h2>
 
-		<?php
-		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
-			exports_reports_cleanup( true );
-			?>
+		<?php if ( $cleared ) : ?>
 			<div id="message" class="updated fade">
 				<p>Your Exports directory has been cleaned up and all export files have been removed.</p>
 			</div>
-			<?php
-		}
+		<?php endif; ?>
 
-		if ( ! empty( $_POST['reset'] ) ) {
-			exports_reports_reset();
-			?>
+		<?php if ( $reset ) : ?>
 			<div id="message" class="updated fade">
 				<p>Your Settings have been reset.</p>
 			</div>
-			<?php
-		}
-		?>
+		<?php endif; ?>
 
 		<div style="height:20px;"></div>
 		<form method="post" action="">
+			<?php wp_nonce_field( 'exports-reports-settings' ); ?>
 			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><label for="clear">Clear Exports Directory</label></th>
@@ -836,51 +846,63 @@ function exports_reports_report_field_row( $index, $field, $types ) {
  * @return string
  */
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
+	// Exports_Reports_Admin_UI::save() verifies the form nonce before it calls this custom_save callback, and has unslashed the request.
+	// phpcs:disable WordPress.Security.NonceVerification.Missing
 	$value = array();
 
-	$defaults = exports_reports_field_defaults();
-
-	if ( isset( $_POST['field_name'] ) ) {
-		foreach ( $_POST['field_name'] as $key => $field ) {
-			if ( empty( $field ) ) {
-				continue;
-			}
-
-			foreach ( $defaults as $default ) {
-				if ( ! isset( $_POST[ $default ] ) ) {
-					$_POST[ $default ] = array();
-				}
-
-				if ( ! isset( $_POST[ $default ][ $key ] ) ) {
-					$_POST[ $default ][ $key ] = '';
-				}
-			}
-
-			$value[] = array(
-				'name'                   => $field,
-				'real_name'              => $_POST['field_real_name'][ $key ],
-				'label'                  => $_POST['field_label'][ $key ],
-				'filter_label'           => $_POST['field_filter_label'][ $key ],
-				'hide_report'            => absint( $_POST['field_hide_report'][ $key ] ),
-				'hide_export'            => absint( $_POST['field_hide_export'][ $key ] ),
-				'group_related'          => $_POST['field_group_related'][ $key ],
-				'custom_display'         => $_POST['field_custom_display'][ $key ],
-				'type'                   => $_POST['field_type'][ $key ],
-				'width'                  => $_POST['width'][ $key ],
-				'search'                 => absint( $_POST['field_search'][ $key ] ),
-				'filter'                 => absint( $_POST['field_filter'][ $key ] ),
-				'filter_default'         => $_POST['field_filter_default'][ $key ],
-				'filter_ongoing'         => $_POST['field_filter_ongoing'][ $key ],
-				'filter_ongoing_default' => $_POST['field_filter_ongoing_default'][ $key ],
-				'total_field'            => '',
-				// 'total_field'            => absint( $_POST['field_total_field'][ $key ] ),
-				'related'                => $_POST['field_related'][ $key ],
-				'related_field'          => $_POST['field_related_field'][ $key ],
-				'related_sql'            => $_POST['field_related_sql'][ $key ],
-				'related_id'             => $_POST['field_related_id'][ $key ],
-			);
-		}
+	if ( empty( $_POST['field_name'] ) || ! is_array( $_POST['field_name'] ) ) {
+		return wp_json_encode( $value );
 	}
+
+	$types = array_keys( exports_reports_field_types() );
+	$texts = array(
+		'real_name'              => 'field_real_name',
+		'label'                  => 'field_label',
+		'filter_label'           => 'field_filter_label',
+		'group_related'          => 'field_group_related',
+		'custom_display'         => 'field_custom_display',
+		'width'                  => 'width',
+		'filter_default'         => 'field_filter_default',
+		'filter_ongoing'         => 'field_filter_ongoing',
+		'filter_ongoing_default' => 'field_filter_ongoing_default',
+		'related'                => 'field_related',
+		'related_field'          => 'field_related_field',
+		'related_id'             => 'field_related_id',
+	);
+	$flags = array(
+		'hide_report' => 'field_hide_report',
+		'hide_export' => 'field_hide_export',
+		'search'      => 'field_search',
+		'filter'      => 'field_filter',
+	);
+
+	foreach ( $_POST['field_name'] as $key => $name ) {
+		$name = sanitize_text_field( $name );
+
+		if ( '' === $name ) {
+			continue;
+		}
+
+		$field = array( 'name' => $name );
+
+		foreach ( $texts as $option => $input ) {
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? sanitize_text_field( $_POST[ $input ][ $key ] ) : '';
+		}
+
+		foreach ( $flags as $option => $input ) {
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? absint( $_POST[ $input ][ $key ] ) : 0;
+		}
+
+		$type = isset( $_POST['field_type'][ $key ] ) ? sanitize_key( $_POST['field_type'][ $key ] ) : 'text';
+
+		$field['type']        = in_array( $type, $types, true ) ? $type : 'text';
+		$field['total_field'] = '';
+		// A query fragment written by the administrator; stored as typed, like the report's own queries.
+		$field['related_sql'] = isset( $_POST['field_related_sql'][ $key ] ) ? trim( (string) $_POST['field_related_sql'][ $key ] ) : '';
+
+		$value[] = $field;
+	}
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 	return wp_json_encode( $value );
 }
@@ -1479,7 +1501,7 @@ function exports_reports_schedule_cleanup() {
  * @param string|null $directory
  */
 function exports_reports_delete_dir_files( $directory ) {
-	require_once( ABSPATH . 'wp-admin/includes/file.php' );
+	require_once ABSPATH . 'wp-admin/includes/file.php';
 
 	/**
 	 * @var $wp_filesystem WP_Filesystem_Base
@@ -1549,7 +1571,7 @@ function exports_reports_cleanup( $full = false ) {
 		$cleanup = $wpdb->get_results( $sql );
 
 		if ( false !== $cleanup && ! empty( $cleanup ) ) {
-			require_once( ABSPATH . 'wp-admin/includes/file.php' );
+			require_once ABSPATH . 'wp-admin/includes/file.php';
 
 			/**
 			 * @var $wp_filesystem WP_Filesystem_Base
@@ -1666,13 +1688,7 @@ function exports_reports_current_user_can_which( $caps ) {
  * @return mixed
  */
 function exports_reports_get_roles() {
-	/** @var WP_Roles $wp_roles */ global $wp_roles;
-
-	if ( ! isset( $wp_roles ) ) {
-		$wp_roles = new WP_Roles();
-	}
-
-	return $wp_roles->get_names();
+	return wp_roles()->get_names();
 }
 
 /**

@@ -39,6 +39,12 @@ jobs:
       - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
 
       # ------------------------------------------------------------------------------
+      # The whole plugin (the files phpcs.xml lists), not only the changed lines
+      # ------------------------------------------------------------------------------
+      - name: Sniff the whole plugin
+        run: vendor/bin/phpcs --standard=phpcs.xml
+
+      # ------------------------------------------------------------------------------
       # Get changed files (the plugin's own PHP; vendor/ is third-party code)
       # ------------------------------------------------------------------------------
       - name: Get list of changed files

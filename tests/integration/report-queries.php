@@ -674,6 +674,74 @@ er_report(
 
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
+// --- save() and reorder() refuse a request without their nonce; reorder() with the nonce writes the weights; the settings form carries its nonce ---
+$er_groups_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups';
+$er_now          = current_time( 'mysql' );
+$er_order_ids    = array();
+foreach ( array( 'Order A', 'Order B' ) as $er_i => $er_group_name ) {
+	$wpdb->insert(
+		$er_groups_table,
+		array(
+			'name'        => $er_group_name,
+			'disabled'    => 0,
+			'role_access' => '',
+			'weight'      => $er_i,
+			'created'     => $er_now,
+			'updated'     => $er_now,
+		)
+	);
+	$er_order_ids[] = (int) $wpdb->insert_id;
+}
+$er_gate_admin = er_admin(
+	'',
+	'Groups',
+	array(
+		'readonly'   => false,
+		'table'      => $er_groups_table,
+		'identifier' => 'id',
+		'reorder'    => 'weight',
+		'id'         => $er_order_ids[0],
+		'do'         => 'save',
+	)
+);
+$_POST         = array( 'name' => 'Renamed' );
+ob_start();
+$er_save_refused = $er_gate_admin->save();
+$er_save_out     = (string) ob_get_clean();
+$er_name_after   = (string) $wpdb->get_var( $wpdb->prepare( "SELECT name FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'save() refuses a request without the form nonce',
+	false === $er_save_refused && false !== strpos( $er_save_out, 'expired' ) && 'Order A' === $er_name_after,
+	'returned ' . var_export( $er_save_refused, true ) . ', name now ' . $er_name_after
+);
+
+$_POST = array( 'order' => array( $er_order_ids[1], $er_order_ids[0] ) );
+ob_start();
+$er_reorder_refused = $er_gate_admin->reorder();
+$er_reorder_out     = (string) ob_get_clean();
+$er_weight_refused  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$_POST['_wpnonce']  = wp_create_nonce( 'wp-admin-ui-reorder' );
+ob_start();
+$er_gate_admin->reorder();
+$er_reorder_ok_out = (string) ob_get_clean();
+$er_weight_a       = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_weight_b       = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[1] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$_POST             = array();
+er_report(
+	'reorder() needs the reorder nonce, then writes the posted order',
+	false === $er_reorder_refused && false !== strpos( $er_reorder_out, 'expired' ) && 0 === $er_weight_refused && 1 === $er_weight_a && 0 === $er_weight_b && false !== strpos( $er_reorder_ok_out, 'Order updated' ),
+	'without nonce: weight A ' . $er_weight_refused . '; with nonce: A ' . $er_weight_a . ', B ' . $er_weight_b
+);
+
+ob_start();
+exports_reports_settings();
+$er_settings_html = (string) ob_get_clean();
+er_report(
+	'the settings form carries its nonce',
+	false !== strpos( $er_settings_html, 'name="_wpnonce"' ) && false !== strpos( $er_settings_html, 'name="cronjob_token"' ),
+	strlen( $er_settings_html ) . ' bytes'
+);
+
 // --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
 $er_reports_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports';
 wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
