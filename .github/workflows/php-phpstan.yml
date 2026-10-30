@@ -7,6 +7,7 @@ on:
       - 'composer.json'
       - 'phpstan.neon'
       - 'phpstan-baseline.neon'
+      - 'phpstan-legacy.neon'
       - '.github/workflows/php-phpstan.yml'
 jobs:
   phpstan:
@@ -38,7 +39,7 @@ jobs:
         id: changed-files
         run: |
           changed="$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
-          if grep -qxE 'phpstan\.neon|phpstan-baseline\.neon|composer\.json|\.github/workflows/php-phpstan\.yml' <<< "$changed"; then
+          if grep -qxE 'phpstan\.neon|phpstan-baseline\.neon|phpstan-legacy\.neon|composer\.json|\.github/workflows/php-phpstan\.yml' <<< "$changed"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "paths=" >> "$GITHUB_OUTPUT"
           else
@@ -59,16 +60,24 @@ jobs:
       - name: Set php version ${{ matrix.phpVersion }} in composer
         run: composer config platform.php ${{ matrix.phpVersion }}
       # ------------------------------------------------------------------------------
-      # Install dependencies for the matrix PHP version (upper bounds ignored). 7.4 is below the
-      # plugin's own requirement, so that job relaxes it in the runner before resolving.
+      # Install dependencies for the matrix PHP version (upper bounds ignored). Below the plugin's
+      # floor (8.2) the runner relaxes the root requirement, leaves out the PDF library, which needs
+      # 8.2, and skips the Strauss script, so the committed prefixed copy still serves the analysis.
       # ------------------------------------------------------------------------------
       - name: Install dependencies
         run: |
-          if [ "${{ matrix.phpVersion }}" = "7.4" ]; then composer require --no-update --no-interaction "php:>=7.4"; fi
-          composer i --ignore-platform-req=php+
+          if [ "$(printf '%s\n' "${{ matrix.phpVersion }}" 8.2 | sort -V | head -n1)" != "8.2" ]; then
+            composer require --no-update --no-interaction "php:>=7.4"
+            composer remove --no-update --no-interaction tecnickcom/tc-lib-pdf
+            composer i --ignore-platform-req=php+ --no-scripts
+            echo "PHPSTAN_CONFIG=phpstan-legacy.neon" >> "$GITHUB_ENV"
+          else
+            composer i --ignore-platform-req=php+
+            echo "PHPSTAN_CONFIG=phpstan.neon" >> "$GITHUB_ENV"
+          fi
       # ------------------------------------------------------------------------------
       # Run phpstan
       # ------------------------------------------------------------------------------
       - name: Run phpstan
         if: steps.changed-files.outputs.run == 'true'
-        run: ./vendor/bin/phpstan analyse --error-format=table -c phpstan.neon ${{ steps.changed-files.outputs.paths }}
+        run: ./vendor/bin/phpstan analyse --error-format=table -c "$PHPSTAN_CONFIG" ${{ steps.changed-files.outputs.paths }}

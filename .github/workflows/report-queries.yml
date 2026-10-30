@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - wordpress: '6.0'
-            php: '8.0'
+            php: '8.2'
           - wordpress: latest
             php: '8.3'
     name: Report queries on WordPress ${{ matrix.wordpress }}, PHP ${{ matrix.php }}

@@ -14,8 +14,8 @@
   "require": {
     "composer/installers": "2.2.*",
     "mk-j/php_xlsxwriter": "^0.39",
-    "tecnickcom/tcpdf": "^6.8.0",
-    "php": ">=8.0"
+    "php": ">=8.2",
+    "tecnickcom/tc-lib-pdf": "^8.82"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0.0",
@@ -54,7 +54,8 @@
       "constant_prefix": "EXPORTS_REPORTS_PREFIXED_",
       "function_prefix": "exportreports_prefixed_",
       "packages": [
-        "mk-j/php_xlsxwriter"
+        "mk-j/php_xlsxwriter",
+        "tecnickcom/tc-lib-pdf"
       ],
       "exclude_from_prefix": {
         "file_patterns": []

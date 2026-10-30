@@ -1,355 +1,607 @@
 <?php
+/**
+ * PDF export of a report on tc-lib-pdf: a title, the active filters, the column headings on every
+ * page, one row per line, the sum row, and a footer with the date and the page count.
+ *
+ * @package Exports_And_Reports
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use ExportsReports\Prefixed\Com\Tecnick\Pdf\Tcpdf;
+
 /**
  * Class Exports_Reports_Admin_UI_Export_PDF
  */
-class Exports_Reports_Admin_UI_Export_PDF extends TCPDF {
+class Exports_Reports_Admin_UI_Export_PDF {
 
-	/** Exports_Reports_Admin_UI $admin */
-	var $admin = null;
-
-	/**
-	 * @param Exports_Reports_Admin_UI $admin
-	 * @param string      $orientation
-	 * @param string      $unit
-	 * @param string      $format
-	 * @param bool        $unicode
-	 * @param string      $encoding
-	 * @param bool        $diskcache
-	 * @param bool        $pdfa
-	 *
-	 * @return self
-	 */
-	public static function setupPDFClass( Exports_Reports_Admin_UI $admin, $orientation = 'P', $unit = 'mm', $format = 'A4', $unicode = true, $encoding = 'UTF-8', $diskcache = false, $pdfa = false ) {
-		$obj = new self( $orientation, $unit, $format, $unicode, $encoding, $diskcache, $pdfa );
-
-		$obj->admin = $admin;
-
-		return $obj;
-	}
+	const MARGIN       = 10.0;  // mm, every side.
+	const TITLE_SIZE   = 12.0;  // pt.
+	const FILTER_SIZE  = 8.0;
+	const BODY_SIZE    = 8.0;
+	const FOOTER_SIZE  = 7.0;
+	const LINE_H       = 4.5;   // mm, title and filter lines.
+	const HEADER_H     = 6.5;   // mm, the column heading row.
+	const ROW_H        = 5.5;   // mm, a data row with one line.
+	const LINE_STEP    = 3.6;   // mm, each further line of a wrapped cell.
+	const MAX_LINES    = 6;     // lines a cell may take; the last one ends in an ellipsis.
+	const FOOTER_H     = 8.0;   // mm, reserved at the bottom.
+	const PADDING      = 1.0;   // mm, inside a cell on each side.
+	const LINE_WIDTH   = 0.2;
+	const HEADER_FILL  = 'rgb(230,230,230)';
+	const ZEBRA_FILL   = 'rgb(246,246,246)';
+	const FONT         = 'helvetica';
 
 	/**
-	 * This method is used to render the page header.
-	 * It is automatically called by AddPage() and could be overwritten in your own inherited class.
+	 * Writes the PDF of the admin UI's current report into the export directory.
 	 *
-	 * @public
+	 * @param Exports_Reports_Admin_UI $admin The admin UI, get_data( true ) already run.
+	 * @return string The file name inside the export directory.
 	 */
-	public function Header() {
-		if ( $this->header_xobjid === false ) {
-			// start a new XObject Template
-			$this->header_xobjid = $this->startTemplate( $this->w, $this->tMargin );
-			$headerfont          = $this->getHeaderFont();
-			$headerdata          = $this->getHeaderData();
-			$this->y             = $this->header_margin;
-			if ( $this->rtl ) {
-				$this->x = $this->w - $this->original_rMargin;
-			} else {
-				$this->x = $this->original_lMargin;
-			}
-			if ( $headerdata['logo'] && $headerdata['logo'] !== K_BLANK_IMAGE ) {
-				$imgtype = TCPDF_IMAGES::getImageFileType( K_PATH_IMAGES . $headerdata['logo'] );
-				if ( $imgtype === 'eps' || $imgtype === 'ai' ) {
-					$this->ImageEps( K_PATH_IMAGES . $headerdata['logo'], '', '', $headerdata['logo_width'] );
-				} elseif ( $imgtype === 'svg' ) {
-					$this->ImageSVG( K_PATH_IMAGES . $headerdata['logo'], '', '', $headerdata['logo_width'] );
-				} else {
-					$this->Image( K_PATH_IMAGES . $headerdata['logo'], '', '', $headerdata['logo_width'] );
-				}
-				$imgy = $this->getImageRBY();
-			} else {
-				$imgy = $this->y;
-			}
+	public static function CreateReport( $admin ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid -- the entry point export() has always called.
+		/** @var WP_Filesystem_Base $wp_filesystem */
+		global $wp_filesystem;
 
-			$cell_height = $this->getCellHeight( $headerfont[2] / $this->k );
-
-			// set starting margin for text data cell
-			if ( $this->getRTL() ) {
-				$header_x = $this->original_rMargin + ( $headerdata['logo_width'] * 1.1 );
-			} else {
-				$header_x = $this->original_lMargin + ( $headerdata['logo_width'] * 1.1 );
-			}
-
-			$cw = $this->w - $this->original_lMargin - $this->original_rMargin - ( $headerdata['logo_width'] * 1.1 );
-
-			$this->SetTextColorArray( $this->header_text_color );
-
-			// header title
-			$this->SetFont( $headerfont[0], 'B', $headerfont[2] + 1 );
-			$this->SetX( $header_x );
-			$this->Cell( $cw, $cell_height, $headerdata['title'], 0, 1, '', 0, '', 0 );
-
-			// header string
-			$this->SetFont( $headerfont[0], 'i', $headerfont[2] );
-			$this->SetX( $header_x );
-			$this->MultiCell( $cw, $cell_height, $headerdata['string'], 0, '', 0, 1, '', '', true, 0, false, true, 0, 'T', false );
-
-			// print an ending header line
-			$this->SetLineStyle(
-				array(
-					'width' => 0.85 / $this->k,
-					'cap'   => 'butt',
-					'join'  => 'miter',
-					'dash'  => 0,
-					'color' => $headerdata['line_color'],
-				)
-			);
-			$this->SetY( ( 2.835 / $this->k ) + max( $imgy, $this->y ) );
-			if ( $this->rtl ) {
-				$this->SetX( $this->original_rMargin );
-			} else {
-				$this->SetX( $this->original_lMargin );
-			}
-			$this->Cell( ( $this->w - $this->original_lMargin - $this->original_rMargin ), 0, '', 'T', 0, 'C' );
-			$this->endTemplate();
-		}
-		// print header template
-		$x  = 0;
-		$dx = 0;
-		if ( ! $this->header_xobj_autoreset && $this->booklet && ( ( $this->page % 2 ) === 0 ) ) {
-			// adjust margins for booklet mode
-			$dx = ( $this->original_lMargin - $this->original_rMargin );
-		}
-		if ( $this->rtl ) {
-			$x = $this->w + $dx;
-		} else {
-			$x = 0 + $dx;
-		}
-		$this->printTemplate( $this->header_xobjid, $x, 0, 0, 0, '', '', false );
-		if ( $this->header_xobj_autoreset ) {
-			// reset header xobject template at each page
-			$this->resetHeaderTemplate();
-		}
-	}
-
-	/**
-	 * This method is used to render the page footer.
-	 * It is automatically called by AddPage() and could be overwritten in your own inherited class.
-	 *
-	 * @public
-	 */
-	public function Footer() {
-		$cur_y = $this->y;
-		$this->SetTextColorArray( $this->footer_text_color );
-
-		//set style for cell border
-		$line_width = ( 0.85 / $this->k );
-		$this->SetLineStyle(
-			array(
-				'width' => $line_width,
-				'cap'   => 'butt',
-				'join'  => 'miter',
-				'dash'  => 0,
-				'color' => $this->footer_line_color,
-			)
-		);
-		//print document barcode
-		$barcode = $this->getBarcode();
-		if ( ! empty( $barcode ) ) {
-			$this->Ln( $line_width );
-			$barcode_width = round( ( $this->w - $this->original_lMargin - $this->original_rMargin ) / 3 );
-			$style         = array(
-				'position'     => $this->rtl ? 'R' : 'L',
-				'align'        => $this->rtl ? 'R' : 'L',
-				'stretch'      => false,
-				'fitwidth'     => true,
-				'cellfitalign' => '',
-				'border'       => false,
-				'padding'      => 0,
-				'fgcolor'      => array( 0, 0, 0 ),
-				'bgcolor'      => false,
-				'text'         => false,
-			);
-			$this->write1DBarcode( $barcode, 'C128', '', $cur_y + $line_width, '', ( ( $this->footer_margin / 3 ) - $line_width ), 0.3, $style, '' );
-		}
-		$w_page = isset( $this->l['w_page'] ) ? $this->l['w_page'] . ' ' : '';
-		if ( empty( $this->pagegroups ) ) {
-			$pagenumtxt = $w_page . $this->getAliasNumPage() . ' / ' . $this->getAliasNbPages();
-		} else {
-			$pagenumtxt = $w_page . $this->getPageNumGroupAlias() . ' / ' . $this->getPageGroupAlias();
-		}
-		$this->SetY( $cur_y );
-
-		// Added for page numbers and date
-		$headerfont = $this->getHeaderFont();
-		$this->SetFont( $headerfont[0], $headerfont[1], 8 );
-		$this->Cell( 0, 0, date_i18n( 'm/d/Y H:i:s' ), 0, 0, 'R' );
-		$this->SetX( $this->original_lMargin );
-		$this->Cell( 0, 0, 'Page ' . $pagenumtxt, 'T', 1, 'L' );
-	}
-
-	/**
-	 * @param Exports_Reports_Admin_UI $admin
-	 *
-	 * @return string Report file name
-	 */
-	public static function CreateReport( $admin ) {
-		// Default to portrait if not set
-		$page_orientation = ! empty( $admin->page_orientation ) ? $admin->page_orientation : 'P';
-		$pdf              = self::setupPDFClass( $admin, $page_orientation, PDF_UNIT, 'LETTER', true, 'UTF-8', false );
-
-		// Display the current filter information in the header
-		$filter_output = array();
-		foreach ( $admin->filters as $filter ) {
-			if ( ! isset( $admin->search_columns[ $filter ] ) ) {
-				continue;
-			}
-
-			$filter_column = $admin->search_columns[ $filter ];
-			$selected_id   = $admin->get_var( 'filter_' . $filter, $filter_column['filter_default'] );
-
-			if ( 'related' === $filter_column['type'] ) {
-				$filter_label = empty( $selected_id ) ? 'All' : $filter_column['related_lookup'][ $selected_id ];
-
-				$filter_output[] = $filter_column['label'] . ': ' . $filter_label;
-			} elseif ( in_array( $filter_column['type'], array( 'date', 'datetime' ), true ) ) {
-				$start = $admin->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] );
-				$end   = $admin->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] );
-
-				if ( ! empty( $start ) && ! empty( $end ) ) {
-					$filter_output[] = $filter_column['label'] . ' from ' . $start . ' to ' . $end;
-				}
-			} elseif ( 'bool' === $filter_column['type'] ) {
-				if ( '' === $selected_id ) {
-					$filter_display_value = 'All';
-				} else {
-					$filter_display_value = ( $selected_id ) ? 'Yes' : 'No';
-				}
-
-				$filter_output[] = $filter_column['label'] . ': ' . $filter_display_value;
-			}
-		}
-
-		$filter_output = implode( "\n", $filter_output );
-
-		// set document information
-		$pdf->SetTitle( $admin->items );
-		$pdf->SetAuthor( wp_get_current_user()->display_name );
-
-		// set default header data
-		$pdf->setHeaderData( '', 0, $admin->items, $filter_output );
-
-		// set header and footer fonts
-		$pdf->setHeaderFont( array( PDF_FONT_NAME_MAIN, '', PDF_FONT_SIZE_MAIN ) );
-		$pdf->setFooterFont( array( PDF_FONT_NAME_DATA, '', PDF_FONT_SIZE_DATA ) );
-
-		// set default monospaced font
-		$pdf->SetDefaultMonospacedFont( PDF_FONT_MONOSPACED );
-
-		// set margins
-		$pdf->SetMargins( 2, PDF_MARGIN_TOP, 2 );
-		$pdf->setHeaderMargin( PDF_MARGIN_HEADER );
-		$pdf->setFooterMargin( PDF_MARGIN_FOOTER );
-
-		// set auto page breaks
-		$pdf->SetAutoPageBreak( true, PDF_MARGIN_BOTTOM );
-
-		// set image scale factor
-		$pdf->setImageScale( PDF_IMAGE_SCALE_RATIO );
-
-		// set font
-		$pdf->SetFont( 'courier', '', 9 );
-
-		// add a page
-		$pdf->AddPage();
-
-		// Allow any filter hooks to provide custom output for the report
-		$output = apply_filters( 'exports_and_reports_pdf_content', '', $admin, $pdf );
-		if ( empty( $output ) ) {
-			// No filters provided output, use the default
-			$output = self::content( $admin );
-		}
-
-		$pdf->writeHTML( $output );
-
-		$export_file          = str_replace( '-', '_', sanitize_title( $admin->items ) ) . '_' . date_i18n( 'm-d-Y_h-i-sa' ) . '.pdf';
+		$export_file          = str_replace( '-', '_', sanitize_title( $admin->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.pdf';
+		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, 'pdf', 'pdf', $admin->items, $admin );
 		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
-		$pdf->Output( $export_file_location, 'F' );
+		$wp_filesystem->put_contents( $export_file_location, self::render( $admin ), FS_CHMOD_FILE );
 
 		return $export_file;
 	}
 
 	/**
-	 * @param Exports_Reports_Admin_UI $admin
+	 * The PDF document of the admin UI's current report.
 	 *
+	 * @param Exports_Reports_Admin_UI $admin The admin UI, get_data( true ) already run.
 	 * @return string
 	 */
-	protected static function content( $admin ) {
-		ob_start();
-		?>
-		<table cellpadding="2" style="table-layout: fixed;">
-			<thead>
-			<tr>
-				<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-					<?php
-					if ( false === $attributes['display'] ) {
-						continue;
-					}
-					?>
-					<?php $col_label = $attributes['label']; ?>
-					<?php $col_width = ( ! empty( $attributes['width'] ) ) ? 'width="' . esc_attr( $attributes['width'] ) . '"' : ''; ?>
-					<th <?php echo esc_html( $col_width ); ?>><strong><?php echo wp_kses_post( $col_label ); ?></strong></th>
-				<?php } ?>
-			</tr>
-			</thead>
-			<tbody>
-			<?php foreach ( $admin->full_data as $row_data ) { ?>
-				<tr>
-					<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-						<?php
-						if ( false === $attributes['display'] ) {
-							continue;
-						}
-						?>
-						<?php
-						if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-							$row_data[ $column ] = $attributes['custom_display']( $row_data[ $column ], $row_data, $column, $attributes, $admin );
-						}
-						$output    = self::format_field( $attributes['type'], $row_data[ $column ] );
-						$col_width = ( ! empty( $attributes['width'] ) ) ? 'width="' . esc_attr( $attributes['width'] ) . '"' : '';
-						?>
-						<td <?php echo esc_html( $col_width ); ?> style="overflow: hidden;"><?php echo wp_kses_post( $output ); ?></td>
-					<?php } ?>
-				</tr>
-			<?php } ?>
-			<?php if ( 0 < count( $admin->sum_data ) ) { ?>
-				<tr>
-					<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-						<td>
-							<strong><?php echo( isset( $admin->sum_data[0][ $column ] ) ? esc_html( $admin->sum_data[0][ $column ] ) : '' ); ?></strong>
-						</td>
-					<?php } ?>
-				</tr>
-			<?php } ?>
-			</tbody>
-		</table>
-		<?php
-		return ob_get_clean();
+	public static function render( $admin ) {
+		$orientation = 'L' === strtoupper( (string) $admin->page_orientation ) ? 'L' : 'P';
+		$columns     = self::columns( $admin );
+		$rows        = self::rows( $admin, $columns );
+		$title       = (string) $admin->items;
+		$filters     = self::filter_lines( $admin );
+		$legacy      = self::legacy_content( $admin );
+		$stamp       = date_i18n( 'm/d/Y H:i:s' );
+		$author      = wp_get_current_user()->display_name;
+
+		// The metric files live in the plugin, so the document is told to trust that directory.
+		$pdf = new Tcpdf( 'mm', true, false, true, '', null, array( 'allowedPaths' => array( self::font_dir() ) ) );
+		$pdf->setCreator( 'Exports and Reports' );
+		$pdf->setAuthor( '' !== $author ? $author : 'Exports and Reports' );
+		$pdf->setTitle( $title );
+		$pdf->setPDFFilename( sanitize_title( $title ) . '.pdf' );
+		$pdf->setDefaultCellPadding( self::PADDING, self::PADDING, self::PADDING, self::PADDING );
+
+		$page   = $pdf->addPage(
+			array(
+				'format'      => 'LETTER',
+				'orientation' => $orientation,
+			)
+		);
+		$x0     = self::MARGIN;
+		$width  = $page['width'] - 2 * self::MARGIN;
+		$bottom = $page['height'] - self::MARGIN - self::FOOTER_H;
+		$widths = self::column_widths( $columns, $width );
+
+		// The title block (first page) and the lines a legacy content filter supplied.
+		$y = self::MARGIN;
+		$pdf->page->addContent( self::select( $pdf, 'B', self::TITLE_SIZE ) );
+		$pdf->page->addContent( self::cell( $pdf, $title, $x0, $y, $width, self::LINE_H + 1, 'L', array() ) );
+		$y += self::LINE_H + 2;
+
+		if ( array() !== $filters || array() !== $legacy ) {
+			$pdf->page->addContent( self::select( $pdf, 'I', self::FILTER_SIZE ) );
+			foreach ( array_merge( $filters, $legacy ) as $line ) {
+				$pdf->page->addContent( self::cell( $pdf, $line, $x0, $y, $width, self::LINE_H, 'L', array() ) );
+				$y += self::LINE_H;
+			}
+		}
+		$y += 2;
+
+		// Every cell is wrapped and measured in the body font first, so the page count is known before the
+		// first footer.
+		self::select( $pdf, '', self::BODY_SIZE );
+		$heights    = array();
+		$first_page = $bottom - $y - self::HEADER_H;
+		$other_page = $bottom - self::MARGIN - self::HEADER_H;
+
+		foreach ( $rows as $index => $row ) {
+			$lines = 1;
+
+			foreach ( $columns as $key => $column ) {
+				$rows[ $index ]['lines'][ $key ] = self::wrap( $pdf, $row['cells'][ $key ], $widths[ $key ] );
+				$lines                           = max( $lines, count( $rows[ $index ]['lines'][ $key ] ) );
+			}
+
+			$heights[ $index ] = self::ROW_H + ( $lines - 1 ) * self::LINE_STEP;
+		}
+
+		$pages = 1;
+		$used  = 0.0;
+
+		foreach ( $heights as $height ) {
+			$room = 1 === $pages ? $first_page : $other_page;
+
+			if ( $used + $height > $room && $used > 0 ) {
+				++$pages;
+				$used = 0.0;
+			}
+
+			$used += $height;
+		}
+
+		$page_number = 1;
+		$y           = self::heading_row( $pdf, $columns, $widths, $x0, $y );
+		$pdf->page->addContent( self::select( $pdf, '', self::BODY_SIZE ) );
+		$fill = false;
+
+		foreach ( $rows as $index => $row ) {
+			$height = $heights[ $index ];
+
+			if ( $y + $height > $bottom && $y > self::MARGIN + self::HEADER_H ) {
+				self::footer( $pdf, $page, $stamp, $page_number, $pages );
+				$page = $pdf->addPage(
+					array(
+						'format'      => 'LETTER',
+						'orientation' => $orientation,
+					)
+				);
+				++$page_number;
+				$y = self::heading_row( $pdf, $columns, $widths, $x0, self::MARGIN );
+				$pdf->page->addContent( self::select( $pdf, '', self::BODY_SIZE ) );
+				$fill = false;
+			}
+
+			$style = self::row_style( $fill, $row['sum'] );
+			$x     = $x0;
+
+			foreach ( $columns as $key => $column ) {
+				$pdf->page->addContent( self::wrapped_cell( $pdf, $row['lines'][ $key ], $x, $y, $widths[ $key ], $height, $column['align'], $style ) );
+				$x += $widths[ $key ];
+			}
+
+			$y   += $height;
+			$fill = ! $fill;
+		}
+
+		$pdf->page->addContent(
+			$pdf->graph->getLine(
+				$x0,
+				$y,
+				$x0 + $width,
+				$y,
+				array(
+					'lineWidth' => self::LINE_WIDTH,
+					'lineColor' => 'black',
+				)
+			)
+		);
+		self::footer( $pdf, $page, $stamp, $page_number, $pages );
+
+		return $pdf->getOutPDFString();
 	}
 
 	/**
-	 * @param $type
-	 * @param $raw_data
+	 * The displayed columns: key, label, alignment and the width weight the definition gives.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin The admin UI.
+	 * @return array<string, array{label: string, align: string, type: string, weight: float, attributes: array}>
+	 */
+	protected static function columns( $admin ) {
+		$columns = array();
+
+		foreach ( (array) $admin->columns as $key => $attributes ) {
+			if ( ! is_array( $attributes ) ) {
+				$key        = $attributes;
+				$attributes = $admin->setup_column( $key );
+			}
+
+			if ( false === $attributes['display'] ) {
+				continue;
+			}
+
+			$type = isset( $attributes['type'] ) ? (string) $attributes['type'] : 'text';
+
+			$columns[ $key ] = array(
+				'label'      => (string) $attributes['label'],
+				'align'      => in_array( $type, array( 'number', 'decimal' ), true ) ? 'R' : 'L',
+				'type'       => $type,
+				'weight'     => isset( $attributes['width'] ) ? (float) preg_replace( '/[^0-9.]/', '', (string) $attributes['width'] ) : 0.0,
+				'attributes' => $attributes,
+			);
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * Column widths in mm: the definition's widths as relative weights; a column without one takes
+	 * the average weight, and the whole fills the usable width.
+	 *
+	 * @param array $columns The columns.
+	 * @param float $width   The usable page width.
+	 * @return array<string, float>
+	 */
+	protected static function column_widths( $columns, $width ) {
+		$given   = array_filter( array_column( $columns, 'weight' ), static fn( $weight ) => $weight > 0 );
+		$average = array() === $given ? 1.0 : array_sum( $given ) / count( $given );
+		$weights = array();
+
+		foreach ( $columns as $key => $column ) {
+			$weights[ $key ] = $column['weight'] > 0 ? $column['weight'] : $average;
+		}
+
+		$total  = max( 0.001, array_sum( $weights ) );
+		$widths = array();
+
+		foreach ( $weights as $key => $weight ) {
+			$widths[ $key ] = $width * $weight / $total;
+		}
+
+		return $widths;
+	}
+
+	/**
+	 * The rows as display text per column, the sum row last when the report has one.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin   The admin UI.
+	 * @param array                    $columns The columns.
+	 * @return array<int, array{cells: array<string, string>, sum: bool}>
+	 */
+	protected static function rows( $admin, $columns ) {
+		$rows = array();
+
+		foreach ( (array) $admin->full_data as $item ) {
+			$cells = array();
+
+			foreach ( $columns as $key => $column ) {
+				$value = isset( $item[ $key ] ) ? $item[ $key ] : '';
+
+				if ( false !== $column['attributes']['custom_display'] && function_exists( "{$column['attributes']['custom_display']}" ) ) {
+					$value = $column['attributes']['custom_display']( $value, $item, $key, $column['attributes'], $admin );
+				}
+
+				$cells[ $key ] = html_entity_decode( wp_strip_all_tags( (string) self::format_field( $column['type'], $value ) ), ENT_QUOTES, 'UTF-8' );
+			}
+
+			$rows[] = array(
+				'cells' => $cells,
+				'sum'   => false,
+			);
+		}
+
+		if ( is_array( $admin->sum_data ) && isset( $admin->sum_data[0] ) ) {
+			$cells = array();
+
+			foreach ( $columns as $key => $column ) {
+				$cells[ $key ] = isset( $admin->sum_data[0][ $key ] ) ? (string) $admin->sum_data[0][ $key ] : '';
+			}
+
+			$rows[] = array(
+				'cells' => $cells,
+				'sum'   => true,
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * One line per active filter, as the report page shows them.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin The admin UI.
+	 * @return string[]
+	 */
+	protected static function filter_lines( $admin ) {
+		$lines = array();
+
+		foreach ( (array) $admin->filters as $filter ) {
+			if ( ! isset( $admin->search_columns[ $filter ] ) ) {
+				continue;
+			}
+
+			$column   = $admin->search_columns[ $filter ];
+			$selected = $admin->get_var( 'filter_' . $filter, $column['filter_default'] );
+
+			if ( 'related' === $column['type'] ) {
+				$lines[] = $column['label'] . ': ' . ( empty( $selected ) || ! isset( $column['related_lookup'][ $selected ] ) ? 'All' : $column['related_lookup'][ $selected ] );
+			} elseif ( in_array( $column['type'], array( 'date', 'datetime' ), true ) ) {
+				$start = $admin->get_var( 'filter_' . $filter . '_start', $column['filter_default'] );
+				$end   = $admin->get_var( 'filter_' . $filter . '_end', $column['filter_ongoing_default'] );
+
+				if ( ! empty( $start ) && ! empty( $end ) ) {
+					$lines[] = $column['label'] . ' from ' . $start . ' to ' . $end;
+				}
+			} elseif ( 'bool' === $column['type'] ) {
+				$choice = 'All';
+
+				if ( '' !== (string) $selected ) {
+					$choice = $selected ? 'Yes' : 'No';
+				}
+
+				$lines[] = $column['label'] . ': ' . $choice;
+			}
+		}
+
+		return $lines;
+	}
+
+	/**
+	 * What a callback on the deprecated content filter supplies, as text lines; the HTML it used
+	 * to return is no longer rendered.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin The admin UI.
+	 * @return string[]
+	 */
+	protected static function legacy_content( $admin ) {
+		if ( ! has_filter( 'exports_and_reports_pdf_content' ) ) {
+			return array();
+		}
+
+		$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, null ), '0.9.5', 'wp_admin_ui_export_pdf_report_file', 'The PDF export no longer renders HTML; supply the finished file instead.' );
+
+		if ( ! is_string( $output ) || '' === trim( $output ) ) {
+			return array();
+		}
+
+		$text = html_entity_decode( wp_strip_all_tags( $output, true ), ENT_QUOTES, 'UTF-8' );
+
+		return array_values( array_filter( array_map( 'trim', explode( "\n", $text ) ), static fn( $line ) => '' !== $line ) );
+	}
+
+	/**
+	 * The column heading row.
+	 *
+	 * @param Tcpdf $pdf     The document.
+	 * @param array $columns The columns.
+	 * @param array $widths  Column widths.
+	 * @param float $x0      Left edge.
+	 * @param float $y       Top edge.
+	 * @return float The y below the row.
+	 */
+	protected static function heading_row( $pdf, $columns, $widths, $x0, $y ) {
+		$style = array(
+			'all' => array(
+				'lineWidth' => self::LINE_WIDTH,
+				'lineColor' => 'black',
+				'fillColor' => self::HEADER_FILL,
+			),
+		);
+
+		$pdf->page->addContent( self::select( $pdf, 'B', self::BODY_SIZE ) );
+		$x = $x0;
+
+		foreach ( $columns as $key => $column ) {
+			$pdf->page->addContent( self::cell( $pdf, $column['label'], $x, $y, $widths[ $key ], self::HEADER_H, 'C', $style ) );
+			$x += $widths[ $key ];
+		}
+
+		return $y + self::HEADER_H;
+	}
+
+	/**
+	 * The footer: the date on the right, the page count on the left, a rule above.
+	 *
+	 * @param Tcpdf  $pdf    The document.
+	 * @param array  $page   The page (addPage() result).
+	 * @param string $stamp  The date.
+	 * @param int    $number This page's number.
+	 * @param int    $pages  The page count.
+	 */
+	protected static function footer( $pdf, $page, $stamp, $number, $pages ) {
+		$x0    = self::MARGIN;
+		$width = $page['width'] - 2 * self::MARGIN;
+		$y     = $page['height'] - self::MARGIN - self::FOOTER_H + 2;
+
+		$pdf->page->addContent(
+			$pdf->graph->getLine(
+				$x0,
+				$y,
+				$x0 + $width,
+				$y,
+				array(
+					'lineWidth' => self::LINE_WIDTH,
+					'lineColor' => 'black',
+				)
+			)
+		);
+		$pdf->page->addContent( self::select( $pdf, '', self::FOOTER_SIZE ) );
+		$pdf->page->addContent( self::cell( $pdf, sprintf( 'Page %d of %d', $number, $pages ), $x0, $y + 1, $width / 2, self::LINE_H, 'L', array() ) );
+		$pdf->page->addContent( self::cell( $pdf, $stamp, $x0 + $width / 2, $y + 1, $width / 2, self::LINE_H, 'R', array() ) );
+	}
+
+	/**
+	 * Zebra row style: a fill on alternate rows, rules left and right, a heavier top rule on the sum row.
+	 *
+	 * @param bool $fill Whether this row is shaded.
+	 * @param bool $sum  Whether this is the sum row.
+	 * @return array
+	 */
+	protected static function row_style( $fill, $sum ) {
+		$rule  = array(
+			'lineWidth' => self::LINE_WIDTH,
+			'lineColor' => 'black',
+		);
+		$style = array(
+			'all' => array( 'lineWidth' => 0 ),
+			'L'   => $rule,
+			'R'   => $rule,
+		);
+
+		if ( $sum ) {
+			$style['T'] = array_merge( $rule, array( 'lineWidth' => self::LINE_WIDTH * 2 ) );
+		} elseif ( $fill ) {
+			$style['all']['fillColor'] = self::ZEBRA_FILL;
+		}
+
+		return $style;
+	}
+
+	/**
+	 * One text cell on a single line; text that does not fit is cut to the width with an ellipsis.
+	 *
+	 * @param Tcpdf  $pdf    The document.
+	 * @param string $text   Cell text.
+	 * @param float  $x      Left, mm.
+	 * @param float  $y      Top, mm.
+	 * @param float  $w      Width, mm.
+	 * @param float  $h      Height, mm.
+	 * @param string $halign L, C or R.
+	 * @param array  $styles Border and fill styles.
+	 * @return string PDF content.
+	 */
+	protected static function cell( $pdf, $text, $x, $y, $w, $h, $halign, array $styles ) {
+		$lines = self::wrap( $pdf, $text, $w, 1 );
+
+		return $pdf->getTextCell( $lines[0], $x, $y, $w, $h, 0, 0, 'C', $halign, null, $styles );
+	}
+
+	/**
+	 * A cell of several lines: the box with its borders and fill, then one line of text per row.
+	 *
+	 * @param Tcpdf    $pdf    The document.
+	 * @param string[] $lines  The wrapped lines.
+	 * @param float    $x      Left, mm.
+	 * @param float    $y      Top, mm.
+	 * @param float    $w      Width, mm.
+	 * @param float    $h      Height, mm.
+	 * @param string   $halign L, C or R.
+	 * @param array    $styles Border and fill styles.
+	 * @return string PDF content.
+	 */
+	protected static function wrapped_cell( $pdf, $lines, $x, $y, $w, $h, $halign, array $styles ) {
+		$out = $pdf->getTextCell( ' ', $x, $y, $w, $h, 0, 0, 'C', 'L', null, $styles );
+
+		if ( 1 === count( $lines ) ) {
+			return $out . $pdf->getTextCell( $lines[0], $x, $y, $w, $h, 0, 0, 'C', $halign, null, array(), drawcell: false );
+		}
+
+		$top = $y + ( self::ROW_H - self::LINE_STEP ) / 2;
+
+		foreach ( $lines as $index => $line ) {
+			$out .= $pdf->getTextCell( $line, $x, $top + $index * self::LINE_STEP, $w, self::LINE_STEP, 0, 0, 'C', $halign, null, array(), drawcell: false );
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Wraps text at the words that fit the inner width of a cell, in the current font; a text that
+	 * needs more than the line limit ends in an ellipsis on the last line. Never returns an empty
+	 * list: getTextCell() draws nothing for an empty string, the box included.
+	 *
+	 * @param Tcpdf  $pdf   The document.
+	 * @param string $text  The text.
+	 * @param float  $w     Cell width, mm.
+	 * @param int    $limit Lines at most.
+	 * @return string[]
+	 */
+	protected static function wrap( $pdf, $text, $w, $limit = self::MAX_LINES ) {
+		$text  = trim( str_replace( array( "\r\n", "\r", "\n", "\t" ), ' ', (string) $text ) );
+		$inner = $pdf->toPoints( max( 0.1, $w - 2 * self::PADDING ) );
+
+		if ( '' === $text ) {
+			return array( ' ' );
+		}
+
+		$width = static fn( $string ) => $pdf->font->getOrdArrWidth( $pdf->uniconv->strToOrdArr( $string ) );
+		$lines = array();
+		$line  = '';
+
+		foreach ( preg_split( '/\s+/', $text ) as $word ) {
+			$candidate = '' === $line ? $word : $line . ' ' . $word;
+
+			if ( $width( $candidate ) <= $inner || '' === $line ) {
+				$line = $candidate;
+				continue;
+			}
+
+			$lines[] = $line;
+			$line    = $word;
+		}
+
+		$lines[] = $line;
+
+		if ( count( $lines ) > $limit ) {
+			$lines = array_slice( $lines, 0, $limit );
+			$last  = $lines[ $limit - 1 ] . "\xE2\x80\xA6";
+
+			while ( $width( $last ) > $inner && mb_strlen( $last ) > 2 ) {
+				$last = mb_substr( $last, 0, -2 ) . "\xE2\x80\xA6";
+			}
+
+			$lines[ $limit - 1 ] = $last;
+		}
+
+		// A single word wider than the cell is cut with an ellipsis too.
+		foreach ( $lines as $index => $value ) {
+			while ( $width( $value ) > $inner && mb_strlen( $value ) > 2 ) {
+				$value = mb_substr( rtrim( $value, "\xE2\x80\xA6" ), 0, -1 ) . "\xE2\x80\xA6";
+			}
+
+			$lines[ $index ] = $value;
+		}
+
+		return $lines;
+	}
+
+	/**
+	 * Makes a style and size of the font the current one, for measuring and for the content stream.
+	 *
+	 * @param Tcpdf  $pdf   The document.
+	 * @param string $style '', 'B', 'I' or 'BI'.
+	 * @param float  $size  Points.
+	 * @return string The content that switches the page to the font.
+	 */
+	protected static function select( $pdf, $style, $size ) {
+		$font = $pdf->font->insert( $pdf->pon, self::FONT, $style, $size, null, null, self::font_file( $style ) );
+
+		return $font['out'];
+	}
+
+	/**
+	 * The metric file of a style of the font, shipped in fonts/core.
+	 *
+	 * @param string $style '', 'B', 'I' or 'BI'.
+	 * @return string
+	 */
+	protected static function font_file( $style ) {
+		return self::font_dir() . '/' . self::FONT . strtolower( $style ) . '.json';
+	}
+
+	/**
+	 * The directory of the shipped metric files.
+	 *
+	 * @return string
+	 */
+	protected static function font_dir() {
+		return dirname( __DIR__, 2 ) . '/fonts/core';
+	}
+
+	/**
+	 * @param string $type     The column type.
+	 * @param mixed  $raw_data The value.
 	 *
 	 * @return int|string
 	 */
 	public static function format_field( $type, $raw_data ) {
 		if ( 'date' === $type ) {
-			return date_i18n( 'Y/m/d', strtotime( $raw_data ) );
+			return date_i18n( 'Y/m/d', strtotime( (string) $raw_data ) );
 		} elseif ( 'time' === $type ) {
-			return date_i18n( 'g:i:s A', strtotime( $raw_data ) );
+			return date_i18n( 'g:i:s A', strtotime( (string) $raw_data ) );
 		} elseif ( 'datetime' === $type ) {
-			return date_i18n( 'Y/m/d g:i:s A', strtotime( $raw_data ) );
+			return date_i18n( 'Y/m/d g:i:s A', strtotime( (string) $raw_data ) );
 		} elseif ( 'bool' === $type ) {
 			return ( 1 === (int) $raw_data ? 'Yes' : 'No' );
 		} elseif ( 'number' === $type ) {
 			return (int) $raw_data;
 		} elseif ( 'decimal' === $type ) {
-			return number_format( $raw_data, 2 );
+			return number_format( (float) $raw_data, 2 );
 		}
 
 		return $raw_data;

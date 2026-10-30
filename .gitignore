@@ -37,7 +37,6 @@ $RECYCLE.BIN/
 /node_modules/
 /vendor/*
 !/vendor/composer/
-!/vendor/tecnickcom/
 !/vendor/autoload.php
 !/vendor/vendor-prefixed/
 npm-debug.log

@@ -1,9 +1,0 @@
-.idea
-.phpdoc
-*.bak
-/composer.lock
-/composer.phar
-/vendor/
-PLAN_*
-settings.json
-target
