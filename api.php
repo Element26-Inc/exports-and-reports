@@ -55,12 +55,12 @@ $_GET['export_type'] = strtolower( $_GET['export_type'] );
 $report = absint( $_GET['report'] );
 
 // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-$report = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d LIMIT 1', [ $report ] ) );
+$report = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d LIMIT 1', array( $report ) ) );
 
 if ( empty( $report ) ) {
 	wp_send_json_error( 'Report not found' );
 } else {
-	$report_data                    = [];
+	$report_data                    = array();
 	$report_data['name']            = $report->name;
 	$report_data['sql_query']       = $report->sql_query;
 	$report_data['sql_query_count'] = $report->sql_query_count;
@@ -73,7 +73,7 @@ if ( empty( $report ) ) {
 	}
 
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
-	$options                 = [];
+	$options                 = array();
 	$options['css']          = EXPORTS_REPORTS_URL . 'assets/admin.css';
 	$options['readonly']     = true;
 	$options['identifier']   = true;
@@ -87,13 +87,13 @@ if ( empty( $report ) ) {
 	}
 	$options['item']    = $options['items'] = $report_data['name'];
 	$options['icon']    = EXPORTS_REPORTS_URL . 'assets/icons/32.png';
-	$options['heading'] = [ 'manage' => 'View Report:' ];
+	$options['heading'] = array( 'manage' => 'View Report:' );
 	$field_data         = @json_decode( $report_data['field_data'], true );
 	if ( is_array( $field_data ) && ! empty( $field_data ) ) {
-		$options['columns'] = [];
+		$options['columns'] = array();
 		foreach ( $field_data as $field ) {
 			$field                                = exports_reports_field_defaults( $field );
-			$options['columns'][ $field['name'] ] = [];
+			$options['columns'][ $field['name'] ] = array();
 			if ( 0 < strlen( $field['real_name'] ) ) {
 				$options['columns'][ $field['name'] ]['real_name'] = $field['real_name'];
 			}
@@ -180,10 +180,10 @@ if ( empty( $report ) ) {
 		$admin->go();
 
 		if ( $admin->exported_file ) {
-			$data = [
+			$data = array(
 				'export_file' => WP_ADMIN_UI_EXPORT_DIR . '/' . $admin->exported_file,
 				'message'     => 'Report exported',
-			];
+			);
 
 			if ( ! empty( $_GET['exports_and_reports_download'] ) ) {
 				$download = true;
@@ -210,10 +210,10 @@ if ( empty( $report ) ) {
 		if ( $download && ! empty( $data['export_file'] ) ) {
 			do_action( 'wp_admin_ui_export_download' );
 
-			$file = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( [ '/', '..' ], '', sanitize_text_field( $data['export_file'] ) );
+			$file = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $data['export_file'] ) );
 			$file = realpath( $file );
 
-			$file_url = WP_ADMIN_UI_EXPORT_URL . '/' . str_replace( [ '/', '..' ], '', sanitize_text_field( $data['export_file'] ) );
+			$file_url = WP_ADMIN_UI_EXPORT_URL . '/' . str_replace( array( '/', '..' ), '', sanitize_text_field( $data['export_file'] ) );
 
 			if ( ! $file || ! isset( $_GET['exports_and_reports_export'] ) || empty( $_GET['exports_and_reports_export'] ) || ! file_exists( $file ) ) {
 				wp_die( 'File not found.' );

@@ -39,88 +39,88 @@ if ( ! is_object( $wpdb ) ) {
 class Exports_Reports_Admin_UI {
 
 	// base
-	var $table = false;
-	var $identifier = 'id';
-	var $sql = false;
-	var $sql_count = false;
-	var $id = false;
-	var $action = 'manage';
-	var $do = false;
-	var $search = true;
-	var $filters = [];
-	var $search_query = false;
-	var $pagination = true;
-	var $page = 1;
-	var $limit = 25;
-	var $order = false;
-	var $order_dir = 'DESC';
-	var $reorder_order = false;
-	var $reorder_order_dir = 'ASC';
-	var $api = false;
-	var $num = '';
+	public $table = false;
+	public $identifier = 'id';
+	public $sql = false;
+	public $sql_count = false;
+	public $id = false;
+	public $action = 'manage';
+	public $do = false;
+	public $search = true;
+	public $filters = array();
+	public $search_query = false;
+	public $pagination = true;
+	public $page = 1;
+	public $limit = 25;
+	public $order = false;
+	public $order_dir = 'DESC';
+	public $reorder_order = false;
+	public $reorder_order_dir = 'ASC';
+	public $api = false;
+	public $num = '';
 
 	// ui
-	var $item = 'Item';
-	var $items = 'Items';
-	var $heading = [
+	public $item = 'Item';
+	public $items = 'Items';
+	public $heading = array(
 		'manage'    => 'Manage',
 		'add'       => 'Add New',
 		'edit'      => 'Edit',
 		'duplicate' => 'Duplicate',
 		'view'      => 'View',
 		'reorder'   => 'Reorder',
-	];
-	var $icon = false;
-	var $css = false;
+	);
+	public $icon = false;
+	public $css = false;
 
 	// actions
-	var $add = true;
-	var $view = false;
-	var $edit = true;
-	var $duplicate = false;
-	var $delete = true;
-	var $save = true;
-	var $readonly = false;
-	var $export = false;
-	var $reorder = false;
+	public $add = true;
+	public $view = false;
+	public $edit = true;
+	public $duplicate = false;
+	public $delete = true;
+	public $save = true;
+	public $readonly = false;
+	public $export = false;
+	public $reorder = false;
 
 	// array of custom functions to run for actions
-	var $custom = [];
+	public $custom = array();
 
 	// data related
-	var $total = 0;
+	public $total = 0;
 
 	/** @var bool|array $totals */
-	var $totals = false;
+	public $totals = false;
 
-	var $columns = [];
-	var $data = [];
-	var $sum_data = [];
-	var $full_data = [];
+	public $columns = array();
+	public $data = array();
+	public $sum_data = array();
+	public $full_data = array();
 	// Delimited exports read their rows from an unbuffered result; see export() and export_sv().
 	public $stream_export = false;
 	public $stream_sql    = '';
-	var $row = [];
-	var $temp_row = [];
-	var $default_none = false;
-	var $search_columns = [];
-	var $form_columns = [];
-	var $view_columns = [];
-	var $export_columns = [];
-	var $reorder_columns = [];
-	var $insert_id = 0;
-	var $related = [];
+	public $row = array();
+	public $temp_row = array();
+	public $default_none = false;
+	public $search_columns = array();
+	public $form_columns = array();
+	public $view_columns = array();
+	public $export_columns = array();
+	public $reorder_columns = array();
+	public $insert_id = 0;
+	public $related = array();
 
 	// export related
-	var $exported_file = false;
-	var $export_url = false;
-	var $export_type = false;
-	var $export_delimiter = false;
-	var $page_orientation = 'P';
+	public $exported_file = false;
+	public $export_url = false;
+	public $export_type = false;
+	public $export_delimiter = false;
+	public $page_orientation = 'P';
 
-	var $base_dir = '';
-	var $base_url = '';
-	var $assets_url = '';
+	public $base_dir = '';
+	public $base_url = '';
+	public $assets_url = '';
 
 	/**
 	 * @param bool|array $options
@@ -135,19 +135,23 @@ class Exports_Reports_Admin_UI {
 		if ( false !== $this->get_var( 'id' ) ) {
 			$this->id = sanitize_text_field( $_GET['id'] );
 		}
-		if ( false !== $this->get_var( 'action', false, [
-					'add',
-					'edit',
-					'duplicate',
-					'view',
-					'delete',
-					'manage',
-					'reorder',
-					'export',
-				] ) ) {
+		if ( false !== $this->get_var(
+			'action',
+			false,
+			array(
+				'add',
+				'edit',
+				'duplicate',
+				'view',
+				'delete',
+				'manage',
+				'reorder',
+				'export',
+			)
+		) ) {
 			$this->action = sanitize_text_field( $_GET['action'] );
 		}
-		if ( false !== $this->get_var( 'do', false, [ 'save', 'create' ] ) ) {
+		if ( false !== $this->get_var( 'do', false, array( 'save', 'create' ) ) ) {
 			$this->do = sanitize_text_field( $_GET['do'] );
 		}
 		if ( false !== $this->get_var( 'search_query' ) ) {
@@ -167,19 +171,23 @@ class Exports_Reports_Admin_UI {
 
 			$this->order = $order;
 		}
-		if ( false !== $this->get_var( 'order_dir', false, [ 'ASC', 'DESC' ] ) ) {
+		if ( false !== $this->get_var( 'order_dir', false, array( 'ASC', 'DESC' ) ) ) {
 			$this->order_dir = ( 'ASC' === strtoupper( trim( $_GET['order_dir'] ) ) ? 'ASC' : 'DESC' );
 		}
-		if ( false !== $this->get_var( 'action', false, 'export' ) && false !== $this->get_var( 'export_type', false, [
-					'csv',
-					'tsv',
-					'pipe',
-					'xlsx',
-					'custom',
-					'xml',
-					'json',
-					'pdf',
-				] ) ) {
+		if ( false !== $this->get_var( 'action', false, 'export' ) && false !== $this->get_var(
+			'export_type',
+			false,
+			array(
+				'csv',
+				'tsv',
+				'pipe',
+				'xlsx',
+				'custom',
+				'xml',
+				'json',
+				'pdf',
+			)
+		) ) {
 			$this->export_type = sanitize_text_field( $_GET['export_type'] );
 		}
 		if ( false !== $this->get_var( 'action', false, 'export' ) && 'custom' === $this->export_type && false !== $this->get_var( 'export_delimiter' ) ) {
@@ -226,7 +234,7 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 		if ( false !== $allowed && ! is_array( $allowed ) ) {
-			$allowed = [ $allowed ];
+			$allowed = array( $allowed );
 		}
 		$value = $default;
 		if ( isset( $array[ $index ] ) && ( false === $allowed || in_array( $array[ $index ], $allowed ) ) ) {
@@ -242,7 +250,7 @@ class Exports_Reports_Admin_UI {
 	function hidden_vars( $exclude = false ) {
 		$exclude = $this->do_hook( 'hidden_vars', $exclude );
 		if ( false === $exclude ) {
-			$exclude = [];
+			$exclude = array();
 		}
 		if ( ! is_array( $exclude ) ) {
 			$exclude = explode( ',', $exclude );
@@ -278,7 +286,7 @@ class Exports_Reports_Admin_UI {
 		}
 		$filter = $args[0];
 		unset( $args[0] );
-		$args = apply_filters( 'wp_admin_ui_' . $filter, $args, [ &$this, 'wp_admin_ui_' . $filter ] );
+		$args = apply_filters( 'wp_admin_ui_' . $filter, $args, array( &$this, 'wp_admin_ui_' . $filter ) );
 		if ( isset( $args[1] ) ) {
 			return $args[1];
 		}
@@ -295,7 +303,7 @@ class Exports_Reports_Admin_UI {
 	 * @return string
 	 */
 	function var_update( $array = false, $allowed = false, $url = false, $exclusive = false ) {
-		$excluded = [
+		$excluded = array(
 			'do',
 			'id',
 			'pg',
@@ -311,12 +319,12 @@ class Exports_Reports_Admin_UI {
 			'remove_export',
 			'updated',
 			'duplicate',
-		];
+		);
 		if ( false === $allowed ) {
-			$allowed = [];
+			$allowed = array();
 		}
 		if ( ! isset( $_GET ) ) {
-			$get = [];
+			$get = array();
 		} else {
 			$get = $_GET;
 		}
@@ -328,7 +336,7 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 			} else {
-				$get = [];
+				$get = array();
 			}
 			foreach ( $array as $key => $val ) {
 				if ( 0 < strlen( $val ) ) {
@@ -351,7 +359,7 @@ class Exports_Reports_Admin_UI {
 
 	function sanitize( $input ) {
 		global $wpdb;
-		$output = [];
+		$output = array();
 
 		if ( is_numeric( $input ) ) {
 			$output = $input;
@@ -373,7 +381,7 @@ class Exports_Reports_Admin_UI {
 	}
 
 	function unsanitize( $input ) {
-		$output = [];
+		$output = array();
 		if ( is_object( $input ) ) {
 			$input = (array) $input;
 			foreach ( $input as $key => $val ) {
@@ -401,7 +409,7 @@ class Exports_Reports_Admin_UI {
 		if ( ! empty( $data ) && is_array( $data ) && isset( $data[0] ) ) {
 			$data = @current( $data );
 		}
-		$columns = [];
+		$columns = array();
 		foreach ( (array) $data as $column => $value ) {
 			$column = trim( str_replace( '`', '', $column ) );
 			if ( 0 < strlen( $column ) ) {
@@ -426,11 +434,11 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 		if ( ! empty( $columns ) ) {
-			$new_columns = [];
+			$new_columns = array();
 			$filterable  = false;
 			if ( empty( $this->filters ) && ( empty( $this->search_columns ) || $which === 'search_columns' ) && false !== $this->search ) {
 				$filterable    = true;
-				$this->filters = [];
+				$this->filters = array();
 			}
 			foreach ( $columns as $column => $attributes ) {
 				if ( ! is_array( $attributes ) ) {
@@ -507,7 +515,7 @@ class Exports_Reports_Admin_UI {
 			if ( null !== $attributes ) {
 				$column = $attributes;
 			}
-			$attributes = [];
+			$attributes = array();
 		}
 		if ( ! isset( $attributes['real_name'] ) ) {
 			$attributes['real_name'] = false;
@@ -539,7 +547,7 @@ class Exports_Reports_Admin_UI {
 		if ( 'related' === $attributes['type'] && ( is_array( $attributes['related'] ) || strpos( $attributes['related'], ',' ) ) ) {
 			if ( ! is_array( $attributes['related'] ) ) {
 				$attributes['related'] = @explode( ',', $attributes['related'] );
-				$related_items         = [];
+				$related_items         = array();
 				foreach ( $attributes['related'] as $key => $label ) {
 					if ( is_numeric( $key ) ) {
 						$key   = $label;
@@ -556,18 +564,24 @@ class Exports_Reports_Admin_UI {
 		if ( ! isset( $attributes['readonly'] ) ) {
 			$attributes['readonly'] = false;
 		}
-		if ( ! isset( $attributes['date_touch'] ) || ! in_array( $attributes['type'], [
-					'date',
-					'time',
-					'datetime',
-				] ) ) {
+		if ( ! isset( $attributes['date_touch'] ) || ! in_array(
+			$attributes['type'],
+			array(
+				'date',
+				'time',
+				'datetime',
+			)
+		) ) {
 			$attributes['date_touch'] = false;
 		}
-		if ( ! isset( $attributes['date_touch_on_create'] ) || ! in_array( $attributes['type'], [
-					'date',
-					'time',
-					'datetime',
-				] ) ) {
+		if ( ! isset( $attributes['date_touch_on_create'] ) || ! in_array(
+			$attributes['type'],
+			array(
+				'date',
+				'time',
+				'datetime',
+			)
+		) ) {
 			$attributes['date_touch_on_create'] = false;
 		}
 		if ( ! isset( $attributes['display'] ) ) {
@@ -588,18 +602,24 @@ class Exports_Reports_Admin_UI {
 		if ( false === $attributes['filter'] || ! isset( $attributes['filter_default'] ) || ! in_array( $column, $this->filters ) ) {
 			$attributes['filter_default'] = false;
 		}
-		if ( false === $attributes['filter'] || ! isset( $attributes['date_ongoing'] ) || ! in_array( $attributes['type'], [
-					'date',
-					'time',
-					'datetime',
-				] ) || ! in_array( $column, $this->filters ) ) {
+		if ( false === $attributes['filter'] || ! isset( $attributes['date_ongoing'] ) || ! in_array(
+			$attributes['type'],
+			array(
+				'date',
+				'time',
+				'datetime',
+			)
+		) || ! in_array( $column, $this->filters ) ) {
 			$attributes['date_ongoing'] = false;
 		}
-		if ( false === $attributes['filter'] || ! isset( $attributes['date_ongoing'] ) || ! in_array( $attributes['type'], [
-					'date',
-					'time',
-					'datetime',
-				] ) || ! isset( $attributes['filter_ongoing_default'] ) || ! in_array( $column, $this->filters ) ) {
+		if ( false === $attributes['filter'] || ! isset( $attributes['date_ongoing'] ) || ! in_array(
+			$attributes['type'],
+			array(
+				'date',
+				'time',
+				'datetime',
+			)
+		) || ! isset( $attributes['filter_ongoing_default'] ) || ! in_array( $column, $this->filters ) ) {
 			$attributes['filter_ongoing_default'] = false;
 		}
 		if ( ! isset( $attributes['export'] ) ) {
@@ -722,12 +742,18 @@ class Exports_Reports_Admin_UI {
 					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $this->heading['add'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="<?php
-					echo esc_url( $this->var_update( [
-							'action' => 'manage',
-							'id'     => '',
-						] ) );
-					?>">&laquo; Back to Manage</a>) </small>
+				<small>(<a href="
+				<?php
+					echo esc_url(
+						$this->var_update(
+							array(
+								'action' => 'manage',
+								'id'     => '',
+							)
+						)
+					);
+				?>
+									">&laquo; Back to Manage</a>) </small>
 			</h2>
 			<?php $this->form( 1 ); ?>
 		</div>
@@ -751,12 +777,18 @@ class Exports_Reports_Admin_UI {
 					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $duplicate ? $this->heading['duplicate'] : $this->heading['edit'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="<?php
-					echo esc_url( $this->var_update( [
-							'action' => 'manage',
-							'id'     => '',
-						] ) );
-					?>">&laquo; Back to Manage</a>) </small>
+				<small>(<a href="
+				<?php
+					echo esc_url(
+						$this->var_update(
+							array(
+								'action' => 'manage',
+								'id'     => '',
+							)
+						)
+					);
+				?>
+									">&laquo; Back to Manage</a>) </small>
 			</h2>
 			<?php $this->form( 0, $duplicate ); ?>
 		</div>
@@ -777,11 +809,11 @@ class Exports_Reports_Admin_UI {
 		}
 		$submit = 'Add ' . $this->item;
 		$id     = '';
-		$vars   = [
+		$vars   = array(
 			'action' => 'manage',
 			'do'     => 'create',
 			'id'     => '',
-		];
+		);
 		if ( $create === 0 ) {
 			if ( empty( $this->row ) ) {
 				$this->get_row();
@@ -792,11 +824,11 @@ class Exports_Reports_Admin_UI {
 			if ( $duplicate === 0 ) {
 				$submit = 'Save Changes';
 				$id     = $this->row[ $this->identifier ];
-				$vars   = [
+				$vars   = array(
 					'action' => 'edit',
 					'do'     => 'save',
 					'id'     => $id,
-				];
+				);
 			}
 		}
 		?>
@@ -857,7 +889,7 @@ class Exports_Reports_Admin_UI {
 							?>
 							<textarea name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" rows="10" cols="50"><?php echo esc_textarea( $this->row[ $column ] ); ?></textarea>
 							<?php
-						} elseif ( in_array( $attributes['type'], [ 'date', 'datetime', 'time' ], true ) ) {
+						} elseif ( in_array( $attributes['type'], array( 'date', 'datetime', 'time' ), true ) ) {
 							$html_input_type = $attributes['type'];
 
 							if ( 'datetime' === $html_input_type ) {
@@ -951,12 +983,18 @@ class Exports_Reports_Admin_UI {
 					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $this->heading['view'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="<?php
-					echo esc_url( $this->var_update( [
-							'action' => 'manage',
-							'id'     => '',
-						] ) );
-					?>">&laquo; Back to Manage</a>) </small>
+				<small>(<a href="
+				<?php
+					echo esc_url(
+						$this->var_update(
+							array(
+								'action' => 'manage',
+								'id'     => '',
+							)
+						)
+					);
+				?>
+									">&laquo; Back to Manage</a>) </small>
 			</h2>
 			<table class="form-table">
 				<?php
@@ -980,13 +1018,16 @@ class Exports_Reports_Admin_UI {
 					<?php
 					if ( false !== $attributes['custom_view'] && is_callable( $attributes['custom_view'] ) ) {
 						// phpcs:ignore
-						echo call_user_func_array( $attributes['custom_view'], [
+						echo call_user_func_array(
+							$attributes['custom_view'],
+							array(
 								$this->row[ $column ],
 								$this->row,
 								$column,
 								$attributes,
 								$this,
-							] );
+							)
+						);
 						?>
 						</td>
 						</tr>
@@ -1009,7 +1050,7 @@ class Exports_Reports_Admin_UI {
 						$old_value            = $this->row[ $column ];
 						$this->row[ $column ] = '';
 						if ( ! empty( $old_value ) ) {
-							$this->row[ $column ] = [];
+							$this->row[ $column ] = array();
 							if ( ! is_array( $attributes['related'] ) ) {
 								// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 								$related = $wpdb->get_results( 'SELECT `id`,`' . $this->sanitize( (string) $attributes['related_field'] ) . '` FROM ' . (string) $attributes['related'] . ' WHERE `id` IN (' . $this->sanitize( (string) $old_value ) . ')' . ( ! empty( $attributes['related_sql'] ) ? ' ' . (string) $attributes['related_sql'] : '' ) );
@@ -1065,7 +1106,8 @@ class Exports_Reports_Admin_UI {
 			$id = $this->id;
 		}
 		global $wpdb;
-		$check = $wpdb->query( $wpdb->prepare( "DELETE FROM $this->table WHERE `id`=%d", [ $id ] ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $this->table is the configured table name, not request data.
+		$check = $wpdb->query( $wpdb->prepare( "DELETE FROM $this->table WHERE `id`=%d", array( $id ) ) );
 		if ( $check ) {
 			$this->message( "<strong>Deleted:</strong> $this->item has been deleted." );
 		} else {
@@ -1084,9 +1126,9 @@ class Exports_Reports_Admin_UI {
 		if ( $create === 1 ) {
 			$action = 'created';
 		}
-		$column_sql = [];
-		$values     = [];
-		$data       = [];
+		$column_sql = array();
+		$values     = array();
+		$data       = array();
 		foreach ( $this->form_columns as $column => $attributes ) {
 			if ( ! is_array( $attributes ) ) {
 				$column     = $attributes;
@@ -1094,14 +1136,14 @@ class Exports_Reports_Admin_UI {
 			}
 			$vartype = '%s';
 			if ( false === $attributes['display'] || false !== $attributes['readonly'] ) {
-				if ( ! in_array( $attributes['type'], [ 'date', 'time', 'datetime' ] ) ) {
+				if ( ! in_array( $attributes['type'], array( 'date', 'time', 'datetime' ) ) ) {
 					continue;
 				}
 				if ( false === $attributes['date_touch'] && ( false === $attributes['date_touch_on_create'] || $create !== 1 || $this->id > 0 ) ) {
 					continue;
 				}
 			}
-			if ( in_array( $attributes['type'], [ 'date', 'time', 'datetime' ] ) ) {
+			if ( in_array( $attributes['type'], array( 'date', 'time', 'datetime' ) ) ) {
 				$format = 'Y-m-d H:i:s';
 				if ( 'date' === $attributes['type'] ) {
 					$format = 'Y-m-d';
@@ -1180,10 +1222,16 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( isset( $_POST['order'] ) && ! empty( $_POST['order'] ) ) {
 			foreach ( $_POST['order'] as $order => $id ) {
-				$updated = $wpdb->update( $this->table, [ $this->reorder => $order ], [ $this->identifier => $id ], [
+				$updated = $wpdb->update(
+					$this->table,
+					array( $this->reorder => $order ),
+					array( $this->identifier => $id ),
+					array(
 						'%s',
 						'%d',
-					], [ '%d' ] );
+					),
+					array( '%d' )
+				);
 			}
 			$this->message( '<strong>Success!</strong> Order updated successfully.' );
 		} else {
@@ -1213,7 +1261,7 @@ class Exports_Reports_Admin_UI {
 				$value = date_i18n( 'Y/m/d g:i:s A', strtotime( $value ) );
 			}
 		} elseif ( 'related' === $attributes['type'] && false !== $attributes['related'] ) {
-			$column_data = [];
+			$column_data = array();
 			if ( ! is_array( $attributes['related'] ) ) {
 				$selected_options = explode( ',', trim( $value ) );
 				if ( ! empty( $this->related ) && isset( $this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ] ) && ! empty( $this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ] ) ) {
@@ -1237,7 +1285,7 @@ class Exports_Reports_Admin_UI {
 						if ( in_array( $option->{$attributes['related_id']}, $selected_options ) ) {
 							$column_data[ $option->{$attributes['related_id']} ] = $option->{$attributes['related_field']};
 							if ( ! isset( $this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ] ) ) {
-								$this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ] = [];
+								$this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ] = array();
 							}
 							$this->related[ $attributes['related'] . '_' . $attributes['related_field'] . '_' . $attributes['related_id'] ][ $option->{$attributes['related_id']} ] = $option->{$attributes['related_field']};
 						}
@@ -1264,7 +1312,7 @@ class Exports_Reports_Admin_UI {
 			$table = $attributes['custom_relate'];
 			$on    = $this->sanitize( $field_name );
 			$is    = $this->sanitize( $value );
-			$what  = [ 'name' ];
+			$what  = array( 'name' );
 			if ( is_array( $table ) ) {
 				if ( isset( $table['on'] ) ) {
 					$on = $this->sanitize( $table['on'] );
@@ -1273,7 +1321,7 @@ class Exports_Reports_Admin_UI {
 					$is = $this->sanitize( $this->row[ $table['is'] ] );
 				}
 				if ( isset( $table['what'] ) ) {
-					$what = [];
+					$what = array();
 					if ( is_array( $table['what'] ) ) {
 						foreach ( $table['what'] as $wha ) {
 							$what[] = $this->sanitize( $wha );
@@ -1292,10 +1340,10 @@ class Exports_Reports_Admin_UI {
 			$sql     = "SELECT `{$wha}` FROM `{$table}` WHERE `{$on}` = %s";
 
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			$results = @current( $wpdb->get_results( $wpdb->prepare( $sql, [ $is ] ), ARRAY_A ) );
+			$results = @current( $wpdb->get_results( $wpdb->prepare( $sql, array( $is ) ), ARRAY_A ) );
 
 			if ( ! empty( $results ) ) {
-				$val = [];
+				$val = array();
 				foreach ( $what as $wha ) {
 					if ( isset( $results[ $wha ] ) ) {
 						$val[] = $results[ $wha ];
@@ -1343,7 +1391,7 @@ class Exports_Reports_Admin_UI {
 		if ( empty( $this->full_data ) ) {
 			// Delimited exports read their rows in export_sv(); the other formats load the result as before.
 			$this->stream_sql    = '';
-			$this->stream_export = in_array( $this->export_type, [ 'csv', 'tsv', 'pipe', 'custom' ], true ) && $this->can_stream_export();
+			$this->stream_export = in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) && $this->can_stream_export();
 			$data                = $this->get_data( true );
 			$this->stream_export = false;
 
@@ -1389,7 +1437,7 @@ class Exports_Reports_Admin_UI {
 				return false;
 			}
 		} else {
-			if ( in_array( $this->export_type, [ 'csv', 'tsv', 'pipe', 'custom' ], true ) ) {
+			if ( in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) ) {
 				$export_file = $this->export_sv();
 			} elseif ( $this->export_type === 'xml' ) {
 				$export_file          = str_replace( '-', '_', sanitize_title( $this->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $this->export_type;
@@ -1431,10 +1479,16 @@ class Exports_Reports_Admin_UI {
 
 				$wp_filesystem->put_contents( $export_file_location, $file_contents );
 
-				$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to download your XML export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
-						'remove_export' => urlencode( $export_file ),
-						'action'        => 'export',
-					] ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.' );
+				$this->message(
+					'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to download your XML export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
+						$this->var_update(
+							array(
+								'remove_export' => urlencode( $export_file ),
+								'action'        => 'export',
+							)
+						)
+					) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+				);
 				// phpcs:ignore
 				echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 			} elseif ( $this->export_type === 'xlsx' ) {
@@ -1446,15 +1500,15 @@ class Exports_Reports_Admin_UI {
 
 				$wp_filesystem->touch( $export_file_location );
 
-				$data = [
-					'header'         => [],
-					'header_options' => [
+				$data = array(
+					'header'         => array(),
+					'header_options' => array(
 						'fill'   => '#eee',
 						'halign' => 'center',
 						'border' => 'left,right,top,bottom',
-					],
-					'items'          => [],
-				];
+					),
+					'items'          => array(),
+				);
 
 				foreach ( $this->export_columns as $key => $attributes ) {
 					if ( ! is_array( $attributes ) ) {
@@ -1472,7 +1526,7 @@ class Exports_Reports_Admin_UI {
 				$writer->writeSheetHeader( 'Sheet1', $data['header'], $data['header_options'] );
 
 				foreach ( $this->full_data as $item ) {
-					$row = [];
+					$row = array();
 					foreach ( $this->export_columns as $key => $attributes ) {
 						if ( ! is_array( $attributes ) ) {
 							$key        = $attributes;
@@ -1500,10 +1554,16 @@ class Exports_Reports_Admin_UI {
 
 				$wp_filesystem->put_contents( $export_file_location, $file_contents );
 
-				$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your XLSX export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						] ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.' );
+				$this->message(
+					'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your XLSX export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
+						$this->var_update(
+							array(
+								'remove_export' => urlencode( $export_file ),
+								'action'        => 'export',
+							)
+						)
+					) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+				);
 				// phpcs:ignore
 				echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 			} elseif ( $this->export_type === 'json' ) {
@@ -1513,14 +1573,14 @@ class Exports_Reports_Admin_UI {
 
 				$wp_filesystem->touch( $export_file_location );
 
-				$data                 = [
-					'items' => [
+				$data                 = array(
+					'items' => array(
 						'count' => count( $this->full_data ),
-						'item'  => [],
-					],
-				];
+						'item'  => array(),
+					),
+				);
 				foreach ( $this->full_data as $item ) {
-					$row = [];
+					$row = array();
 					foreach ( $this->export_columns as $key => $attributes ) {
 						if ( ! is_array( $attributes ) ) {
 							$key        = $attributes;
@@ -1542,10 +1602,16 @@ class Exports_Reports_Admin_UI {
 
 				$wp_filesystem->put_contents( $export_file_location, $file_contents );
 
-				$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your JSON export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						] ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.' );
+				$this->message(
+					'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your JSON export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
+						$this->var_update(
+							array(
+								'remove_export' => urlencode( $export_file ),
+								'action'        => 'export',
+							)
+						)
+					) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+				);
 				// phpcs:ignore
 				echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 			} elseif ( $this->export_type === 'pdf' ) {
@@ -1557,10 +1623,16 @@ class Exports_Reports_Admin_UI {
 					$export_file = Exports_Reports_Admin_UI_Export_PDF::CreateReport( $this );
 				}
 
-				$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your PDF export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						] ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.' );
+				$this->message(
+					'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your PDF export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
+						$this->var_update(
+							array(
+								'remove_export' => urlencode( $export_file ),
+								'action'        => 'export',
+							)
+						)
+					) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+				);
 				// phpcs:ignore
 				echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 			} else {
@@ -1628,7 +1700,7 @@ class Exports_Reports_Admin_UI {
 	 * @param string   $delimiter The delimiter between values.
 	 */
 	public function write_sv_line( $fp, $values, $delimiter ) {
-		$quoted = [];
+		$quoted = array();
 
 		foreach ( $values as $value ) {
 			$quoted[] = '"' . str_replace( '"', '""', (string) $value ) . '"';
@@ -1641,18 +1713,18 @@ class Exports_Reports_Admin_UI {
 	function export_sv() {
 		global $wpdb;
 
-		$file_ext = [
+		$file_ext = array(
 			'csv'    => 'csv',
 			'tsv'    => 'tsv',
 			'pipe'   => 'txt',
 			'custom' => 'txt',
-		];
+		);
 
-		$file_delimiter = [
+		$file_delimiter = array(
 			'csv'  => ',',
 			'tsv'  => "\t",
 			'pipe' => '|',
-		];
+		);
 
 		$export_delimiter = ',';
 		$export_ext       = 'csv';
@@ -1673,7 +1745,7 @@ class Exports_Reports_Admin_UI {
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$fp                   = fopen( $export_file_location, 'a+' );
-		$head                 = [];
+		$head                 = array();
 		$stream               = null;
 
 		if ( '' !== $this->stream_sql ) {
@@ -1695,7 +1767,7 @@ class Exports_Reports_Admin_UI {
 			}
 
 			if ( empty( $this->columns ) ) {
-				$names = [];
+				$names = array();
 
 				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_fields
 				foreach ( mysqli_fetch_fields( $stream ) as $field ) {
@@ -1740,7 +1812,7 @@ class Exports_Reports_Admin_UI {
 		$rows = $stream instanceof mysqli_result ? $this->stream_rows( $stream ) : $this->full_data;
 
 		foreach ( $rows as $item ) {
-			$column_values = [];
+			$column_values = array();
 
 			foreach ( $this->export_columns as $key => $attributes ) {
 				if ( ! is_array( $attributes ) ) {
@@ -1758,7 +1830,7 @@ class Exports_Reports_Admin_UI {
 					$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
 				}
 
-				$column_value = trim( str_replace( [ "\r", "\n" ], ' ', (string) $item[ $key ] ) );
+				$column_value = trim( str_replace( array( "\r", "\n" ), ' ', (string) $item[ $key ] ) );
 
 				// A value a spreadsheet would evaluate as a formula is wrapped in a string formula, which shows the
 				// text and stays inert. Numbers are left alone: a negative amount starts with "-".
@@ -1793,10 +1865,16 @@ class Exports_Reports_Admin_UI {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $fp );
 
-		$this->message( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your ' . esc_html( strtoupper( $export_ext ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->var_update( [
-					'remove_export' => urlencode( $export_file ),
-					'action'        => 'export',
-				] ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.' );
+		$this->message(
+			'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your ' . esc_html( strtoupper( $export_ext ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
+				$this->var_update(
+					array(
+						'remove_export' => urlencode( $export_file ),
+						'action'        => 'export',
+					)
+				)
+			) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+		);
 		// phpcs:ignore
 		echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 
@@ -1821,7 +1899,7 @@ class Exports_Reports_Admin_UI {
 		$sql = "SELECT * FROM `{$this->table}` WHERE `id` = %d";
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$row = @current( $wpdb->get_results( $wpdb->prepare( $sql, [ $id ] ), ARRAY_A ) );
+		$row = @current( $wpdb->get_results( $wpdb->prepare( $sql, array( $id ) ), ARRAY_A ) );
 
 		$row = $this->do_hook( 'get_row', $row, $id );
 		if ( ! empty( $row ) ) {
@@ -1849,7 +1927,7 @@ class Exports_Reports_Admin_UI {
 			if ( $full || false !== $this->sql_count ) {
 				$calc_found_sql = '';
 			}
-			$totals = [];
+			$totals = array();
 			foreach ( $this->columns as $key => $column ) {
 				$attributes = $column;
 				if ( ! is_array( $attributes ) ) {
@@ -1872,12 +1950,12 @@ class Exports_Reports_Admin_UI {
 			}
 			$this->sql = "SELECT {$calc_found_sql} * FROM $this->table";
 		}
-		$sql            = ' ' . str_replace( [ "\n", "\r", "\t", '  ' ], ' ', ' ' . $this->sql ) . ' ';
+		$sql            = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $this->sql ) . ' ';
 		$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
 		if ( $full || false !== $this->sql_count ) {
 			$calc_found_sql = '';
 		}
-		$totals = [];
+		$totals = array();
 		foreach ( $this->columns as $key => $column ) {
 			$attributes = $column;
 			if ( ! is_array( $attributes ) ) {
@@ -1900,13 +1978,15 @@ class Exports_Reports_Admin_UI {
 		}
 		$sql       = preg_replace( '/ SELECT /i', " SELECT {$calc_found_sql} ", preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 ), 1 );
 		$wheresql  = $havingsql = $ordersql = $limitsql = '';
-		$other_sql = $having_sql = $replace_variables = [];
+		$other_sql         = array();
+		$having_sql        = array();
+		$replace_variables = array();
 		if ( $full || false !== $this->sql_count ) {
 			preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
 		} else {
 			preg_match( '/SELECT SQL_CALC_FOUND_ROWS (.*) FROM/i', $sql, $selectmatches );
 		}
-		$selects = [];
+		$selects = array();
 		if ( isset( $selectmatches[1] ) && ! empty( $selectmatches[1] ) && stripos( $selectmatches[1], ' AS ' ) !== false ) {
 			$theselects = explode( ', ', $selectmatches[1] );
 			if ( empty( $theselects ) ) {
@@ -1931,7 +2011,7 @@ class Exports_Reports_Admin_UI {
 					if ( false === $attributes['search'] ) {
 						continue;
 					}
-					if ( in_array( $attributes['type'], [ 'date', 'time', 'datetime' ] ) ) {
+					if ( in_array( $attributes['type'], array( 'date', 'time', 'datetime' ) ) ) {
 						continue;
 					}
 					if ( is_array( $column ) ) {
@@ -1966,7 +2046,7 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 				if ( ! empty( $other_sql ) ) {
-					$other_sql = [ '(' . implode( ' OR ', $other_sql ) . ')' ];
+					$other_sql = array( '(' . implode( ' OR ', $other_sql ) . ')' );
 				}
 				if ( ! empty( $having_sql ) ) {
 					foreach ( $having_sql as $key => $value ) {
@@ -1978,7 +2058,7 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 				if ( ! empty( $having_sql ) ) {
-					$having_sql = [ '(' . implode( ' OR ', $having_sql ) . ')' ];
+					$having_sql = array( '(' . implode( ' OR ', $having_sql ) . ')' );
 				}
 			}
 			foreach ( $this->filters as $filter ) {
@@ -1998,7 +2078,7 @@ class Exports_Reports_Admin_UI {
 				if ( $filter_column['real_name'] !== false ) {
 					$filterfield = $filter_column['real_name'];
 				}
-				if ( in_array( $filter_column['type'], [ 'date', 'datetime' ] ) ) {
+				if ( in_array( $filter_column['type'], array( 'date', 'datetime' ) ) ) {
 					$start = date_i18n( 'Y-m-d' ) . ( $filter_column['type'] === 'datetime' ? ' 00:00:00' : '' );
 					$end   = date_i18n( 'Y-m-d' ) . ( $filter_column['type'] === 'datetime' ? ' 23:59:59' : '' );
 					if ( strlen( $this->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) ) < 1 && strlen( $this->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) ) < 1 ) {
@@ -2262,7 +2342,7 @@ class Exports_Reports_Admin_UI {
 			$wpdb->show_errors( true );
 		}
 
-		$results = [];
+		$results = array();
 		$total   = 0;
 
 		if ( $this->stream_export ) {
@@ -2308,7 +2388,7 @@ class Exports_Reports_Admin_UI {
 					$column = $key;
 				}
 				if ( false === $this->totals ) {
-					$this->totals = [];
+					$this->totals = array();
 				}
 				$this->totals[ $column ] = $totals[ 'wp_admin_ui_total_' . $column ];
 			}
@@ -2348,7 +2428,7 @@ class Exports_Reports_Admin_UI {
 
 					$id_field       = $filter_column['related_id'];
 					$label_field    = $filter_column['related_field'];
-					$related_lookup = [];
+					$related_lookup = array();
 
 					foreach ( $lookup_results as $this_pair ) {
 						$related_lookup[ $this_pair[ $id_field ] ] = $this_pair[ $label_field ];
@@ -2377,12 +2457,18 @@ class Exports_Reports_Admin_UI {
 			<?php // phpcs:ignore ?>
 			<h2><?php echo( $reorder === 0 || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
 				<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
-					<small>(<a href="<?php
-					echo esc_url( $this->var_update( [
-							'action' => 'manage',
-							'id'     => '',
-						] ) );
-					?>">&laquo; Back to Manage</a>)</small><?php } ?></h2>
+					<small>(<a href="
+					<?php
+					echo esc_url(
+						$this->var_update(
+							array(
+								'action' => 'manage',
+								'id'     => '',
+							)
+						)
+					);
+					?>
+										">&laquo; Back to Manage</a>)</small><?php } ?></h2>
 			<?php
 			if ( isset( $this->custom['header'] ) && function_exists( "{$this->custom['header']}" ) ) {
 				// phpcs:ignore
@@ -2402,13 +2488,13 @@ class Exports_Reports_Admin_UI {
 				<form id="posts-filter" action="" method="get">
 					<p class="search-box">
 						<?php
-						$excluded_filters = [];
+						$excluded_filters = array();
 						foreach ( $this->filters as $filter ) {
 							$excluded_filters[] = 'filter_' . $filter . '_start';
 							$excluded_filters[] = 'filter_' . $filter . '_end';
 							$excluded_filters[] = 'filter_' . $filter;
 						}
-						$excluded_filters = array_merge( $excluded_filters, [ 'search_query' ] );
+						$excluded_filters = array_merge( $excluded_filters, array( 'search_query' ) );
 						$this->hidden_vars( $excluded_filters );
 						foreach ( $this->filters as $filter ) {
 							if ( ! isset( $this->search_columns[ $filter ] ) ) {
@@ -2418,7 +2504,7 @@ class Exports_Reports_Admin_UI {
 							$filter_column = $this->search_columns[ $filter ];
 							$date_exists   = false;
 
-							if ( in_array( $filter_column['type'], [ 'date', 'datetime', 'time' ], true ) ) {
+							if ( in_array( $filter_column['type'], array( 'date', 'datetime', 'time' ), true ) ) {
 								$html_input_type = $filter_column['type'];
 
 								if ( 'datetime' === $html_input_type ) {
@@ -2497,7 +2583,7 @@ class Exports_Reports_Admin_UI {
 						<input type="submit" value="Search" class="button" />
 						<?php
 						if ( false !== $this->search_query ) {
-							$clear_filters = [];
+							$clear_filters = array();
 							foreach ( $this->filters as $filter ) {
 								$clear_filters[ 'filter_' . $filter . '_start' ] = '';
 								$clear_filters[ 'filter_' . $filter . '_end' ]   = '';
@@ -2505,13 +2591,20 @@ class Exports_Reports_Admin_UI {
 							}
 							?>
 							&nbsp;&nbsp;&nbsp;
-							<small>[<a href="<?php
-								echo esc_url( $this->var_update( $clear_filters, [
-										'order',
-										'order_dir',
-										'limit',
-									] ) );
-								?>">Reset Filters</a>] </small>
+							<small>[<a href="
+							<?php
+								echo esc_url(
+									$this->var_update(
+										$clear_filters,
+										array(
+											'order',
+											'order_dir',
+											'limit',
+										)
+									)
+								);
+							?>
+												">Reset Filters</a>] </small>
 							<?php
 						}
 						?>
@@ -2538,51 +2631,65 @@ class Exports_Reports_Admin_UI {
 				if ( 1 === $reorder ) {
 					?>
 					<input type="button" value="Update Order" class="button" onclick="jQuery('form.admin_ui_reorder_form').submit();" />
-					<input type="button" value="Cancel" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( [ 'action' => 'manage' ] ) ); ?>';" />
+					<input type="button" value="Cancel" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>';" />
 					<?php
 				} elseif ( $this->add || $this->export ) {
 					?>
 					<div class="alignleft actions">
 						<?php if ( $this->add ) { ?>
-							<input type="button" value="Add New <?php echo esc_attr( $this->item ); ?>" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( [ 'action' => 'add' ] ) ); ?>';" />
+							<input type="button" value="Add New <?php echo esc_attr( $this->item ); ?>" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>';" />
 						<?php } ?>
 
 						<?php if ( $this->reorder ) { ?>
-							<input type="button" value="Reorder" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( [ 'action' => 'reorder' ] ) ); ?>';" />
+							<input type="button" value="Reorder" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>';" />
 						<?php } ?>
 
 						<?php if ( $this->export && ! empty( $this->data ) ) { ?>
 							<?php
-							$export_format_links = [
-								'CSV' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'csv',
-								] ),
-								'TSV' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'tsv',
-								] ),
-								'TXT' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'pipe',
-								] ),
-								'XLSX' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'xlsx',
-								] ),
-								'XML' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'xml',
-								] ),
-								'JSON' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'json',
-								] ),
-								'PDF' => $this->var_update( [
-									'action'      => 'export',
-									'export_type' => 'pdf',
-								] ),
-							];
+							$export_format_links = array(
+								'CSV' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'csv',
+									)
+								),
+								'TSV' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'tsv',
+									)
+								),
+								'TXT' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'pipe',
+									)
+								),
+								'XLSX' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'xlsx',
+									)
+								),
+								'XML' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'xml',
+									)
+								),
+								'JSON' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'json',
+									)
+								),
+								'PDF' => $this->var_update(
+									array(
+										'action'      => 'export',
+										'export_type' => 'pdf',
+									)
+								),
+							);
 							?>
 							<strong>Export:</strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
@@ -2623,7 +2730,7 @@ class Exports_Reports_Admin_UI {
 					<thead>
 					<tr>
 						<?php
-						$columns = [];
+						$columns = array();
 						foreach ( $this->columns as $column => $attributes ) {
 							if ( ! isset( $this->totals[ $column ] ) ) {
 								continue;
@@ -2685,8 +2792,8 @@ class Exports_Reports_Admin_UI {
 			<?php
 			return false;
 		}
-	if ( 1 === $reorder && $this->reorder ) {
-		?>
+		if ( 1 === $reorder && $this->reorder ) {
+			?>
 		<style type="text/css">
 			table.widefat.fixed tbody.sortable tr {
 				height: 50px;
@@ -2704,28 +2811,32 @@ class Exports_Reports_Admin_UI {
 		</style>
 		<form action="
 			<?php
-		echo esc_url( $this->var_update( [
-				'action' => 'reorder',
-				'do'     => 'save',
-			] ) );
-		?>
+			echo esc_url(
+				$this->var_update(
+					array(
+						'action' => 'reorder',
+						'do'     => 'save',
+					)
+				)
+			);
+			?>
 						" method="post" class="admin_ui_reorder_form">
 			<?php
-			}
+		}
 			$column_index = 'columns';
-			if ( 1 === $reorder ) {
-				$column_index = 'reorder_columns';
-			}
-			if ( false === $this->{$column_index} || empty( $this->{$column_index} ) ) {
-				return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.' );
-			}
-			?>
+		if ( 1 === $reorder ) {
+			$column_index = 'reorder_columns';
+		}
+		if ( false === $this->{$column_index} || empty( $this->{$column_index} ) ) {
+			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.' );
+		}
+		?>
 			<table class="widefat page fixed admin_ui_table wp-list-table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?>>
 				<thead>
 				<tr>
 					<?php
 					$name_column = false;
-					$columns     = [];
+					$columns     = array();
 					if ( ! empty( $this->{$column_index} ) ) {
 						foreach ( $this->columns as $column => $attributes ) {
 							if ( ! is_array( $attributes ) ) {
@@ -2755,10 +2866,10 @@ class Exports_Reports_Admin_UI {
 							if ( false !== $this->get_var( 'label', false, false, $attributes ) ) {
 								$label = $attributes['label'];
 							}
-							$columns[ $column ] = [
+							$columns[ $column ] = array(
 								'label' => $label,
 								'id'    => $id,
-							];
+							);
 							$columns[ $column ] = array_merge( $columns[ $column ], $attributes );
 							$dir                = 'ASC';
 							if ( $this->order === $column && $this->order_dir === 'ASC' ) {
@@ -2772,12 +2883,19 @@ class Exports_Reports_Admin_UI {
 							}
 							?>
 							<th scope="col" id="<?php echo esc_attr( $id ); ?>" class="manage-column column-<?php echo esc_attr( $id ); ?>"<?php echo esc_html( $width ); ?>>
-								<a href="<?php
-								echo esc_url( $this->var_update( [
-										'order'     => $column,
-										'order_dir' => $dir,
-									], [ 'limit', 'search_query' ] ) );
-								?>"><?php echo wp_kses_post( $label ); ?></a>
+								<a href="
+								<?php
+								echo esc_url(
+									$this->var_update(
+										array(
+											'order'     => $column,
+											'order_dir' => $dir,
+										),
+										array( 'limit', 'search_query' )
+									)
+								);
+								?>
+											"><?php echo wp_kses_post( $label ); ?></a>
 							</th>
 							<?php
 						}
@@ -2824,22 +2942,34 @@ class Exports_Reports_Admin_UI {
 									if ( $this->view && ( $reorder === 0 || false === $this->reorder ) ) {
 										?>
 										<td class="post-title page-title column-title">
-										<strong><a class="row-title" href="<?php
-											echo esc_url( $this->var_update( [
-													'action' => 'view',
-													'id'     => $id,
-												] ) );
-											?>" title="View &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
+										<strong><a class="row-title" href="
+										<?php
+											echo esc_url(
+												$this->var_update(
+													array(
+														'action' => 'view',
+														'id'     => $id,
+													)
+												)
+											);
+										?>
+																			" title="View &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
 										<?php
 									} elseif ( $this->edit && ( $reorder === 0 || false === $this->reorder ) ) {
 										?>
 										<td class="post-title page-title column-title">
-										<strong><a class="row-title" href="<?php
-											echo esc_url( $this->var_update( [
-													'action' => 'edit',
-													'id'     => $id,
-												] ) );
-											?>" title="Edit &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
+										<strong><a class="row-title" href="
+										<?php
+											echo esc_url(
+												$this->var_update(
+													array(
+														'action' => 'edit',
+														'id'     => $id,
+													)
+												)
+											);
+										?>
+																			" title="Edit &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
 										<?php
 									} else {
 										?>
@@ -2854,36 +2984,54 @@ class Exports_Reports_Admin_UI {
 										<?php
 									}
 									if ( $reorder === 0 || false === $this->reorder ) {
-										$actions = [];
+										$actions = array();
 										if ( $this->view ) {
-											$actions['view'] = '<span class="view"><a href="' . esc_url( $this->var_update( [
+											$actions['view'] = '<span class="view"><a href="' . esc_url(
+												$this->var_update(
+													array(
 														'action' => 'view',
 														'id'     => $id,
-													] ) ) . '" title="View this item">View</a></span>';
+													)
+												)
+											) . '" title="View this item">View</a></span>';
 										}
 										if ( $this->edit ) {
-											$actions['edit'] = '<span class="edit"><a href="' . esc_url( $this->var_update( [
+											$actions['edit'] = '<span class="edit"><a href="' . esc_url(
+												$this->var_update(
+													array(
 														'action' => 'edit',
 														'id'     => $id,
-													] ) ) . '" title="Edit this item">Edit</a></span>';
+													)
+												)
+											) . '" title="Edit this item">Edit</a></span>';
 										}
 										if ( $this->duplicate ) {
-											$actions['duplicate'] = '<span class="edit"><a href="' . esc_url( $this->var_update( [
+											$actions['duplicate'] = '<span class="edit"><a href="' . esc_url(
+												$this->var_update(
+													array(
 														'action' => 'duplicate',
 														'id'     => $id,
-													] ) ) . '" title="Duplicate this item">Duplicate</a></span>';
+													)
+												)
+											) . '" title="Duplicate this item">Duplicate</a></span>';
 										}
 										if ( $this->delete ) {
-											$actions['delete'] = '<span class="delete"><a class="submitdelete" title="Delete this item" href="' . esc_url( $this->var_update( [
+											$actions['delete'] = '<span class="delete"><a class="submitdelete" title="Delete this item" href="' . esc_url(
+												$this->var_update(
+													array(
 														'action'   => 'delete',
 														'id'       => $id,
 														'_wpnonce' => wp_create_nonce( 'wp-admin-ui-delete' ),
-													] ) ) . '" onclick="if(confirm(\'You are about to delete this item \'' . htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) . '\'\n \'Cancel\' to stop, \'OK\' to delete.\')){return true;}return false;">Delete</a></span>';
+													)
+												)
+											) . '" onclick="if(confirm(\'You are about to delete this item \'' . htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) . '\'\n \'Cancel\' to stop, \'OK\' to delete.\')){return true;}return false;">Delete</a></span>';
 										}
 										if ( is_array( $this->custom ) ) {
 											foreach ( $this->custom as $custom_action => $custom_data ) {
 												if ( is_array( $custom_data ) && isset( $custom_data['link'] ) ) {
-													if ( ! in_array( $custom_action, [
+													if ( ! in_array(
+														$custom_action,
+														array(
 															'add',
 															'view',
 															'edit',
@@ -2893,7 +3041,8 @@ class Exports_Reports_Admin_UI {
 															'readonly',
 															'export',
 															'reorder',
-														] ) ) {
+														)
+													) ) {
 														if ( ! isset( $custom_data['label'] ) ) {
 															$custom_data['label'] = ucwords( str_replace( '_', ' ', $custom_action ) );
 														}
@@ -2996,7 +3145,7 @@ class Exports_Reports_Admin_UI {
 					jQuery( 'table.widefat tbody tr:even' ).addClass( 'alternate' );
 				} );
 			} );
-			<?php
+				<?php
 			}
 			?>
 		</script>
@@ -3019,12 +3168,15 @@ class Exports_Reports_Admin_UI {
 		$total_rows    = $this->total;
 		$total_pages   = ceil( $total_rows / $rows_per_page );
 
-		$request_uri = $this->var_update( [ 'pg' => '' ], [
+		$request_uri = $this->var_update(
+			array( 'pg' => '' ),
+			array(
 				'limit',
 				'order',
 				'order_dir',
 				'search_query',
-			] );
+			)
+		);
 
 		$append = false;
 
@@ -3084,7 +3236,7 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['limit'], $this );
 		}
 		if ( false === $options || ! is_array( $options ) || empty( $options ) ) {
-			$options = [ 10, 25, 50, 100, 200 ];
+			$options = array( 10, 25, 50, 100, 200 );
 		}
 		if ( ! in_array( $this->limit, $options ) ) {
 			$this->limit = $options[1];
@@ -3093,11 +3245,16 @@ class Exports_Reports_Admin_UI {
 			if ( $this->limit === (int) $option ) {
 				echo ' <span class="page-numbers current">' . esc_html( $option ) . '</span>';
 			} else {
-				echo ' <a href="' . esc_url( $this->var_update( [ 'limit' => $option ], [
+				echo ' <a href="' . esc_url(
+					$this->var_update(
+						array( 'limit' => $option ),
+						array(
 							'order',
 							'order_dir',
 							'search_query',
-						] ) ) . '">' . esc_html( $option ) . '</a>';
+						)
+					)
+				) . '">' . esc_html( $option ) . '</a>';
 			}
 		}
 	}
@@ -3107,7 +3264,7 @@ class Exports_Reports_Admin_UI {
 			$this->temp_row = $this->row;
 			$this->row      = $row;
 		}
-		$out = preg_replace_callback( '/({@(.*?)})/m', [ $this, 'parse_magic_tags' ], $in );
+		$out = preg_replace_callback( '/({@(.*?)})/m', array( $this, 'parse_magic_tags' ), $in );
 		if ( false !== $row ) {
 			$this->row = $this->temp_row;
 		}
