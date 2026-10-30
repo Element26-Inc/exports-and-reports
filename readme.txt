@@ -76,9 +76,11 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 * PDF - PDF printer friendly views, using [TCPDF](https://tcpdf.org/)
 * Custom - Custom delimiter separated Values (Update the report screen URL parameters to `&action=export&export_type=custom&export_delimiter=#` and change # to whatever delimiter you want)
 
-= Cronjob / JSON API =
-* Run the Export action for a specific report to any supported export type
+= REST API / Cronjob =
+* Run the Export action for a specific report to any supported export type, and download the file
 * Get paginated / full data from a report in JSON format
+* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the Settings page shows the URLs
+* The pre-0.9.5 api.php endpoint still answers for existing cronjobs and goes away in 1.0
 
 == Screenshots ==
 
