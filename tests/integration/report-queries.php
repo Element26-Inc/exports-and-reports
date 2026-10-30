@@ -81,6 +81,7 @@ function er_admin( $sql, $name, $options = array() ) {
 				'item'         => 'item',
 				'items'        => $name,
 				'heading'      => array( 'manage' => 'View Report:' ),
+				'report_id'    => 0,
 			),
 			$options
 		)
@@ -147,6 +148,28 @@ function er_shout( $value ) {
 }
 
 // --- the table ---
+// --- the plugin's tables carry the site's character set and collation ---
+$er_collations = array();
+foreach ( array( 'groups', 'reports', 'log' ) as $er_suffix ) {
+	$er_collations[ $er_suffix ] = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $wpdb->prefix . EXPORTS_REPORTS_TBL . $er_suffix ) );
+}
+er_report(
+	'plugin tables created with the site collation',
+	3 === count( array_unique( $er_collations ) ) ? false : array( $wpdb->collate ) === array_values( array_unique( $er_collations ) ),
+	implode( ', ', $er_collations ) . ' (site: ' . $wpdb->collate . ')'
+);
+
+// --- an install from before 0.9.5 is converted on upgrade ---
+$er_log_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log';
+$wpdb->query( "ALTER TABLE `{$er_log_table}` CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_converted = exports_reports_convert_tables_charset();
+$er_after     = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $er_log_table ) );
+er_report(
+	'a three-byte utf8 table is converted on upgrade',
+	array( $er_log_table ) === $er_converted && $wpdb->collate === $er_after,
+	'converted ' . implode( ', ', $er_converted ) . '; now ' . $er_after
+);
+
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 $wpdb->query( "CREATE TABLE `{$er_table}` ( `id` INT NOT NULL AUTO_INCREMENT, `channel` VARCHAR(32) NOT NULL, `title` VARCHAR(191) NOT NULL, `revenue` DECIMAL(10,2) NOT NULL, `published` DATE NOT NULL, PRIMARY KEY (`id`) )" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 $er_over_fifty = 0;
@@ -341,7 +364,7 @@ $er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
 ob_start();
 $er_custom->export();
 ob_end_clean();
-$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files ) );
+$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 foreach ( $er_new as $er_path ) {
 	wp_delete_file( $er_path );
@@ -544,7 +567,42 @@ $er_disabled = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-t
 er_report( 'REST hides a disabled report', 404 === $er_disabled->get_status(), 'status ' . $er_disabled->get_status() );
 wp_delete_user( (int) $er_subscriber );
 
+// --- the plugin's tables carry the site's character set and collation ---
+$er_collations = array();
+foreach ( array( 'groups', 'reports', 'log' ) as $er_suffix ) {
+	$er_collations[ $er_suffix ] = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $wpdb->prefix . EXPORTS_REPORTS_TBL . $er_suffix ) );
+}
+er_report(
+	'plugin tables created with the site collation',
+	3 === count( array_unique( $er_collations ) ) ? false : array( $wpdb->collate ) === array_values( array_unique( $er_collations ) ),
+	implode( ', ', $er_collations ) . ' (site: ' . $wpdb->collate . ')'
+);
+
+// --- an install from before 0.9.5 is converted on upgrade ---
+$er_log_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log';
+$wpdb->query( "ALTER TABLE `{$er_log_table}` CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_converted = exports_reports_convert_tables_charset();
+$er_after     = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $er_log_table ) );
+er_report(
+	'a three-byte utf8 table is converted on upgrade',
+	array( $er_log_table ) === $er_converted && $wpdb->collate === $er_after,
+	'converted ' . implode( ', ', $er_converted ) . '; now ' . $er_after
+);
+
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+// --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
+$er_reports_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports';
+wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv', 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+define( 'WP_UNINSTALL_PLUGIN', true );
+include EXPORTS_REPORTS_DIR . 'uninstall.php';
+$er_table_left = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $er_reports_table ) );
+er_report(
+	'uninstall removes tables, options, the cleanup event and export files',
+	null === $er_table_left && false === get_option( 'exports_reports_version' ) && false === get_option( 'exports_reports_token' ) && false === wp_next_scheduled( 'exports_reports_cleanup' ) && ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv' ),
+	'table ' . ( null === $er_table_left ? 'gone' : 'present' ) . ', version option ' . var_export( get_option( 'exports_reports_version' ), true ) . ', event ' . var_export( wp_next_scheduled( 'exports_reports_cleanup' ), true ) . ', file ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv' ) ? 'present' : 'gone' )
+);
 
 if ( $er_failed > 0 ) {
 	WP_CLI::halt( 1 );
