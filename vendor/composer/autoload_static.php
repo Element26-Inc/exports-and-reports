@@ -7,6 +7,23 @@ namespace Composer\Autoload;
 class ComposerStaticInit728bcbb98610b27af983202f527efdf9
 {
     public static $prefixLengthsPsr4 = array (
+        'E' =>
+        array (
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Unicode\\Data\\' => 49,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Unicode\\' => 44,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Sign\\' => 45,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Parser\\' => 47,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Page\\' => 45,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Image\\' => 46,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Graph\\' => 46,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Font\\' => 45,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Filter\\' => 47,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Encrypt\\' => 48,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\' => 40,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\File\\' => 41,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Color\\' => 42,
+            'ExportsReports\\Prefixed\\Com\\Tecnick\\Barcode\\' => 44,
+        ),
         'C' =>
         array (
             'Composer\\Installers\\' => 20,
@@ -14,6 +31,62 @@ class ComposerStaticInit728bcbb98610b27af983202f527efdf9
     );
 
     public static $prefixDirsPsr4 = array (
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Unicode\\Data\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-unicode-data/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Unicode\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-unicode/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Sign\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-sign/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Parser\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-parser/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Page\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-page/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Image\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-image/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Graph\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-graph/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Font\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-font/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Filter\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-filter/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Encrypt\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf-encrypt/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-pdf/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\File\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-file/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Color\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-color/src',
+        ),
+        'ExportsReports\\Prefixed\\Com\\Tecnick\\Barcode\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/tecnickcom/tc-lib-barcode/src',
+        ),
         'Composer\\Installers\\' =>
         array (
             0 => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers',
@@ -118,18 +191,6 @@ class ComposerStaticInit728bcbb98610b27af983202f527efdf9
         'Composer\\Installers\\YawikInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/YawikInstaller.php',
         'Composer\\Installers\\ZendInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZendInstaller.php',
         'Composer\\Installers\\ZikulaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZikulaInstaller.php',
-        'Datamatrix' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/barcodes/datamatrix.php',
-        'PDF417' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/barcodes/pdf417.php',
-        'QRcode' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/barcodes/qrcode.php',
-        'TCPDF' => __DIR__ . '/..' . '/tecnickcom/tcpdf/tcpdf.php',
-        'TCPDF2DBarcode' => __DIR__ . '/..' . '/tecnickcom/tcpdf/tcpdf_barcodes_2d.php',
-        'TCPDFBarcode' => __DIR__ . '/..' . '/tecnickcom/tcpdf/tcpdf_barcodes_1d.php',
-        'TCPDF_COLORS' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_colors.php',
-        'TCPDF_FILTERS' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_filters.php',
-        'TCPDF_FONTS' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_fonts.php',
-        'TCPDF_FONT_DATA' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_font_data.php',
-        'TCPDF_IMAGES' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_images.php',
-        'TCPDF_STATIC' => __DIR__ . '/..' . '/tecnickcom/tcpdf/include/tcpdf_static.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

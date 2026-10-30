@@ -17,7 +17,7 @@
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 6.0
- * Requires PHP:      8.0
+ * Requires PHP:      8.2
  * GitHub Plugin URI: https://github.com/sc0ttkclark/exports-and-reports
  * Primary Branch:    main
  */
@@ -47,9 +47,7 @@ add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' );
 
-if ( ! class_exists( 'TCPDF' ) ) {
-	require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
-}
+require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
 
 require_once EXPORTS_REPORTS_DIR . 'vendor/vendor-prefixed/autoload.php';
 

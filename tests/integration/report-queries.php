@@ -353,6 +353,22 @@ if ( 1 !== count( $er_new ) ) {
 }
 er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
 
+// --- PDF export: a file the viewer can open, with the pages the rows need ---
+$er_pdf_admin              = er_admin( "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id", 'PDF export' );
+$er_pdf_admin->action      = 'export';
+$er_pdf_admin->export_type = 'pdf';
+ob_start();
+$er_pdf_admin->export();
+ob_end_clean();
+$er_pdf_file = (string) $er_pdf_admin->exported_file;
+$er_pdf      = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+$er_pdf_pages = preg_match_all( '#/Type\s*/Page[^s]#', $er_pdf );
+er_report(
+	'PDF export',
+	'.pdf' === substr( $er_pdf_file, -4 ) && '%PDF-' === substr( $er_pdf, 0, 5 ) && false !== strpos( $er_pdf, '%%EOF' ) && 2 <= $er_pdf_pages,
+	'' === $er_pdf_file ? 'no file' : $er_pdf_file . ', ' . strlen( $er_pdf ) . ' bytes, ' . $er_pdf_pages . ' pages'
+);
+
 // --- TSV: the same writer with a tab ---
 list( $er_admin, , $er_error ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Export tsv', true, array(), 'tsv' );
 $er_out                       = er_export_contents( $er_admin );
