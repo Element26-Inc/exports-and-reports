@@ -2100,6 +2100,29 @@ class Exports_Reports_Admin_UI {
 			$sql_count = str_replace( '``', '`', $sql_count );
 			$sql_count = str_replace( '  ', ' ', $sql_count );
 		}
+		/**
+		 * Filters the report query right before it runs, placeholders substituted.
+		 *
+		 * The callback may rewrite the statement, run preparation statements of its own on wpdb's
+		 * connection first (temporary tables, session variables the statement reads), or return
+		 * false to run nothing once it has reported why.
+		 *
+		 * @param array $args {
+		 *     @type string|false $1 The statement.
+		 *     @type bool         $2 True when every row is read, as for an export.
+		 * }
+		 */
+		$sql = $this->do_hook( 'get_data_sql', $sql, $full );
+
+		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
+			/** Filters the count query right before it runs; same arguments as wp_admin_ui_get_data_sql. */
+			$sql_count = $this->do_hook( 'get_data_sql_count', $sql_count, $full );
+		}
+
+		if ( false === $sql ) {
+			return false;
+		}
+
 		if ( current_user_can( 'manage_options' ) && isset( $_GET['debug'] ) && 1 === (int) $_GET['debug'] ) {
 			echo "<textarea cols='130' rows='30'>" . esc_textarea( $sql ) . '</textarea>';
 		}
