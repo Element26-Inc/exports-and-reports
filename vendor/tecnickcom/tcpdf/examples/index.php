@@ -8,7 +8,7 @@ echo '<'.'?'.'xml version="1.0" encoding="UTF-8"'.'?'.'>';
 <head>
 <title>TCPDF Examples</title>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<meta name="description" content="TCPDF is a PHP class for generating PDF documents on the fly" />
+<meta name="description" content="Examples for TCPDF, a deprecated PHP class for generating PDF documents on the fly" />
 <meta name="author" content="Nicola Asuni" />
 <meta name="keywords" content="Examples, TCPDF, PDF, PHP class" />
 </head>
@@ -16,6 +16,10 @@ echo '<'.'?'.'xml version="1.0" encoding="UTF-8"'.'?'.'>';
 <body>
 
 <h1>TCPDF Examples</h1>
+
+<p><strong>TCPDF is DEPRECATED</strong> and receives no updates.
+Migrate to <a href="https://github.com/tecnickcom/tc-lib-pdf">tc-lib-pdf</a>.
+These examples document the frozen code and are not a recommendation to start new work on TCPDF.</p>
 
 <h2>PDF</h2>
 
@@ -84,9 +88,10 @@ echo '<'.'?'.'xml version="1.0" encoding="UTF-8"'.'?'.'>';
 <li>XObject Templates: [<a href="example_062.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
 <li>Text stretching and spacing (tracking/kerning): [<a href="example_063.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
 <li>No-write page regions: [<a href="example_064.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
-<li>PDF/A-1b (ISO 19005-1:2005) document: [<a href="example_065.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
+<li>PDF/A-3b (ISO 19005-3:2012) document: [<a href="example_065.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
 <li>Using WriteHTMLCell: [<a href="example_066.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
 <li>Shorthand border styles including !important: [<a href="example_067.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
+<li>PDF/A-3b with embedded file (Factur-X 1.07 - ZUGFeRD 2.3): [<a href="example_068.php" title="PDF [new window]" target="_blank">PDF</a>]</li>
 </ol>
 
 <h2>Barcodes</h2>

@@ -14,16 +14,16 @@
   "require": {
     "composer/installers": "2.2.*",
     "mk-j/php_xlsxwriter": "^0.39",
-    "tecnickcom/tcpdf": "^6.7.7",
+    "tecnickcom/tcpdf": "^6.8.0",
     "php": ">=8.0"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0.0",
     "phpcompatibility/phpcompatibility-wp": "*",
-    "phpstan/extension-installer": "^1.3",
-    "phpstan/phpstan": "^1.10",
-    "phpstan/phpstan-deprecation-rules": "^1.1",
-    "szepeviktor/phpstan-wordpress": "*",
+    "phpstan/extension-installer": "^1.4",
+    "phpstan/phpstan": "^2.0",
+    "phpstan/phpstan-deprecation-rules": "^2.0",
+    "szepeviktor/phpstan-wordpress": "^2.0",
     "the-events-calendar/coding-standards": "dev-main",
     "wp-cli/wp-cli": "2.*",
     "wp-coding-standards/wpcs": "^3.0.1"
@@ -58,6 +58,16 @@
       ],
       "exclude_from_prefix": {
         "file_patterns": []
+      },
+      "exclude_from_copy": {
+        "file_patterns": [
+          "/examples/",
+          "/testbench/",
+          "/example(-cli)?\\.php$/",
+          "/README\\.md$/",
+          "/composer\\.(json|lock)$/",
+          "/\\.gitignore$/"
+        ]
       },
       "delete_vendor_files": true
     }
