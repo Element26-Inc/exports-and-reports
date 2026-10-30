@@ -1647,7 +1647,6 @@ class Exports_Reports_Admin_UI {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$fp                   = fopen( $export_file_location, 'a+' );
 		$head                 = [];
-		$first                = true;
 		$stream               = null;
 
 		if ( '' !== $this->stream_sql ) {
@@ -1694,14 +1693,14 @@ class Exports_Reports_Admin_UI {
 				continue;
 			}
 
-			if ( $first ) {
-				$attributes['label'] .= ' ';
-				$first               = false;
-			}
-
 			$head[] = $attributes['label'];
 		}
 
+		// A UTF-8 byte order mark, so spreadsheet applications read the encoding right. The file now
+		// starts with it (and the first label is quoted), which also keeps Excel from taking a file whose
+		// first cell is "ID" for SYLK, the case the extra space on the first label used to guard against.
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+		fwrite( $fp, "\xEF\xBB\xBF" );
 		$this->write_sv_line( $fp, $head, $export_delimiter );
 
 		$items = array_values( (array) $this->full_data );
@@ -1741,9 +1740,10 @@ class Exports_Reports_Admin_UI {
 
 				$column_value = trim( str_replace( [ "\r", "\n" ], ' ', (string) $item[ $key ] ) );
 
-				// Maybe escape the first character to prevent formulas from getting used when opening the file with a spreadsheet app.
+				// A value a spreadsheet application would take for a formula is wrapped in a string formula,
+				// which displays the original text and stays inert; a backslash prefix shows up literally.
 				if ( 0 === strpos( $column_value, '=' ) || 0 === strpos( $column_value, '+' ) || 0 === strpos( $column_value, '-' ) || 0 === strpos( $column_value, '@' ) ) {
-					$column_value = '\\' . $column_value;
+					$column_value = '="" & "' . str_replace( '"', '""', $column_value ) . '"';
 				}
 
 				$column_values[] = $column_value;
