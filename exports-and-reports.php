@@ -1707,7 +1707,14 @@ function exports_reports_capabilities() {
 		'exports_reports_view',
 	);
 
-	$caps = apply_filters( 'export_reports_capabilites', $caps );
+	/**
+	 * Filters the capabilities the plugin registers.
+	 *
+	 * @since 0.9.5 Replaces export_reports_capabilites, which still runs first.
+	 *
+	 * @param string[] $caps Capability names.
+	 */
+	$caps = apply_filters( 'exports_reports_capabilities', apply_filters_deprecated( 'export_reports_capabilites', array( $caps ), '0.9.5', 'exports_reports_capabilities' ) );
 
 	return $caps;
 }
