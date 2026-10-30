@@ -1,11 +1,16 @@
+includes:
+  - phpstan-baseline.neon
 parameters:
-  level: 0
+  level: 5
   paths:
     - wp-admin-ui
-    - vendor/vendor-prefixed
     - api.php
     - exports-and-reports.php
   excludePaths:
     - tests (?)
   scanDirectories:
     - wp-admin-ui
+    - vendor/vendor-prefixed
+  # The baseline is written for the whole tree; the workflow analyses only the changed files of a
+  # pull request, so entries for the other files are expected to go unmatched.
+  reportUnmatchedIgnoredErrors: false
