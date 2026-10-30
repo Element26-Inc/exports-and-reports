@@ -421,6 +421,156 @@ er_report(
 	'' !== $er_error ? $er_error : 'content ' . substr( $er_out, 3, 60 )
 );
 
+// --- REST API: data and exports for a report, with the token or as a user who may view it ---
+$er_now = current_time( 'mysql' );
+$wpdb->insert(
+	$wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups',
+	array(
+		'name'        => 'API test',
+		'disabled'    => 0,
+		'role_access' => '',
+		'weight'      => 0,
+		'created'     => $er_now,
+		'updated'     => $er_now,
+	)
+);
+$er_group_id = (int) $wpdb->insert_id;
+$wpdb->insert(
+	$wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports',
+	array(
+		'name'             => 'API report',
+		'group'            => $er_group_id,
+		'disabled'         => 0,
+		'disable_export'   => 0,
+		'default_none'     => 0,
+		'role_access'      => '',
+		'sql_query'        => "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id LIMIT %%LIMIT%%",
+		'sql_query_count'  => '',
+		'page_orientation' => 'P',
+		'field_data'       => '',
+		'weight'           => 0,
+		'created'          => $er_now,
+		'updated'          => $er_now,
+	)
+);
+$er_report_id = (int) $wpdb->insert_id;
+update_option( 'exports_reports_token', 'er-test-token' );
+
+/**
+ * Dispatch a REST request.
+ *
+ * @param string $method  GET or POST.
+ * @param string $route   The route.
+ * @param array  $params  Request parameters.
+ * @param array  $headers Request headers.
+ * @return WP_REST_Response
+ */
+function er_rest( $method, $route, $params = array(), $headers = array() ) {
+	$request = new WP_REST_Request( $method, $route );
+	foreach ( $params as $key => $value ) {
+		$request->set_param( $key, $value );
+	}
+	foreach ( $headers as $key => $value ) {
+		$request->set_header( $key, $value );
+	}
+	ob_start();
+	$response = rest_do_request( $request );
+	ob_end_clean();
+	return $response;
+}
+
+$er_route = sprintf( '/exports-reports/v1/reports/%d', $er_report_id );
+wp_set_current_user( 0 );
+
+$er_anon  = er_rest( 'GET', $er_route . '/data' );
+$er_wrong = er_rest( 'GET', $er_route . '/data', array( 'token' => 'nope' ) );
+er_report(
+	'REST refuses the report without the token or a user',
+	401 === $er_anon->get_status() && 401 === $er_wrong->get_status(),
+	'status ' . $er_anon->get_status() . ' / ' . $er_wrong->get_status()
+);
+
+$er_full = er_rest(
+	'GET',
+	$er_route . '/data',
+	array(
+		'token' => 'er-test-token',
+		'full'  => 1,
+	)
+);
+$er_body = $er_full->get_data();
+er_report(
+	'REST full data with the token parameter',
+	200 === $er_full->get_status() && isset( $er_body['rows'] ) && count( $er_body['rows'] ) === $er_rows && $er_body['total'] === $er_rows,
+	'status ' . $er_full->get_status() . ', ' . ( isset( $er_body['rows'] ) ? count( $er_body['rows'] ) . ' rows' : wp_json_encode( $er_body ) )
+);
+
+$er_page = er_rest(
+	'GET',
+	$er_route . '/data',
+	array(
+		'pg'    => 2,
+		'limit' => 25,
+	),
+	array( 'Authorization' => 'Bearer er-test-token' )
+);
+$er_body = $er_page->get_data();
+er_report(
+	'REST paged data with the bearer token',
+	200 === $er_page->get_status() && isset( $er_body['rows'][0]['id'] ) && 25 === count( $er_body['rows'] ) && 26 === (int) $er_body['rows'][0]['id'] && $er_body['total'] === $er_rows && 2 === $er_body['page'],
+	'status ' . $er_page->get_status() . ', ' . ( isset( $er_body['rows'][0]['id'] ) ? count( $er_body['rows'] ) . ' rows from id ' . $er_body['rows'][0]['id'] . ' of ' . $er_body['total'] : wp_json_encode( $er_body ) )
+);
+
+$er_subscriber = wp_insert_user(
+	array(
+		'user_login' => 'er_subscriber',
+		'user_pass'  => wp_generate_password(),
+		'role'       => 'subscriber',
+	)
+);
+wp_set_current_user( (int) $er_subscriber );
+$er_as_subscriber = er_rest( 'GET', $er_route . '/data' );
+wp_set_current_user( 1 );
+$er_as_admin = er_rest( 'GET', $er_route . '/data', array( 'full' => 1 ) );
+wp_set_current_user( 0 );
+er_report(
+	'REST follows the report access rules for users',
+	403 === $er_as_subscriber->get_status() && 200 === $er_as_admin->get_status(),
+	'subscriber ' . $er_as_subscriber->get_status() . ', administrator ' . $er_as_admin->get_status()
+);
+
+$er_export = er_rest( 'POST', $er_route . '/export', array( 'type' => 'csv' ), array( 'Authorization' => 'Bearer er-test-token' ) );
+$er_body   = $er_export->get_data();
+$er_file   = isset( $er_body['file'] ) ? (string) $er_body['file'] : '';
+$er_logged = '' === $er_file ? 0 : (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE report_id = %d AND filename = %s', $er_report_id, $er_file ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+er_report(
+	'REST export writes the file, logs it and names its download URL',
+	200 === $er_export->get_status() && '' !== $er_file && '.csv' === substr( $er_file, -4 ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ) && 1 === $er_logged && isset( $er_body['url'] ) && false !== strpos( $er_body['url'], $er_route . '/exports/' ),
+	'status ' . $er_export->get_status() . ', ' . ( '' !== $er_file ? $er_file . ', logged ' . $er_logged : wp_json_encode( $er_body ) )
+);
+
+// The serving filter streams the file itself after closing every output buffer, so the test checks its
+// decision on the two kinds of response and reads the file through the function it calls.
+$er_download = er_rest( 'GET', $er_route . '/exports/' . $er_file, array( 'token' => 'er-test-token' ) );
+$er_body     = $er_download->get_data();
+$er_request  = new WP_REST_Request( 'GET', $er_route . '/data' );
+$er_passed   = exports_reports_rest_serve_file( false, $er_full, $er_request );
+$er_other    = er_rest( 'GET', $er_route . '/exports/other_report.csv', array( 'token' => 'er-test-token' ) );
+ob_start();
+$er_sent_ok = exports_reports_send_export_file( $er_file );
+$er_sent    = ob_get_clean();
+$er_on_disk = '' === $er_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+er_report(
+	'REST download names the logged export for serving and refuses other names',
+	200 === $er_download->get_status() && isset( $er_body['download'], $er_body['file'] ) && true === $er_body['download'] && $er_file === $er_body['file'] && false === $er_passed && true === $er_sent_ok && '' !== $er_sent && $er_sent === $er_on_disk && 404 === $er_other->get_status(),
+	'status ' . $er_download->get_status() . ', download ' . wp_json_encode( isset( $er_body['download'] ) ? $er_body['download'] : null ) . ', data response left alone ' . var_export( false === $er_passed, true ) . ', ' . strlen( $er_sent ) . ' bytes, other ' . $er_other->get_status()
+);
+
+$wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 1 ), array( 'id' => $er_report_id ) );
+$er_disabled = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-token' ) );
+er_report( 'REST hides a disabled report', 404 === $er_disabled->get_status(), 'status ' . $er_disabled->get_status() );
+wp_delete_user( (int) $er_subscriber );
+
 // --- the plugin's tables carry the site's character set and collation ---
 $er_collations = array();
 foreach ( array( 'groups', 'reports', 'log' ) as $er_suffix ) {
