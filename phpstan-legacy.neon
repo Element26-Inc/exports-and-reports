@@ -7,4 +7,4 @@ parameters:
 		- wp-admin-ui
 		- vendor/vendor-prefixed/mk-j
 	excludePaths:
-		- wp-admin-ui/includes/export-pdf.php
+		- wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php

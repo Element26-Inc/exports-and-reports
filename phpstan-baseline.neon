@@ -191,7 +191,7 @@ parameters:
 			count: 1
 			path: wp-admin-ui/class-exports-reports-admin-ui.php
 		-
-			message: '#^Strict comparison using \=\=\= between bool and ''post'' will always evaluate to false\.$#'
+			message: '#^Strict comparison using \=\=\= between ''post'' and bool will always evaluate to false\.$#'
 			identifier: identical.alwaysFalse
 			count: 1
 			path: wp-admin-ui/class-exports-reports-admin-ui.php
