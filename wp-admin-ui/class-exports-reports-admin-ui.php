@@ -1418,6 +1418,7 @@ class Exports_Reports_Admin_UI {
 
 			return false;
 		}
+		$this->protect_export_dir();
 		if ( ! empty( $_GET['remove_export'] ) ) {
 			$remove_export = sanitize_text_field( $_GET['remove_export'] );
 			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( '/', '', $remove_export );
@@ -1651,6 +1652,32 @@ class Exports_Reports_Admin_UI {
 		$this->exported_file = $export_file;
 
 		$this->do_hook( 'post_export', $export_file );
+	}
+
+	/**
+	 * Keeps the export directory from being served directly: an .htaccess that denies every request
+	 * (Apache 2.4 and 2.2 syntax) and an index.php, written once. Downloads go through
+	 * exports_reports_send_export_file() after a nonce or token check; nginx needs the equivalent
+	 * location rule in the server configuration (see the readme).
+	 *
+	 * @since 0.9.5
+	 */
+	protected function protect_export_dir() {
+		/** @var WP_Filesystem_Base $wp_filesystem */
+		global $wp_filesystem;
+
+		$rules = array(
+			'.htaccess' => "# Exports and Reports: export files are served by the plugin after an access check.\n<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n\tOrder deny,allow\n\tDeny from all\n</IfModule>\n",
+			'index.php' => "<?php\n// Silence is golden.\n",
+		);
+
+		foreach ( $rules as $name => $contents ) {
+			$path = WP_ADMIN_UI_EXPORT_DIR . '/' . $name;
+
+			if ( ! $wp_filesystem->exists( $path ) ) {
+				$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
+			}
+		}
 	}
 
 	/**

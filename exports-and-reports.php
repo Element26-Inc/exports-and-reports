@@ -50,6 +50,7 @@ add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' )
 require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
 
 require_once EXPORTS_REPORTS_DIR . 'vendor/vendor-prefixed/autoload.php';
+require_once EXPORTS_REPORTS_DIR . 'includes/rest-api.php';
 
 /**
  *
@@ -108,18 +109,12 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	$sql = $wp_filesystem->get_contents( EXPORTS_REPORTS_DIR . 'assets/dump.sql' );
 
-	$charset_collate = 'DEFAULT CHARSET utf8';
+	// The dump carries the three-byte utf8 the tables were first written with; the site's own
+	// character set and collation take its place (utf8mb4 on any current install).
+	$charset_collate = $wpdb->get_charset_collate();
 
-	if ( ! empty( $wpdb->charset ) ) {
-		$charset_collate = "DEFAULT CHARSET {$wpdb->charset}";
-	}
-
-	if ( ! empty( $wpdb->collate ) ) {
-		$charset_collate .= " COLLATE {$wpdb->collate}";
-	}
-
-	if ( 'DEFAULT CHARSET utf8' !== $charset_collate ) {
-		$sql = str_replace( 'DEFAULT CHARSET utf8', $charset_collate, $sql );
+	if ( '' !== $charset_collate ) {
+		$sql = str_replace( 'DEFAULT CHARSET=utf8', $charset_collate, $sql );
 	}
 
 	$sql = explode( ";\n", str_replace( array( "\r", 'wp_' ), array( "\n", $wpdb->prefix ), $sql ) );
@@ -147,6 +142,10 @@ function exports_reports_sql_install( $upgrade = false ) {
 		dbDelta( $query );
 	}
 
+	if ( $upgrade ) {
+		exports_reports_convert_tables_charset();
+	}
+
 	delete_option( 'exports_reports_version' );
 	add_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
 
@@ -157,6 +156,48 @@ function exports_reports_sql_install( $upgrade = false ) {
 	}
 
 	exports_reports_schedule_cleanup();
+}
+
+/**
+ * Converts the plugin's tables to the site's character set and collation when they differ.
+ *
+ * Installs before 0.9.5 created the tables in three-byte utf8 whatever the site used (the
+ * replacement in the installer never matched the dump), so a report name or filter value outside
+ * the Basic Multilingual Plane could not be stored. dbDelta() does not change the character set of
+ * an existing table, so the upgrade converts them.
+ *
+ * @since 0.9.5
+ *
+ * @return string[] The tables converted.
+ */
+function exports_reports_convert_tables_charset() {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	if ( empty( $wpdb->charset ) || empty( $wpdb->collate ) ) {
+		return array();
+	}
+
+	$converted = array();
+
+	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
+		$table = $wpdb->prefix . EXPORTS_REPORTS_TBL . $suffix;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- schema lookup at upgrade time.
+		$current = $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $table ) );
+
+		if ( empty( $current ) || $current === $wpdb->collate ) {
+			continue;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table; character set and collation are wpdb's, not request data.
+		$wpdb->query( "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$wpdb->charset} COLLATE {$wpdb->collate}" );
+
+		if ( '' === $wpdb->last_error ) {
+			$converted[] = $table;
+		}
+	}
+
+	return $converted;
 }
 
 /**
@@ -379,7 +420,9 @@ function exports_reports_settings() {
 		update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( $_POST['cronjob_token'] ) ) );
 	}
 
-	$api_url = EXPORTS_REPORTS_URL . 'api.php?report=YOUR_REPORT_ID%s&token=' . urlencode( get_option( 'exports_reports_token' ) );
+	$rest_base  = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
+	$token      = (string) get_option( 'exports_reports_token' );
+	$legacy_url = EXPORTS_REPORTS_URL . 'api.php?report=YOUR_REPORT_ID&export_type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token );
 
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
@@ -419,23 +462,40 @@ function exports_reports_settings() {
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row">Export Directory</th>
+					<td>
+						<code><?php echo esc_html( WP_ADMIN_UI_EXPORT_DIR ); ?></code><br />
+						<span class="description">
+							Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.
+							<?php if ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ) : ?>
+								Apache: the plugin's .htaccess denies direct requests.
+							<?php else : ?>
+								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
+							<?php endif; ?>
+							nginx ignores .htaccess; add <code>location ~* /wp-content/exports/ { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+						</span>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><label for="cronjob_token">Cronjob/JSON API Token</label></th>
 					<td>
 						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
 						<span class="description">
-							Make sure this token is secure and that no one else gets this -- this key allows you to Export your report from a Cronjob on your server, by accessing the URL, or for the JSON API. You can change it anytime as needed.<br /><br />
+							Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header <code>Authorization: Bearer TOKEN</code>, or as a <code>token</code> query parameter. You can change it anytime as needed.<br /><br />
 
 							<label for="export_api_url1" style="font-style:normal;"><strong>URL to Export (useful for Cronjobs):</strong></label><br />
-							<input type="text" id="export_api_url1" style="width:100%;" value="<?php echo esc_url( sprintf( $api_url, '&export_type=YOUR_EXPORT_TYPE' ) ); ?>" /><br />
-
-							<label for="export_api_url2" style="font-style:normal;"><strong>URL to JSON API (paginated):</strong></label><br />
-							<input type="text" id="export_api_url2" style="width:100%;" value="<?php echo esc_url( sprintf( $api_url, '&pg=PAGE_NUMBER&action=json' ) ); ?>" /><br />
-
-							<label for="export_api_url3" style="font-style:normal;"><strong>URL to JSON API (full data):</strong></label><br />
-							<input type="text" id="export_api_url3" style="width:100%;" value="<?php echo esc_url( sprintf( $api_url, '&full=1&action=json' ) ); ?>" />
+							<input type="text" id="export_api_url1" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token ) ); ?>" /><br />
 
 							<label for="export_api_url4" style="font-style:normal;"><strong>URL to Export and then Download File:</strong></label><br />
-							<input type="text" id="export_api_url4" style="width:100%;" value="<?php echo esc_url( sprintf( $api_url, '&exports_and_reports_download=1&export_type=YOUR_EXPORT_TYPE' ) ); ?>" /><br />
+							<input type="text" id="export_api_url4" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&download=1&token=' . rawurlencode( $token ) ); ?>" /><br />
+
+							<label for="export_api_url2" style="font-style:normal;"><strong>URL to JSON API (paginated):</strong></label><br />
+							<input type="text" id="export_api_url2" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?pg=PAGE_NUMBER&token=' . rawurlencode( $token ) ); ?>" /><br />
+
+							<label for="export_api_url3" style="font-style:normal;"><strong>URL to JSON API (full data):</strong></label><br />
+							<input type="text" id="export_api_url3" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?full=1&token=' . rawurlencode( $token ) ); ?>" /><br /><br />
+
+							The pre-0.9.5 endpoint still answers for cronjobs set up before: <code><?php echo esc_html( $legacy_url ); ?></code>. It will be removed in 1.0; move those jobs to the URLs above.
 						</span>
 					</td>
 				</tr>
@@ -1116,6 +1176,213 @@ function exports_reports_field_defaults( $field = null ) {
 }
 
 /**
+ * An enabled report by id.
+ *
+ * @since 0.9.5
+ *
+ * @param int $report_id The report id.
+ * @return object|null The row of the reports table, or null when there is no enabled report with that id.
+ */
+function exports_reports_get_report( $report_id ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$report = $wpdb->get_row( $wpdb->prepare( $sql, absint( $report_id ) ) );
+
+	return empty( $report ) ? null : $report;
+}
+
+/**
+ * An enabled group by id.
+ *
+ * @since 0.9.5
+ *
+ * @param int $group_id The group id.
+ * @return object|null The row of the groups table, or null when there is no enabled group with that id.
+ */
+function exports_reports_get_group( $group_id ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$group = $wpdb->get_row( $wpdb->prepare( $sql, absint( $group_id ) ) );
+
+	return empty( $group ) ? null : $group;
+}
+
+/**
+ * Whether the current user may view a report: the rule the Reports menu and the report page apply.
+ *
+ * @since 0.9.5
+ *
+ * @param object $report A row of the reports table.
+ * @param object $group  The row of its group.
+ * @return bool
+ */
+function exports_reports_user_can_view_report( $report, $group ) {
+	if ( ! is_user_logged_in() ) {
+		return false;
+	}
+
+	$has_full_access = exports_reports_current_user_can_any( 'exports_reports_full_access' );
+
+	if ( is_super_admin() || ( ! $has_full_access && exports_reports_has_role( 'administrator' ) ) ) {
+		$has_full_access = true;
+	}
+
+	if ( $has_full_access || exports_reports_current_user_can_any( 'exports_reports_view' ) || exports_reports_current_user_can_any( 'exports_reports_view_group_' . $group->id ) || exports_reports_current_user_can_any( 'exports_reports_view_report_' . $report->id ) ) {
+		return true;
+	}
+
+	$roles = array_unique( array_merge( explode( ',', (string) $group->role_access ), explode( ',', (string) $report->role_access ) ) );
+
+	foreach ( $roles as $role ) {
+		if ( '' !== $role && exports_reports_has_role( $role ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * The admin UI options for a report row: what the report page, the REST API and api.php hand to
+ * Exports_Reports_Admin_UI.
+ *
+ * @since 0.9.5
+ *
+ * @param object $report A row of the reports table.
+ * @return array
+ */
+function exports_reports_report_options( $report ) {
+	$options = array();
+
+	$options['css']      = EXPORTS_REPORTS_URL . 'assets/admin.css';
+	$options['readonly'] = true;
+
+	// $options['identifier']   = true;
+
+	$options['export']       = ( 0 === (int) $report->disable_export );
+	$options['search']       = ( strlen( (string) $report->field_data ) > 0 ? true : false );
+	$options['default_none'] = ( 1 === (int) $report->default_none ? true : false );
+	$options['sql']          = trim( (string) $report->sql_query );
+	$options['sql_count']    = trim( (string) $report->sql_query_count );
+
+	if ( empty( $options['sql_count'] ) ) {
+		unset( $options['sql_count'] );
+	}
+
+	$options['page_orientation'] = $report->page_orientation;
+	$options['item']             = 'item';
+	$options['items']            = $report->name;
+	$options['icon']             = EXPORTS_REPORTS_URL . 'assets/icons/32.png';
+	$options['heading']          = array(
+		'manage' => 'View Report:',
+	);
+
+	$field_data = @json_decode( (string) $report->field_data, true );
+
+	if ( is_array( $field_data ) && ! empty( $field_data ) ) {
+		$options['columns'] = array();
+
+		foreach ( $field_data as $field ) {
+			$field = exports_reports_field_defaults( $field );
+
+			$options['columns'][ $field['name'] ] = array();
+
+			if ( 0 < strlen( $field['real_name'] ) ) {
+				$options['columns'][ $field['name'] ]['real_name'] = $field['real_name'];
+			}
+
+			if ( 0 < strlen( $field['label'] ) ) {
+				$options['columns'][ $field['name'] ]['label'] = $field['label'];
+			}
+
+			if ( 0 < strlen( $field['filter_label'] ) ) {
+				$options['columns'][ $field['name'] ]['filter_label'] = $field['filter_label'];
+			}
+
+			if ( 0 < strlen( $field['custom_display'] ) ) {
+				$options['columns'][ $field['name'] ]['custom_display'] = $field['custom_display'];
+			}
+
+			if ( 0 < strlen( $field['type'] ) ) {
+				$options['columns'][ $field['name'] ]['type'] = $field['type'];
+			}
+
+			if ( 0 < strlen( $field['width'] ) ) {
+				$options['columns'][ $field['name'] ]['width'] = $field['width'];
+			}
+
+			if ( 1 === (int) $field['hide_report'] ) {
+				$options['columns'][ $field['name'] ]['display'] = false;
+			}
+
+			if ( 1 === (int) $field['hide_export'] ) {
+				$options['columns'][ $field['name'] ]['export'] = false;
+			}
+
+			if ( 1 === (int) $field['search'] || 1 === (int) $field['hide_report'] ) {
+				$options['columns'][ $field['name'] ]['search'] = false;
+			} else {
+				$options['columns'][ $field['name'] ]['search'] = true;
+			}
+
+			if ( 1 === (int) $field['filter'] ) {
+				$options['columns'][ $field['name'] ]['filter'] = true;
+
+				if ( 0 < strlen( $field['filter_default'] ) ) {
+					$options['columns'][ $field['name'] ]['filter_default'] = $field['filter_default'];
+				}
+
+				if ( 0 < strlen( $field['filter_ongoing'] ) ) {
+					$options['columns'][ $field['name'] ]['date_ongoing'] = $field['filter_ongoing'];
+
+					if ( 0 < strlen( $field['filter_ongoing_default'] ) ) {
+						$options['columns'][ $field['name'] ]['filter_ongoing_default'] = $field['filter_ongoing_default'];
+					}
+				}
+			}
+
+			if ( 1 === (int) $field['total_field'] ) {
+				$options['columns'][ $field['name'] ]['total_field'] = true;
+			}
+
+			if ( 1 === (int) $field['group_related'] ) {
+				$options['columns'][ $field['name'] ]['group_related'] = true;
+			}
+
+			if ( 'related' === $field['type'] ) {
+				if ( 0 < strlen( $field['related'] ) ) {
+					$options['columns'][ $field['name'] ]['related'] = $field['related'];
+				}
+
+				if ( 0 < strlen( $field['related_field'] ) ) {
+					$options['columns'][ $field['name'] ]['related_field'] = $field['related_field'];
+				}
+
+				if ( 0 < strlen( $field['related_id'] ) ) {
+					$options['columns'][ $field['name'] ]['related_id'] = $field['related_id'];
+				}
+
+				if ( 0 < strlen( $field['related_sql'] ) ) {
+					$options['columns'][ $field['name'] ]['related_sql'] = $field['related_sql'];
+				}
+			}
+		}
+	}
+
+	$options['report_id'] = (int) $report->id;
+
+	$options = apply_filters( 'exports_reports_report_options', $options, (int) $report->id );
+
+	return $options;
+}
+
+/**
  * @param bool      $has_full_access
  * @param bool|null $group_id
  *
@@ -1249,15 +1516,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 				$current_report = absint( $report->id );
 			}
 
-			$selectable_reports[ $report->id ] = array(
-				'name'             => $report->name,
-				'sql_query'        => $report->sql_query,
-				'sql_query_count'  => $report->sql_query_count,
-				'default_none'     => $report->default_none,
-				'export'           => ( 0 === (int) $report->disable_export ? true : false ),
-				'field_data'       => $report->field_data,
-				'page_orientation' => $report->page_orientation,
-			);
+			$selectable_reports[ $report->id ] = $report;
 
 			continue;
 		}
@@ -1274,15 +1533,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 					$current_report = absint( $report->id );
 				}
 
-				$selectable_reports[ $report->id ] = array(
-					'name'             => $report->name,
-					'sql_query'        => $report->sql_query,
-					'sql_query_count'  => $report->sql_query_count,
-					'default_none'     => $report->default_none,
-					'export'           => ( 0 === (int) $report->disable_export ? true : false ),
-					'field_data'       => $report->field_data,
-					'page_orientation' => $report->page_orientation,
-				);
+				$selectable_reports[ $report->id ] = $report;
 			}
 		}
 	}
@@ -1297,126 +1548,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
 
-	$options = array();
-
-	$options['css']      = EXPORTS_REPORTS_URL . 'assets/admin.css';
-	$options['readonly'] = true;
-
-	// $options['identifier']   = true;
-
-	$options['export']       = $selectable_reports[ $current_report ]['export'];
-	$options['search']       = ( strlen( $selectable_reports[ $current_report ]['field_data'] ) > 0 ? true : false );
-	$options['default_none'] = ( 1 === (int) $selectable_reports[ $current_report ]['default_none'] ? true : false );
-	$options['sql']          = trim( $selectable_reports[ $current_report ]['sql_query'] );
-	$options['sql_count']    = trim( $selectable_reports[ $current_report ]['sql_query_count'] );
-
-	if ( empty( $options['sql_count'] ) ) {
-		unset( $options['sql_count'] );
-	}
-
-	$options['page_orientation'] = $selectable_reports[ $current_report ]['page_orientation'];
-	$options['item']             = 'item';
-	$options['items']            = $selectable_reports[ $current_report ]['name'];
-	$options['icon']             = EXPORTS_REPORTS_URL . 'assets/icons/32.png';
-	$options['heading']          = array(
-		'manage' => 'View Report:',
-	);
-
-	$field_data = @json_decode( $selectable_reports[ $current_report ]['field_data'], true );
-
-	if ( is_array( $field_data ) && ! empty( $field_data ) ) {
-		$options['columns'] = array();
-
-		foreach ( $field_data as $field ) {
-			$field = exports_reports_field_defaults( $field );
-
-			$options['columns'][ $field['name'] ] = array();
-
-			if ( 0 < strlen( $field['real_name'] ) ) {
-				$options['columns'][ $field['name'] ]['real_name'] = $field['real_name'];
-			}
-
-			if ( 0 < strlen( $field['label'] ) ) {
-				$options['columns'][ $field['name'] ]['label'] = $field['label'];
-			}
-
-			if ( 0 < strlen( $field['filter_label'] ) ) {
-				$options['columns'][ $field['name'] ]['filter_label'] = $field['filter_label'];
-			}
-
-			if ( 0 < strlen( $field['custom_display'] ) ) {
-				$options['columns'][ $field['name'] ]['custom_display'] = $field['custom_display'];
-			}
-
-			if ( 0 < strlen( $field['type'] ) ) {
-				$options['columns'][ $field['name'] ]['type'] = $field['type'];
-			}
-
-			if ( 0 < strlen( $field['width'] ) ) {
-				$options['columns'][ $field['name'] ]['width'] = $field['width'];
-			}
-
-			if ( 1 === (int) $field['hide_report'] ) {
-				$options['columns'][ $field['name'] ]['display'] = false;
-			}
-
-			if ( 1 === (int) $field['hide_export'] ) {
-				$options['columns'][ $field['name'] ]['export'] = false;
-			}
-
-			if ( 1 === (int) $field['search'] || 1 === (int) $field['hide_report'] ) {
-				$options['columns'][ $field['name'] ]['search'] = false;
-			} else {
-				$options['columns'][ $field['name'] ]['search'] = true;
-			}
-
-			if ( 1 === (int) $field['filter'] ) {
-				$options['columns'][ $field['name'] ]['filter'] = true;
-
-				if ( 0 < strlen( $field['filter_default'] ) ) {
-					$options['columns'][ $field['name'] ]['filter_default'] = $field['filter_default'];
-				}
-
-				if ( 0 < strlen( $field['filter_ongoing'] ) ) {
-					$options['columns'][ $field['name'] ]['date_ongoing'] = $field['filter_ongoing'];
-
-					if ( 0 < strlen( $field['filter_ongoing_default'] ) ) {
-						$options['columns'][ $field['name'] ]['filter_ongoing_default'] = $field['filter_ongoing_default'];
-					}
-				}
-			}
-
-			if ( 1 === (int) $field['total_field'] ) {
-				$options['columns'][ $field['name'] ]['total_field'] = true;
-			}
-
-			if ( 1 === (int) $field['group_related'] ) {
-				$options['columns'][ $field['name'] ]['group_related'] = true;
-			}
-
-			if ( 'related' === $field['type'] ) {
-				if ( 0 < strlen( $field['related'] ) ) {
-					$options['columns'][ $field['name'] ]['related'] = $field['related'];
-				}
-
-				if ( 0 < strlen( $field['related_field'] ) ) {
-					$options['columns'][ $field['name'] ]['related_field'] = $field['related_field'];
-				}
-
-				if ( 0 < strlen( $field['related_id'] ) ) {
-					$options['columns'][ $field['name'] ]['related_id'] = $field['related_id'];
-				}
-
-				if ( 0 < strlen( $field['related_sql'] ) ) {
-					$options['columns'][ $field['name'] ]['related_sql'] = $field['related_sql'];
-				}
-			}
-		}
-	}
-
-	$options['report_id'] = $current_report;
-
-	$options = apply_filters( 'exports_reports_report_options', $options, $current_report );
+	$options = exports_reports_report_options( $selectable_reports[ $current_report ] );
 
 	$admin = new Exports_Reports_Admin_UI( $options );
 
@@ -1443,7 +1575,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 						)
 					);
 					?>
-					"<?php selected( $current_report, $report_id ); ?>><?php echo esc_html( $report['name'] ); ?></option>
+					"<?php selected( $current_report, $report_id ); ?>><?php echo esc_html( $report->name ); ?></option>
 					<?php
 				}
 				?>
@@ -1459,6 +1591,60 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 
 add_action( 'wp_admin_ui_post_export', 'exports_reports_log', 10, 2 );
 add_action( 'wp_admin_ui_post_remove_export', 'exports_reports_delete_log', 10, 2 );
+
+/**
+ * Sends a file from the export directory to the browser as an attachment.
+ *
+ * The directory refuses direct requests (Exports_Reports_Admin_UI::protect_export_dir() writes the
+ * rules), so every download comes through here after the caller's nonce or token check. The file
+ * is read in chunks; an export can be larger than the memory limit.
+ *
+ * @since 0.9.5
+ *
+ * @param string $filename The file's name inside the export directory, without a path.
+ * @return bool False when no such export exists; true once the file has been sent.
+ */
+function exports_reports_send_export_file( $filename ) {
+	$types = array(
+		'csv'    => 'text/csv; charset=utf-8',
+		'tsv'    => 'text/tab-separated-values; charset=utf-8',
+		'pipe'   => 'text/plain; charset=utf-8',
+		'custom' => 'text/plain; charset=utf-8',
+		'xlsx'   => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'xml'    => 'application/xml; charset=utf-8',
+		'json'   => 'application/json; charset=utf-8',
+		'pdf'    => 'application/pdf',
+	);
+
+	$filename  = basename( (string) $filename );
+	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
+	$directory = realpath( WP_ADMIN_UI_EXPORT_DIR );
+	$path      = realpath( WP_ADMIN_UI_EXPORT_DIR . '/' . $filename );
+
+	if ( '' === $filename || ! isset( $types[ $extension ] ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- read in chunks; WP_Filesystem would load the whole export into memory.
+	$handle = fopen( $path, 'rb' );
+
+	if ( false === $handle ) {
+		return false;
+	}
+
+	nocache_headers();
+	header( 'Content-Type: ' . $types[ $extension ] );
+	header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+	header( 'Content-Length: ' . (string) filesize( $path ) );
+	header( 'X-Content-Type-Options: nosniff' );
+
+	fpassthru( $handle );
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- paired with the fopen above.
+	fclose( $handle );
+
+	return true;
+}
 
 /**
  * @param $args
@@ -1564,6 +1750,11 @@ function exports_reports_delete_dir_files( $directory ) {
 	$file_list = $wp_filesystem->dirlist( $directory, false );
 
 	foreach ( $file_list as $file ) {
+		// The rules that keep the directory from being served stay.
+		if ( in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ) {
+			continue;
+		}
+
 		$file_path = $directory . DIRECTORY_SEPARATOR . $file['name'];
 
 		// d = folder, f = file
@@ -1665,7 +1856,14 @@ function exports_reports_capabilities() {
 		'exports_reports_view',
 	);
 
-	$caps = apply_filters( 'export_reports_capabilites', $caps );
+	/**
+	 * Filters the capabilities the plugin registers.
+	 *
+	 * @since 0.9.5 Replaces export_reports_capabilites, which still runs first.
+	 *
+	 * @param string[] $caps Capability names.
+	 */
+	$caps = apply_filters( 'exports_reports_capabilities', apply_filters_deprecated( 'export_reports_capabilites', array( $caps ), '0.9.5', 'exports_reports_capabilities' ) );
 
 	return $caps;
 }
