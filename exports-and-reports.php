@@ -28,7 +28,7 @@ define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
 define( 'EXPORTS_REPORTS_DIR', plugin_dir_path( __FILE__ ) );
 
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_URL', WP_CONTENT_URL . '/exports' );
+	define( 'WP_ADMIN_UI_EXPORT_URL', content_url( 'exports' ) );
 }
 
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
