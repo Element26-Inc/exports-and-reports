@@ -906,31 +906,31 @@ class Exports_Reports_Admin_UI {
 							if ( ! is_array( $attributes['related'] ) ) {
 								// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 								$related = $wpdb->get_results( 'SELECT id,`' . $this->sanitize( (string) $attributes['related_field'] ) . '` FROM ' . (string) $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . (string) $attributes['related_sql'] : '' ) );
+								$choices = array();
+								foreach ( $related as $option ) {
+									$choices[ (string) $option->id ] = (string) $option->{$attributes['related_field']};
+								}
+							} else {
+								$choices = array();
+								foreach ( (array) $attributes['related'] as $option_id => $option ) {
+									$choices[ (string) $option_id ] = (string) $option;
+								}
+							}
+							$selected_options = array_map( 'strval', explode( ',', (string) $this->row[ $column ] ) );
+							if ( false !== $attributes['related_multiple'] ) {
 								?>
-								<select name="<?php echo esc_attr( $column ); ?><?php echo( false !== $attributes['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>"<?php echo( false !== $attributes['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
-									<?php
-									$selected_options = explode( ',', $this->row[ $column ] );
-									foreach ( $related as $option ) {
-										?>
-										<option value="<?php echo esc_attr( $option->id ); ?>"<?php echo( in_array( $option->id, $selected_options ) ? ' SELECTED' : '' ); ?>><?php echo esc_html( $option->{$attributes['related_field']} ); ?></option>
-										<?php
-									}
-									?>
-								</select>
+								<fieldset class="er-choices" id="admin_ui_<?php echo esc_attr( $column ); ?>">
+									<?php foreach ( $choices as $option_id => $option ) { ?>
+										<label><input type="checkbox" name="<?php echo esc_attr( $column ); ?>[]" value="<?php echo esc_attr( $option_id ); ?>"<?php checked( in_array( $option_id, $selected_options, true ) ); ?> /> <?php echo esc_html( $option ); ?></label>
+									<?php } ?>
+								</fieldset>
 								<?php
 							} else {
-								$related = $attributes['related'];
-
 								?>
-								<select name="<?php echo esc_attr( $column ); ?><?php echo( false !== $attributes['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>"<?php echo( false !== $attributes['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
-									<?php
-									$selected_options = explode( ',', $this->row[ $column ] );
-									foreach ( $related as $option_id => $option ) {
-										?>
-										<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( true, in_array( $option_id, $selected_options ) ); ?>><?php echo esc_html( $option ); ?></option>
-										<?php
-									}
-									?>
+								<select name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>">
+									<?php foreach ( $choices as $option_id => $option ) { ?>
+										<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( in_array( $option_id, $selected_options, true ) ); ?>><?php echo esc_html( $option ); ?></option>
+									<?php } ?>
 								</select>
 								<?php
 							}
