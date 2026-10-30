@@ -2100,8 +2100,28 @@ class Exports_Reports_Admin_UI {
 			$sql_count = str_replace( '``', '`', $sql_count );
 			$sql_count = str_replace( '  ', ' ', $sql_count );
 		}
+		/**
+		 * The report query right before it runs, with every placeholder substituted.
+		 *
+		 * A callback may rewrite the statement, run preparation statements of its own on wpdb's
+		 * connection (temporary tables, session variables) and return the statement that produces
+		 * the rows, or return false when nothing should run (after reporting the reason itself).
+		 *
+		 * Filter: wp_admin_ui_get_data_sql, with [ 1 => $sql, 2 => $full ] and the instance.
+		 */
+		$sql = $this->do_hook( 'get_data_sql', $sql, $full );
+
+		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
+			/**
+			 * The count query right before it runs, same contract as wp_admin_ui_get_data_sql.
+			 *
+			 * Filter: wp_admin_ui_get_data_sql_count, with [ 1 => $sql_count, 2 => $full ] and the instance.
+			 */
+			$sql_count = $this->do_hook( 'get_data_sql_count', $sql_count, $full );
+		}
+
 		if ( current_user_can( 'manage_options' ) && isset( $_GET['debug'] ) && 1 === (int) $_GET['debug'] ) {
-			echo "<textarea cols='130' rows='30'>" . esc_textarea( $sql ) . '</textarea>';
+			echo "<textarea cols='130' rows='30'>" . esc_textarea( (string) $sql ) . '</textarea>';
 		}
 		if ( false !== $this->default_none && false === $this->search_query && false === $full && empty( $wheresql ) && empty( $havingsql ) ) {
 			return false;
@@ -2110,10 +2130,16 @@ class Exports_Reports_Admin_UI {
 			$wpdb->show_errors( true );
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$results = $wpdb->get_results( $sql, ARRAY_A );
+		$results = [];
+		$total   = 0;
 
-		$total = @current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+		if ( false !== $sql ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			$results = $wpdb->get_results( $sql, ARRAY_A );
+
+			$total = @current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+		}
+
 		$total = $this->do_hook( 'get_data_total', $total, $full );
 
 		if ( is_numeric( $total ) ) {
