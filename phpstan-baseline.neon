@@ -784,7 +784,7 @@ parameters:
 			count: 1
 			path: wp-admin-ui/includes/export-pdf.php
 		-
-			message: '#^Parameter \#2 \$newvalue of function ini_set expects string, int given\.$#'
+			message: '#^Parameter \#2 \$(newvalue|value) of function ini_set expects string, int given\.$#'
 			identifier: argument.type
 			count: 1
 			path: api.php
