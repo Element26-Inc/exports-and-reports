@@ -27,3 +27,97 @@
 	margin-left: 14px;
 	margin-top:  5px;
 }
+/* The report form's field editor. */
+.er-fields__list {
+	display:        flex;
+	flex-direction: column;
+	gap:            8px;
+	max-width:      980px;
+}
+
+.er-field {
+	background:    #fff;
+	border:        1px solid #c3c4c7;
+	border-radius: 4px;
+	padding:       10px 12px;
+}
+
+.er-field--placeholder {
+	background: #f6f7f7;
+	border:     2px dashed #8c8f94;
+	min-height: 56px;
+}
+
+.er-field__bar {
+	align-items: flex-end;
+	display:     flex;
+	flex-wrap:   wrap;
+	gap:         8px 16px;
+}
+
+.er-field__handle {
+	color:         #8c8f94;
+	cursor:        move;
+	margin-bottom: 7px;
+}
+
+.er-field__bar label,
+.er-field__grid label {
+	color:          #1d2327;
+	display:        flex;
+	flex-direction: column;
+	font-size:      12px;
+	gap:            2px;
+}
+
+.er-field__bar .regular-text {
+	width: 220px;
+}
+
+.er-field__remove {
+	margin-bottom: 6px;
+	margin-left:   auto;
+}
+
+.er-field__flags {
+	display:   flex;
+	flex-wrap: wrap;
+	gap:       4px 18px;
+	margin:    10px 0 0;
+}
+
+.er-field__flag {
+	font-size: 13px;
+}
+
+.er-field__advanced {
+	margin-top: 8px;
+}
+
+.er-field__advanced summary {
+	color:  #2271b1;
+	cursor: pointer;
+}
+
+.er-field__grid {
+	display:               grid;
+	gap:                   8px 16px;
+	grid-template-columns: repeat( auto-fill, minmax( 220px, 1fr ) );
+	margin-top:            8px;
+}
+
+.er-field__grid input {
+	width: 100%;
+}
+
+/* A multiple-choice column of a form (roles with access). */
+.er-choices {
+	display:               grid;
+	gap:                   4px 12px;
+	grid-template-columns: repeat( auto-fill, minmax( 180px, 1fr ) );
+	max-width:             760px;
+}
+
+.er-choices label {
+	font-size: 13px;
+}
