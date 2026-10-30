@@ -81,6 +81,7 @@ function er_admin( $sql, $name, $options = array() ) {
 				'item'         => 'item',
 				'items'        => $name,
 				'heading'      => array( 'manage' => 'View Report:' ),
+				'report_id'    => 0,
 			),
 			$options
 		)
@@ -341,7 +342,7 @@ $er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
 ob_start();
 $er_custom->export();
 ob_end_clean();
-$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files ) );
+$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 foreach ( $er_new as $er_path ) {
 	wp_delete_file( $er_path );
