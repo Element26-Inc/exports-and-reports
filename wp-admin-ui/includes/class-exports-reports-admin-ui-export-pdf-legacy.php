@@ -215,7 +215,7 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 			return '<p>' . esc_html__( 'This report has no columns to show.', 'exports-and-reports' ) . '</p>';
 		}
 
-		$cells = self::cells( $admin, $columns );
+		$cells   = self::cells( $admin, $columns );
 		$widths  = self::column_widths( $admin, $columns, $cells );
 		$numeric = array( 'number', 'decimal' );
 		ob_start();

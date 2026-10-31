@@ -432,7 +432,7 @@ function exports_reports_menu() {
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$reports = $wpdb->get_results( $sql );
 
-			if ( 0 < @count( $reports ) ) {
+			if ( ! empty( $reports ) ) {
 				foreach ( $reports as $report ) {
 					if ( $has_full_access || exports_reports_current_user_can_any( 'exports_reports_view' ) || exports_reports_current_user_can_any( 'exports_reports_view_group_' . $group->id ) || exports_reports_current_user_can_any( 'exports_reports_view_report_' . $report->id ) ) {
 						$menu_page = 'exports-reports-group-' . $group->id;
@@ -927,6 +927,7 @@ function exports_reports_report_field_row( $index, $field, $types ) {
  *
  * @return string JSON: the list of fields, empty when none was posted.
  */
+// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- the custom_save callback signature.
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
 	// Exports_Reports_Admin_UI::save() verifies the form nonce before it calls this custom_save callback, and has unslashed the request.
 	// phpcs:disable WordPress.Security.NonceVerification.Missing
@@ -1136,7 +1137,7 @@ function exports_reports_report_options( $report ) {
 		'manage' => 'View Report:',
 	);
 
-	$field_data = @json_decode( (string) $report->field_data, true );
+	$field_data = json_decode( (string) $report->field_data, true );
 
 	if ( is_array( $field_data ) && ! empty( $field_data ) ) {
 		$options['columns'] = array();
@@ -1316,7 +1317,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$reports = $wpdb->get_results( $sql );
 
-				if ( 0 < @count( $reports ) ) {
+				if ( ! empty( $reports ) ) {
 					foreach ( $reports as $report ) {
 						if ( $has_full_access || exports_reports_current_user_can_any( 'exports_reports_view' ) || exports_reports_current_user_can_any( 'exports_reports_view_group_' . $group->id ) || exports_reports_current_user_can_any( 'exports_reports_view_report_' . $report->id ) ) {
 							$group_id    = $group->id;
@@ -1636,26 +1637,9 @@ function exports_reports_delete_log( $args, $obj ) {
  * @return bool What wp_schedule_event() returns.
  */
 function exports_reports_schedule_cleanup() {
-	$schedules = _get_cron_array();
-	$timestamp = false;
+	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
 
-	$key = md5( serialize( array() ) );
-
-	foreach ( $schedules as $ts => $schedule ) {
-		if ( isset( $schedule['exports_reports_cleanup'] ) && isset( $schedule['exports_reports_cleanup'][ $key ] ) ) {
-			$timestamp = $ts;
-			break;
-		}
-	}
-
-	if ( false !== $timestamp ) {
-		wp_unschedule_event( $timestamp, 'exports_reports_cleanup', array() );
-	}
-
-	$timestamp  = time();
-	$recurrence = 'daily';
-
-	return wp_schedule_event( $timestamp, $recurrence, 'exports_reports_cleanup', array() );
+	return wp_schedule_event( time(), 'daily', 'exports_reports_cleanup' );
 }
 
 /**
@@ -1884,7 +1868,7 @@ function exports_reports_has_role( $role ) {
 
 	wp_get_current_user();
 
-	if ( null !== get_role( $role ) && in_array( $role, $current_user->roles ) ) {
+	if ( null !== get_role( $role ) && in_array( $role, $current_user->roles, true ) ) {
 		return true;
 	}
 

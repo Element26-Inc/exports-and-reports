@@ -18,6 +18,8 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.PHP.DevelopmentFunctions.error_log_var_export -- the failure details of a test script.
+
 // wp eval-file includes this script inside a function, so these are declared global: the helpers
 // below and the query filter then work on the same variables as the top-level code.
 global $wpdb, $er_failed, $er_errors;
@@ -263,7 +265,7 @@ $wpdb->query( 'DROP TEMPORARY TABLE IF EXISTS er_test_top' );
 
 // --- the CSV export, streamed and buffered, byte for byte the same ---
 wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
-$er_csv = array();
+$er_csv   = array();
 $er_modes = array(
 	'streamed' => true,
 	'buffered' => false,
@@ -342,21 +344,21 @@ er_report(
 );
 
 // --- streaming needs plain columns: a related column or a custom display callback keeps the buffered path ---
-$er_columns = array(
+$er_columns                              = array(
 	'id'      => array( 'label' => 'Id' ),
 	'channel' => array( 'label' => 'Channel' ),
 );
-$er_plain   = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Plain columns', array( 'columns' => $er_columns ) );
+$er_plain                                = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Plain columns', array( 'columns' => $er_columns ) );
 $er_columns['channel']['custom_display'] = 'er_shout';
-$er_custom             = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Custom display', array( 'columns' => $er_columns ) );
-$er_columns['channel'] = array(
+$er_custom                               = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Custom display', array( 'columns' => $er_columns ) );
+$er_columns['channel']                   = array(
 	'label'         => 'Channel',
 	'type'          => 'related',
 	'related'       => $er_table,
 	'related_id'    => 'channel',
 	'related_field' => 'channel',
 );
-$er_related = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Related column', array( 'columns' => $er_columns ) );
+$er_related                              = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Related column', array( 'columns' => $er_columns ) );
 er_report(
 	'streaming only with plain columns',
 	$er_plain->can_stream_export() && ! $er_custom->can_stream_export() && ! $er_related->can_stream_export(),
@@ -368,7 +370,7 @@ $_GET                   = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-exp
 ob_start();
 $er_custom->export();
 ob_end_clean();
-$_GET = array();
+$_GET   = array();
 $er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 foreach ( $er_new as $er_path ) {
@@ -544,8 +546,8 @@ er_report(
 
 // --- TSV: the same writer with a tab ---
 list( $er_admin, , $er_error ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Export tsv', true, array(), 'tsv' );
-$er_out                       = er_export_contents( $er_admin );
-$er_want                      = "\xEF\xBB\xBF\"Id\"\t\"Channel\"\n\"1\"\t\"beta\"\n\"2\"\t\"gamma\"\n";
+$er_out                        = er_export_contents( $er_admin );
+$er_want                       = "\xEF\xBB\xBF\"Id\"\t\"Channel\"\n\"1\"\t\"beta\"\n\"2\"\t\"gamma\"\n";
 er_report(
 	'TSV export',
 	'' === $er_error && $er_want === $er_out,
@@ -555,7 +557,7 @@ er_report(
 // --- the formula wrapping can be turned off ---
 add_filter( 'wp_admin_ui_export_escape_formulas', '__return_false' );
 list( $er_admin, , $er_error ) = er_run( "SELECT id, title FROM `{$er_table}` WHERE id = 7", 'Formulas kept', true );
-$er_out                       = er_export_contents( $er_admin );
+$er_out                        = er_export_contents( $er_admin );
 remove_filter( 'wp_admin_ui_export_escape_formulas', '__return_false' );
 $er_want = "\xEF\xBB\xBF\"Id\",\"Title\"\n\"7\",\"=1+1\"\n";
 er_report(
@@ -566,7 +568,7 @@ er_report(
 
 // --- the XLSX, XML and JSON writers: a file of each, with the labels and rows the report shows ---
 foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
-	list( $er_writer ) = er_run( "SELECT id, channel, title FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Writers' );
+	list( $er_writer )      = er_run( "SELECT id, channel, title FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Writers' );
 	$er_writer->action      = 'export';
 	$er_writer->export_type = $er_type;
 	$_GET                   = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
@@ -661,8 +663,8 @@ function er_rest( $method, $route, $params = array(), $headers = array() ) {
 $er_route = sprintf( '/exports-reports/v1/reports/%d', $er_report_id );
 wp_set_current_user( 0 );
 
-$er_anon  = er_rest( 'GET', $er_route . '/data' );
-$er_wrong = er_rest( 'GET', $er_route . '/data', array( 'token' => 'nope' ) );
+$er_anon          = er_rest( 'GET', $er_route . '/data' );
+$er_wrong         = er_rest( 'GET', $er_route . '/data', array( 'token' => 'nope' ) );
 $er_anon_missing  = er_rest( 'GET', '/exports-reports/v1/reports/999999/data' );
 $er_token_missing = er_rest( 'GET', '/exports-reports/v1/reports/999999/data', array( 'token' => 'er-test-token' ) );
 er_report(
@@ -749,7 +751,7 @@ er_report(
 
 // The admin-ajax download (export.php) serves a logged file to a user who may view its report.
 wp_set_current_user( (int) $er_subscriber );
-$er_dl_subscriber = exports_reports_user_can_download_export( $er_file );
+$er_dl_subscriber    = exports_reports_user_can_download_export( $er_file );
 $er_full_access_meta = isset( get_userdata( 1 )->caps['exports_reports_full_access'] );
 wp_set_current_user( 1 );
 $er_dl_admin   = exports_reports_user_can_download_export( $er_file );
@@ -808,7 +810,7 @@ $er_form_ok   = 3 === substr_count( $er_form_html, 'class="er-field"' )
 	&& false !== strpos( $er_form_html, 'name="field_name[__i__]"' );
 er_report( 'report field editor renders the saved fields and a template', $er_form_ok, strlen( $er_form_html ) . ' bytes, ' . substr_count( $er_form_html, 'class="er-field"' ) . ' rows' );
 
-$_POST = array(
+$_POST    = array(
 	'field_name'        => array(
 		3 => 'revenue',
 		7 => 'channel',
@@ -966,14 +968,14 @@ wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' );
 er_report( 'clearing the export directory removes export files only', $er_clear_ok, 'old.csv ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) ? 'present' : 'gone' ) . ', notes.md kept ' . var_export( $er_clear_ok, true ) );
 
 // --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed ---
-$_GET          = array(
+$_GET         = array(
 	'search_query' => "O\\'Brien <b>x</b>",
 	'pg'           => '3',
 	'order_dir'    => 'asc',
 	'action'       => 'view',
 	'filter_name'  => array( "a\\'b" ),
 );
-$er_req_admin  = er_admin( '', 'Request', array( 'search' => true ) );
+$er_req_admin = er_admin( '', 'Request', array( 'search' => true ) );
 ob_start();
 $er_req_admin->hidden_vars();
 $er_hidden_html = (string) ob_get_clean();
@@ -1045,7 +1047,7 @@ $er_reports_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports';
 wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
 file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv', 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 define( 'WP_UNINSTALL_PLUGIN', true );
-include EXPORTS_REPORTS_DIR . 'uninstall.php';
+require EXPORTS_REPORTS_DIR . 'uninstall.php';
 $er_table_left = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $er_reports_table ) );
 er_report(
 	'uninstall removes tables, options, the cleanup event and export files',
