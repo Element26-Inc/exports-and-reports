@@ -900,8 +900,8 @@ $er_txt_out = (string) ob_get_clean();
 wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/served.txt' );
 er_report(
 	'.txt exports are served and the daily cleanup has a handler',
-	true === $er_txt_ok && "a|b\n" === $er_txt_out && exports_reports_is_export_file( 'x.txt' ) && ! exports_reports_is_export_file( 'index.php' ) && ! exports_reports_is_export_file( 'notes.md' ) && 10 === has_action( 'exports_reports_cleanup', 'exports_reports_cleanup' ),
-	'served ' . var_export( $er_txt_ok, true ) . ' (' . strlen( $er_txt_out ) . ' bytes), handler ' . var_export( has_action( 'exports_reports_cleanup', 'exports_reports_cleanup' ), true )
+	true === $er_txt_ok && "a|b\n" === $er_txt_out && exports_reports_is_export_file( 'x.txt' ) && ! exports_reports_is_export_file( 'index.php' ) && ! exports_reports_is_export_file( 'notes.md' ) && 10 === has_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' ),
+	'served ' . var_export( $er_txt_ok, true ) . ' (' . strlen( $er_txt_out ) . ' bytes), handler ' . var_export( has_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' ), true )
 );
 
 // --- Clear Now removes export files only ---
