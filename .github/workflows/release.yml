@@ -90,7 +90,7 @@ jobs:
       - name: Check the packaged tree on PHP 7.4
         run: |
           cd build/exports-and-reports
-          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/*' -not -path './wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
+          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -path './wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
           if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file the plugin loads on 7.4 does not parse there"; exit 1; fi
           php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the libraries the plugin uses on PHP 7.4"; exit 1; }
           echo "packaged tree ok on PHP $(php -r 'echo PHP_VERSION;')"

@@ -34,6 +34,11 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 	 * @return self
 	 */
 	public static function create( Exports_Reports_Admin_UI $admin, $orientation = 'P' ) {
+		// TCPDF 6.11 raises a deprecation notice per process otherwise; the plugin chose this engine for PHP below 8.2.
+		if ( ! defined( 'TCPDF_SILENCE_DEPRECATION' ) ) {
+			define( 'TCPDF_SILENCE_DEPRECATION', true );
+		}
+
 		$obj = new self( $orientation, 'mm', 'LETTER', true, 'UTF-8', false, false );
 
 		$obj->admin = $admin;
@@ -177,7 +182,7 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 		$pdf->setFooterMargin( 10 );
 		$pdf->SetAutoPageBreak( true, 25 );
 		$pdf->setImageScale( 1.25 );
-		$pdf->SetFont( 'helvetica', '', count( $admin->columns ) > 8 ? 7 : 8 );
+		$pdf->SetFont( 'helvetica', '', count( self::shown_columns( $admin ) ) > 8 ? 7 : 8 );
 		$pdf->AddPage();
 
 		$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, $pdf ), '0.9.5', 'wp_admin_ui_export_pdf_report_file', 'Supply the finished file instead; this filter is only applied by the TCPDF engine.' );
@@ -187,7 +192,7 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 
 		$pdf->writeHTML( $output );
 
-		$export_file          = str_replace( '-', '_', sanitize_title( $admin->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.pdf';
+		$export_file          = $admin->export_file_name( 'pdf' );
 		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, 'pdf', 'pdf', $admin->items, $admin );
 		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
@@ -204,48 +209,36 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 	 * @return string
 	 */
 	protected static function content( $admin ) {
-		$widths  = self::column_widths( $admin );
+		$columns = self::shown_columns( $admin );
+
+		if ( array() === $columns ) {
+			return '<p>' . esc_html__( 'This report has no columns to show.', 'exports-and-reports' ) . '</p>';
+		}
+
+		$cells = self::cells( $admin, $columns );
+		$widths  = self::column_widths( $admin, $columns, $cells );
 		$numeric = array( 'number', 'decimal' );
 		ob_start();
 		?>
 		<table border="1" cellpadding="3" cellspacing="0" style="table-layout: fixed; border-color: #BBBBBB;">
 			<thead>
 			<tr>
-				<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-					<?php
-					if ( false === $attributes['display'] ) {
-						continue;
-					}
-					?>
+				<?php foreach ( $columns as $column => $attributes ) { ?>
 					<th width="<?php echo esc_attr( $widths[ $column ] ); ?>%" align="center" bgcolor="#E6E6E6"><strong><?php echo wp_kses_post( $attributes['label'] ); ?></strong></th>
 				<?php } ?>
 			</tr>
 			</thead>
 			<tbody>
-			<?php foreach ( $admin->full_data as $row_index => $row_data ) { ?>
+			<?php foreach ( $cells as $row_index => $row_cells ) { ?>
 				<tr<?php echo 1 === $row_index % 2 ? ' bgcolor="#F6F6F6"' : ''; ?>>
-					<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-						<?php
-						if ( false === $attributes['display'] ) {
-							continue;
-						}
-						if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-							$row_data[ $column ] = $attributes['custom_display']( $row_data[ $column ], $row_data, $column, $attributes, $admin );
-						}
-						$output = self::format_field( $attributes['type'], isset( $row_data[ $column ] ) ? $row_data[ $column ] : '' );
-						?>
-						<td width="<?php echo esc_attr( $widths[ $column ] ); ?>%" align="<?php echo in_array( $attributes['type'], $numeric, true ) ? 'right' : 'left'; ?>"><?php echo wp_kses_post( (string) $output ); ?></td>
+					<?php foreach ( $columns as $column => $attributes ) { ?>
+						<td width="<?php echo esc_attr( $widths[ $column ] ); ?>%" align="<?php echo in_array( $attributes['type'], $numeric, true ) ? 'right' : 'left'; ?>"><?php echo wp_kses_post( $row_cells[ $column ] ); ?></td>
 					<?php } ?>
 				</tr>
 			<?php } ?>
 			<?php if ( ! empty( $admin->sum_data ) ) { ?>
 				<tr>
-					<?php foreach ( $admin->columns as $column => $attributes ) { ?>
-						<?php
-						if ( false === $attributes['display'] ) {
-							continue;
-						}
-						?>
+					<?php foreach ( $columns as $column => $attributes ) { ?>
 						<td width="<?php echo esc_attr( $widths[ $column ] ); ?>%" align="<?php echo in_array( $attributes['type'], $numeric, true ) ? 'right' : 'left'; ?>"><strong><?php echo isset( $admin->sum_data[0][ $column ] ) ? esc_html( $admin->sum_data[0][ $column ] ) : ''; ?></strong></td>
 					<?php } ?>
 				</tr>
@@ -257,32 +250,83 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 	}
 
 	/**
+	 * The columns the report shows, with their attributes.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin The report.
+	 *
+	 * @return array<string, array>
+	 */
+	protected static function shown_columns( $admin ) {
+		$columns = array();
+
+		foreach ( (array) $admin->columns as $column => $attributes ) {
+			if ( is_array( $attributes ) && false !== $attributes['display'] ) {
+				$columns[ $column ] = $attributes;
+			}
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * The text of every cell: the display callback's output, formatted for the column type, as the
+	 * tc-lib-pdf engine shows it; the widths are measured on the same text.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin   The report, with full_data loaded.
+	 * @param array<string, array>     $columns The shown columns.
+	 *
+	 * @return array<int, array<string, string>>
+	 */
+	protected static function cells( $admin, $columns ) {
+		$cells = array();
+
+		foreach ( (array) $admin->full_data as $row_data ) {
+			$row_data = (array) $row_data;
+			$row      = array();
+
+			foreach ( $columns as $column => $attributes ) {
+				$value = isset( $row_data[ $column ] ) ? $row_data[ $column ] : '';
+
+				if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
+					$value               = $attributes['custom_display']( $value, $row_data, $column, $attributes, $admin );
+					$row_data[ $column ] = $value;
+				}
+
+				$row[ $column ] = (string) self::format_field( $attributes['type'], $value );
+			}
+
+			$cells[] = $row;
+		}
+
+		return $cells;
+	}
+
+	/**
 	 * The displayed columns' widths as percentages of the table, by the rule the tc-lib-pdf engine uses: a
 	 * column's width setting is a relative weight; a column without one is sized by its content, the longer
 	 * of its label and the 90th percentile of its values (in characters, over the first 500 rows, kept
 	 * between 4 and 48), put on the scale of the columns that have a weight, or used as the weight when none
 	 * has; the weights are scaled to add up to 100.
 	 *
-	 * @param Exports_Reports_Admin_UI $admin The report, with full_data loaded.
+	 * @param Exports_Reports_Admin_UI $admin   The report, with full_data loaded.
+	 * @param array<string, array>     $columns The shown columns.
+	 * @param array<int, array>        $cells   The cell text, by row and column.
 	 *
 	 * @return array<string, string> Column key => percentage with two decimals.
 	 */
-	protected static function column_widths( $admin ) {
+	protected static function column_widths( $admin, $columns, $cells ) {
 		$given = array();
 		$need  = array();
-		$rows  = array_slice( (array) $admin->full_data, 0, 500 );
+		$rows  = array_slice( $cells, 0, 500 );
 
-		foreach ( $admin->columns as $column => $attributes ) {
-			if ( false === $attributes['display'] ) {
-				continue;
-			}
+		foreach ( $columns as $column => $attributes ) {
 			$weight = ! empty( $attributes['width'] ) ? (float) preg_replace( '/[^0-9.]/', '', (string) $attributes['width'] ) : 0.0;
 			if ( $weight > 0 ) {
 				$given[ $column ] = $weight;
 			}
 			$lengths = array();
 			foreach ( $rows as $row ) {
-				$lengths[] = mb_strlen( (string) ( isset( $row[ $column ] ) && is_scalar( $row[ $column ] ) ? $row[ $column ] : '' ) );
+				$lengths[] = mb_strlen( wp_strip_all_tags( isset( $row[ $column ] ) ? $row[ $column ] : '' ) );
 			}
 			sort( $lengths );
 			$p90             = array() === $lengths ? 0 : $lengths[ (int) floor( 0.9 * ( count( $lengths ) - 1 ) ) ];

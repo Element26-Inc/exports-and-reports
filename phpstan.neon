@@ -7,6 +7,7 @@ parameters:
   phpVersion: 80200
   paths:
     - wp-admin-ui
+    - includes
     - api.php
     - exports-and-reports.php
   excludePaths:

@@ -109,6 +109,13 @@ function exports_reports_rest_routes() {
  * @return true|WP_Error
  */
 function exports_reports_rest_permission( $request ) {
+	$token_matches = exports_reports_rest_token_matches( $request );
+
+	// A caller without a credential learns nothing about which ids exist.
+	if ( ! $token_matches && ! is_user_logged_in() ) {
+		return new WP_Error( 'exports_reports_unauthorized', 'Send the token or log in to read reports.', array( 'status' => 401 ) );
+	}
+
 	$report = exports_reports_get_report( (int) $request['id'] );
 	$group  = $report ? exports_reports_get_group( (int) $report->group ) : null;
 
@@ -116,7 +123,7 @@ function exports_reports_rest_permission( $request ) {
 		return new WP_Error( 'exports_reports_not_found', 'No report with that id.', array( 'status' => 404 ) );
 	}
 
-	if ( exports_reports_rest_token_matches( $request ) || exports_reports_user_can_view_report( $report, $group ) ) {
+	if ( $token_matches || exports_reports_user_can_view_report( $report, $group ) ) {
 		return true;
 	}
 

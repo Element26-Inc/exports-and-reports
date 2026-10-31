@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'wp-admin-ui/**.php'
+      - 'includes/**'
       - '*.php'
       - 'composer.json'
       - '.github/workflows/php-phpcs.yml'

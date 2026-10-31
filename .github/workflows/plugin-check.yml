@@ -4,6 +4,7 @@ on:
     paths:
       - '*.php'
       - 'wp-admin-ui/**'
+      - 'includes/**'
       - 'assets/**'
       - 'vendor/**'
       - 'readme.txt'

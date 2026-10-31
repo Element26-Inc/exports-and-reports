@@ -23,7 +23,11 @@ if ( ! function_exists( 'is_plugin_active' ) || ! is_plugin_active( basename( __
 	wp_die( 'Exports and Reports plugin not activated' );
 }
 
+// The deprecation is recorded (deprecated_file_included fires for the logging plugins) without the notice
+// PHP would print into the JSON response on a site that displays errors.
+add_filter( 'deprecated_file_trigger_error', '__return_false' );
 _deprecated_file( basename( __FILE__ ), '0.9.5', 'the REST API under exports-reports/v1 (the Settings page shows the URLs)' );
+remove_filter( 'deprecated_file_trigger_error', '__return_false' );
 
 if ( ! headers_sent() ) {
 	status_header( 200 );
@@ -69,6 +73,9 @@ if ( isset( $exports_reports_query['action'] ) && 'json' === $exports_reports_qu
 		)
 	);
 }
+
+// The token is this endpoint's only credential, as before 0.9.5: a browser session's cookies do not count here.
+wp_set_current_user( 0 );
 
 $exports_reports_response = rest_do_request( $exports_reports_request );
 

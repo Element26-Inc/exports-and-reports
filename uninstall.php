@@ -28,6 +28,7 @@ function exports_reports_uninstall_site() {
 
 	delete_option( 'exports_reports_version' );
 	delete_option( 'exports_reports_token' );
+	delete_option( 'exports_reports_charset_errors' );
 
 	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
 }
@@ -50,13 +51,21 @@ function exports_reports_uninstall_exports() {
 		return;
 	}
 
+	// Export files only, in case the directory is shared.
 	foreach ( (array) $wp_filesystem->dirlist( $directory, false ) as $file ) {
-		if ( 'f' === $file['type'] ) {
+		if ( 'f' === $file['type'] && in_array( strtolower( (string) pathinfo( $file['name'], PATHINFO_EXTENSION ) ), array( 'csv', 'tsv', 'txt', 'xlsx', 'xml', 'json', 'pdf' ), true ) ) {
 			$wp_filesystem->delete( $directory . '/' . $file['name'] );
 		}
 	}
 
-	if ( array() === $wp_filesystem->dirlist( $directory, false ) ) {
+	// The files that kept the directory from being served go with it when nothing else is left.
+	$left = array_keys( (array) $wp_filesystem->dirlist( $directory, false ) );
+
+	if ( array() === array_diff( $left, array( '.htaccess', 'index.php' ) ) ) {
+		foreach ( $left as $file ) {
+			$wp_filesystem->delete( $directory . '/' . $file );
+		}
+
 		$wp_filesystem->rmdir( $directory );
 	}
 }

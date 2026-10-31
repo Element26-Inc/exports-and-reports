@@ -46,6 +46,8 @@ add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' );
+add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
+add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
 
 require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
 
@@ -175,11 +177,14 @@ function exports_reports_sql_install( $upgrade = false ) {
 function exports_reports_convert_tables_charset() {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	if ( empty( $wpdb->charset ) || empty( $wpdb->collate ) ) {
+	// Only towards utf8mb4, the superset every earlier WordPress character set converts into without loss;
+	// a site on another character set keeps its tables as they are.
+	if ( 'utf8mb4' !== $wpdb->charset || empty( $wpdb->collate ) ) {
 		return array();
 	}
 
 	$converted = array();
+	$failed    = array();
 
 	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
 		$table = $wpdb->prefix . EXPORTS_REPORTS_TBL . $suffix;
@@ -196,10 +201,73 @@ function exports_reports_convert_tables_charset() {
 
 		if ( '' === $wpdb->last_error ) {
 			$converted[] = $table;
+		} else {
+			$failed[ $table ] = $wpdb->last_error;
 		}
 	}
 
+	// A table that did not convert is reported on the plugin's pages until it does (the next upgrade retries).
+	if ( array() === $failed ) {
+		delete_option( 'exports_reports_charset_errors' );
+	} else {
+		update_option( 'exports_reports_charset_errors', $failed, false );
+	}
+
 	return $converted;
+}
+
+/**
+ * Shows the character set conversion errors, if any, on the plugin's pages.
+ */
+function exports_reports_charset_errors_notice() {
+	$failed = get_option( 'exports_reports_charset_errors' );
+
+	if ( ! is_array( $failed ) || array() === $failed || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	echo '<div class="notice notice-error"><p><strong>Exports and Reports:</strong> a table could not be converted to the site\'s character set. Convert it by hand or ask your host, then deactivate and reactivate the plugin to retry.</p><ul>';
+
+	foreach ( $failed as $table => $error ) {
+		echo '<li><code>' . esc_html( $table ) . '</code>: ' . esc_html( $error ) . '</li>';
+	}
+
+	echo '</ul></div>';
+}
+
+add_action( 'admin_notices', 'exports_reports_charset_errors_notice' );
+
+/**
+ * Grants exports_reports_full_access to administrators while the plugin is active, without writing it
+ * to their user meta. The exports_reports_full_access filter decides who gets it, as before.
+ * Sites with the Members plugin manage the capabilities through its roles instead.
+ *
+ * @param array   $allcaps The user's capabilities.
+ * @param array   $caps    The capabilities asked for.
+ * @param array   $args    The arguments of the check.
+ * @param WP_User $user    The user.
+ *
+ * @return array
+ */
+function exports_reports_user_has_cap( $allcaps, $caps, $args, $user ) {
+	static $inside = false;
+
+	if ( $inside || function_exists( 'members_get_capabilities' ) ) {
+		return $allcaps;
+	}
+
+	$inside = true;
+
+	$full_access = in_array( 'administrator', (array) $user->roles, true ) ? 'exports_reports_full_access' : '';
+	$full_access = apply_filters( 'exports_reports_full_access', $full_access );
+
+	$inside = false;
+
+	if ( ! empty( $full_access ) && is_string( $full_access ) ) {
+		$allcaps[ $full_access ] = true;
+	}
+
+	return $allcaps;
 }
 
 /**
@@ -275,15 +343,12 @@ function exports_reports_init() {
 			}
 		}
 	} else {
-		$exports_reports_full_access = exports_reports_has_role( 'administrator' ) ? 'exports_reports_full_access' : '';
-		$exports_reports_full_access = apply_filters( 'exports_reports_full_access', $exports_reports_full_access );
+		// exports_reports_user_has_cap() grants full access while the plugin is active; a copy an earlier
+		// version wrote to the user's meta would outlive the plugin, so it is removed.
+		$user = get_userdata( get_current_user_id() );
 
-		if ( ! empty( $exports_reports_full_access ) ) {
-			$user = get_userdata( get_current_user_id() );
-
-			if ( $user instanceof WP_User ) {
-				$user->add_cap( $exports_reports_full_access );
-			}
+		if ( $user && isset( $user->caps['exports_reports_full_access'] ) ) {
+			$user->remove_cap( 'exports_reports_full_access' );
 		}
 	}
 }
@@ -425,10 +490,11 @@ function exports_reports_settings() {
 	$cleared = false;
 	$reset   = false;
 
-	if ( ! empty( $_POST['cronjob_token'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+	if ( isset( $_POST['cronjob_token'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
 		check_admin_referer( 'exports-reports-settings' );
 
-		if ( ! empty( $_POST['cronjob_token'] ) ) {
+		if ( isset( $_POST['cronjob_token'] ) ) {
+			// An empty token turns the token access off.
 			update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) ) );
 		}
 
@@ -497,7 +563,7 @@ function exports_reports_settings() {
 					<td>
 						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
 						<span class="description">
-							Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header <code>Authorization: Bearer TOKEN</code>, or as a <code>token</code> query parameter. You can change it anytime as needed.<br /><br />
+							Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header <code>Authorization: Bearer TOKEN</code>, or as a <code>token</code> query parameter. You can change it anytime as needed; save it empty to turn token access off.<br /><br />
 
 							<label for="export_api_url1" style="font-style:normal;"><strong>URL to Export (useful for Cronjobs):</strong></label><br />
 							<input type="text" id="export_api_url1" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token ) ); ?>" /><br />
@@ -519,7 +585,7 @@ function exports_reports_settings() {
 					<th scope="row"><label for="reset">Reset All Settings</label></th>
 					<td>
 						<input name="reset" type="submit" id="reset" value=" Reset Now " />
-						<span class="description">This will clear all groups / reports and remove all files from your Exports directory too - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?></span>
+						<span class="description">This generates a new token, clears the export log and removes the export files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?>. Groups and reports are kept.</span>
 					</td>
 				</tr>
 				<!--
@@ -824,7 +890,7 @@ function exports_reports_report_field_row( $index, $field, $types ) {
 			<div class="er-field__grid">
 				<?php
 				$text( 'field_real_name', 'Real field', 'when the name is an alias' );
-				$text( 'field_custom_display', 'Display function', 'a PHP function name' );
+				$text( 'field_custom_display', 'Display function', 'a function a plugin or theme defines' );
 				$text( 'width', 'Width', 'relative, for the PDF export' );
 				$text( 'field_filter_label', 'Filter label' );
 				$text( 'field_filter_default', 'Default filter value' );
@@ -1386,23 +1452,13 @@ add_action( 'wp_admin_ui_post_remove_export', 'exports_reports_delete_log', 10, 
  * @return bool False when no such export exists; true once the file has been sent.
  */
 function exports_reports_send_export_file( $filename ) {
-	$types = array(
-		'csv'    => 'text/csv; charset=utf-8',
-		'tsv'    => 'text/tab-separated-values; charset=utf-8',
-		'pipe'   => 'text/plain; charset=utf-8',
-		'custom' => 'text/plain; charset=utf-8',
-		'xlsx'   => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-		'xml'    => 'application/xml; charset=utf-8',
-		'json'   => 'application/json; charset=utf-8',
-		'pdf'    => 'application/pdf',
-	);
-
+	$types     = exports_reports_export_mime_types();
 	$filename  = basename( (string) $filename );
 	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
 	$directory = realpath( WP_ADMIN_UI_EXPORT_DIR );
 	$path      = realpath( WP_ADMIN_UI_EXPORT_DIR . '/' . $filename );
 
-	if ( '' === $filename || ! isset( $types[ $extension ] ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
+	if ( ! exports_reports_is_export_file( $filename ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
 		return false;
 	}
 
@@ -1425,6 +1481,81 @@ function exports_reports_send_export_file( $filename ) {
 	fclose( $handle );
 
 	return true;
+}
+
+/**
+ * The daily cleanup event: removes the exports older than a day and their log rows.
+ */
+function exports_reports_cleanup_event() {
+	exports_reports_cleanup();
+}
+
+/**
+ * The content types of the export files, by extension (pipe and custom delimited exports are .txt).
+ *
+ * @return array<string, string>
+ */
+function exports_reports_export_mime_types() {
+	return array(
+		'csv'  => 'text/csv; charset=utf-8',
+		'tsv'  => 'text/tab-separated-values; charset=utf-8',
+		'txt'  => 'text/plain; charset=utf-8',
+		'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'xml'  => 'application/xml; charset=utf-8',
+		'json' => 'application/json; charset=utf-8',
+		'pdf'  => 'application/pdf',
+	);
+}
+
+/**
+ * Whether a file name is one an export writes: an export extension, and not one of the files that keep
+ * the directory from being served. The functions that remove files from the export directory remove
+ * only these, in case the directory is shared.
+ *
+ * @param mixed $filename The file name.
+ *
+ * @return bool
+ */
+function exports_reports_is_export_file( $filename ) {
+	$filename = (string) $filename;
+
+	if ( '' === $filename || in_array( $filename, array( 'index.php', '.htaccess' ), true ) ) {
+		return false;
+	}
+
+	return isset( exports_reports_export_mime_types()[ strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) ) ] );
+}
+
+/**
+ * Whether the current user may download an export file: the file is in the export log, and the user
+ * may view the report it belongs to.
+ *
+ * @param string $filename The file name.
+ *
+ * @return bool
+ */
+function exports_reports_user_can_download_export( $filename ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$filename = basename( (string) $filename );
+
+	if ( ! exports_reports_is_export_file( $filename ) ) {
+		return false;
+	}
+
+	$sql = 'SELECT `report_id` FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$report_id = $wpdb->get_var( $wpdb->prepare( $sql, $filename ) );
+
+	if ( null === $report_id ) {
+		return false;
+	}
+
+	$report = exports_reports_get_report( (int) $report_id );
+	$group  = $report ? exports_reports_get_group( (int) $report->group ) : null;
+
+	return $report && $group && exports_reports_user_can_view_report( $report, $group );
 }
 
 /**
@@ -1530,26 +1661,11 @@ function exports_reports_delete_dir_files( $directory ) {
 
 	$file_list = $wp_filesystem->dirlist( $directory, false );
 
-	foreach ( $file_list as $file ) {
-		// The rules that keep the directory from being served stay.
-		if ( in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ) {
-			continue;
+	// Export files only: the directory may be shared, and the files that keep it from being served stay.
+	foreach ( (array) $file_list as $file ) {
+		if ( 'f' === $file['type'] && exports_reports_is_export_file( $file['name'] ) ) {
+			$wp_filesystem->delete( $directory . DIRECTORY_SEPARATOR . $file['name'] );
 		}
-
-		$file_path = $directory . DIRECTORY_SEPARATOR . $file['name'];
-
-		// d = folder, f = file
-		if ( 'd' === $file['type'] ) {
-			// Delete folder
-			$wp_filesystem->rmdir( $file_path, true );
-		} else {
-			// Delete file
-			$wp_filesystem->delete( $file_path );
-		}
-	}
-
-	if ( WP_ADMIN_UI_EXPORT_DIR !== $directory ) {
-		$wp_filesystem->rmdir( $directory, true );
 	}
 }
 

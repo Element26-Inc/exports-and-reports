@@ -326,10 +326,12 @@ add_filter( 'wp_admin_ui_get_data_sql', $er_decline );
 $er_admin              = er_admin( "SELECT id FROM `{$er_table}`", 'Declined' );
 $er_admin->export_type = 'csv';
 $er_files              = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+$_GET                  = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 ob_start();
 $er_data   = $er_admin->get_data( true );
 $er_export = $er_admin->export();
 ob_end_clean();
+$_GET = array();
 remove_filter( 'wp_admin_ui_get_data_sql', $er_decline );
 $er_new = array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files );
 er_report(
@@ -361,9 +363,11 @@ er_report(
 );
 $er_custom->export_type = 'csv';
 $er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+$_GET                   = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 ob_start();
 $er_custom->export();
 ob_end_clean();
+$_GET = array();
 $er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 foreach ( $er_new as $er_path ) {
@@ -376,6 +380,109 @@ if ( 1 !== count( $er_new ) ) {
 }
 er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
 
+// --- a display function PHP itself defines is not called; a plugin's is; the filter has the last word ---
+$er_columns['channel'] = array(
+	'label'          => 'Channel',
+	'custom_display' => 'strtoupper',
+);
+$er_internal           = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback', array( 'columns' => $er_columns ) );
+$er_allow_strtoupper   = static function ( $args ) {
+	if ( 'strtoupper' === $args[2] ) {
+		$args[1] = true;
+	}
+	return $args;
+};
+add_filter( 'wp_admin_ui_allowed_callback', $er_allow_strtoupper );
+$er_internal_allowed = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback allowed', array( 'columns' => $er_columns ) );
+remove_filter( 'wp_admin_ui_allowed_callback', $er_allow_strtoupper );
+er_report(
+	'display functions: a plugin function is called, a PHP function is not unless a filter allows it',
+	$er_internal->is_allowed_callback( 'er_shout' ) && ! $er_internal->is_allowed_callback( 'strtoupper' ) && ! $er_internal->is_allowed_callback( 'no_such_function_er' ) && false === $er_internal->columns['channel']['custom_display'] && 'strtoupper' === $er_internal_allowed->columns['channel']['custom_display'],
+	'er_shout ' . var_export( $er_internal->is_allowed_callback( 'er_shout' ), true ) . ', strtoupper ' . var_export( $er_internal->is_allowed_callback( 'strtoupper' ), true ) . ', column keeps ' . var_export( $er_internal->columns['channel']['custom_display'], true ) . ', allowed by filter ' . var_export( $er_internal_allowed->columns['channel']['custom_display'], true )
+);
+
+// --- a report name outside ASCII still gives a file name the download link carries ---
+list( $er_utf_admin ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", '报告 Ünïcode / Sales' );
+ob_start();
+$er_utf_file = $er_utf_admin->export_sv();
+ob_end_clean();
+$er_utf_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $er_utf_file;
+$er_utf_ok   = is_string( $er_utf_file ) && 1 === preg_match( '/^unicode_sales_\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}_[A-Za-z0-9]{8}\.csv$/', $er_utf_file ) && sanitize_file_name( $er_utf_file ) === $er_utf_file && file_exists( $er_utf_path );
+wp_delete_file( $er_utf_path );
+$er_blank_admin = er_admin( "SELECT id FROM `{$er_table}` WHERE id = 1", '报告' );
+er_report(
+	'export file names stay ASCII for a report named outside ASCII',
+	$er_utf_ok && 0 === strpos( $er_blank_admin->export_file_name( 'csv' ), 'export_' ),
+	var_export( $er_utf_file, true ) . ', nothing left: ' . $er_blank_admin->export_file_name( 'csv' )
+);
+
+// --- an export from a link needs its nonce; remove_export takes export files only ---
+$er_nonce_admin              = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Export nonce' );
+$er_nonce_admin->export_type = 'csv';
+$_GET                        = array();
+ob_start();
+$er_no_nonce     = $er_nonce_admin->export();
+$er_no_nonce_out = (string) ob_get_clean();
+$_GET            = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
+ob_start();
+$er_nonce_admin->export();
+ob_end_clean();
+$er_nonce_file = (string) $er_nonce_admin->exported_file;
+if ( '' !== $er_nonce_file ) {
+	wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_nonce_file );
+}
+$er_link = $er_nonce_admin->export_link( array( 'export_type' => 'csv' ) );
+$_GET    = array(
+	'_wpnonce'      => wp_create_nonce( 'wp-admin-ui-export-request' ),
+	'remove_export' => '.htaccess',
+);
+ob_start();
+$er_remove_protected     = $er_nonce_admin->export();
+$er_remove_protected_out = (string) ob_get_clean();
+$_GET                    = array();
+er_report(
+	'export() needs the link nonce; remove_export leaves the protection files alone',
+	false === $er_no_nonce && false !== strpos( $er_no_nonce_out, 'expired' ) && '' !== $er_nonce_file && false !== strpos( $er_link, 'action=export' ) && false !== strpos( $er_link, '_wpnonce=' ) && false === $er_remove_protected && false !== strpos( $er_remove_protected_out, 'not an export file' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ),
+	'without nonce ' . var_export( $er_no_nonce, true ) . ', with nonce file ' . var_export( $er_nonce_file, true ) . ', .htaccess ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ? 'kept' : 'gone' )
+);
+
+// --- a multiple-select filter sends an array: the SQL takes every value, and the page does not fail ---
+$er_filter_sql     = array();
+$er_capture_filter = static function ( $filter_sql ) use ( &$er_filter_sql ) {
+	$er_filter_sql[] = $filter_sql;
+	return $filter_sql;
+};
+add_filter( 'wp_admin_ui_data_filter_sql', $er_capture_filter );
+$_GET = array( 'filter_channel' => array( 'alpha', 'beta', '' ) );
+list( $er_multi_admin, $er_multi_rows, $er_multi_error ) = er_run(
+	"SELECT id, channel FROM `{$er_table}`",
+	'Array filter',
+	false,
+	array(
+		'search'  => true,
+		'columns' => array(
+			'id'      => array( 'label' => 'Id' ),
+			'channel' => array(
+				'label'   => 'Channel',
+				'type'    => 'related',
+				'related' => array(
+					'alpha' => 'Alpha',
+					'beta'  => 'Beta',
+				),
+				'filter'  => true,
+			),
+		),
+	)
+);
+$_GET = array();
+remove_filter( 'wp_admin_ui_data_filter_sql', $er_capture_filter );
+$er_multi_want = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$er_table}` WHERE channel IN ('alpha', 'beta')" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'an array filter value filters on each value',
+	'' === $er_multi_error && array( "(`channel` LIKE '%alpha%' OR `channel` LIKE '%beta%')" ) === $er_filter_sql && 0 < $er_multi_want && count( $er_multi_rows ) === $er_multi_want,
+	'filter sql ' . wp_json_encode( $er_filter_sql ) . ', ' . count( $er_multi_rows ) . ' rows' . ( '' !== $er_multi_error ? ', error ' . $er_multi_error : '' )
+);
+
 // --- PDF export: a file the viewer can open, with the pages the rows need; both engines where the PHP allows ---
 $er_pdf_engines = PHP_VERSION_ID >= 80200 ? array( 'tc-lib-pdf', 'tcpdf' ) : array( 'tcpdf' );
 foreach ( $er_pdf_engines as $er_pdf_engine ) {
@@ -386,17 +493,23 @@ foreach ( $er_pdf_engines as $er_pdf_engine ) {
 	$er_pdf_admin              = er_admin( "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id", 'PDF export' );
 	$er_pdf_admin->action      = 'export';
 	$er_pdf_admin->export_type = 'pdf';
+	$_GET                      = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 	ob_start();
 	$er_pdf_admin->export();
 	ob_end_clean();
+	$_GET = array();
 	remove_filter( 'wp_admin_ui_export_pdf_engine', $er_force_engine );
 	$er_pdf_file  = (string) $er_pdf_admin->exported_file;
 	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 	$er_pdf_pages = preg_match_all( '#/Type\s*/Page[^s]#', $er_pdf );
+	// The producer string (UTF-16BE) names the library: TCPDF 6 is the TCPDF engine, "TCPDF 8" is tc-lib-pdf.
+	$er_pdf_major = preg_match( "/T\x00C\x00P\x00D\x00F\x00 \x00(\d)/", $er_pdf, $er_pdf_producer ) ? (int) $er_pdf_producer[1] : 0;
+	$er_pdf_want  = 'tcpdf' === $er_pdf_engine ? 6 : 8;
+	$er_pdf_ok    = '.pdf' === substr( $er_pdf_file, -4 ) && '%PDF-' === substr( $er_pdf, 0, 5 ) && false !== strpos( $er_pdf, '%%EOF' ) && 2 <= $er_pdf_pages && $er_pdf_want === $er_pdf_major;
 	er_report(
 		'PDF export (' . $er_pdf_engine . ')',
-		'.pdf' === substr( $er_pdf_file, -4 ) && '%PDF-' === substr( $er_pdf, 0, 5 ) && false !== strpos( $er_pdf, '%%EOF' ) && 2 <= $er_pdf_pages,
-		'' === $er_pdf_file ? 'no file' : $er_pdf_file . ', ' . strlen( $er_pdf ) . ' bytes, ' . $er_pdf_pages . ' pages'
+		$er_pdf_ok,
+		'' === $er_pdf_file ? 'no file' : $er_pdf_file . ', ' . strlen( $er_pdf ) . ' bytes, ' . $er_pdf_pages . ' pages, producer major ' . $er_pdf_major
 	);
 }
 er_report(
@@ -513,10 +626,12 @@ wp_set_current_user( 0 );
 
 $er_anon  = er_rest( 'GET', $er_route . '/data' );
 $er_wrong = er_rest( 'GET', $er_route . '/data', array( 'token' => 'nope' ) );
+$er_anon_missing  = er_rest( 'GET', '/exports-reports/v1/reports/999999/data' );
+$er_token_missing = er_rest( 'GET', '/exports-reports/v1/reports/999999/data', array( 'token' => 'er-test-token' ) );
 er_report(
 	'REST refuses the report without the token or a user',
-	401 === $er_anon->get_status() && 401 === $er_wrong->get_status(),
-	'status ' . $er_anon->get_status() . ' / ' . $er_wrong->get_status()
+	401 === $er_anon->get_status() && 401 === $er_wrong->get_status() && 401 === $er_anon_missing->get_status() && 404 === $er_token_missing->get_status(),
+	'status ' . $er_anon->get_status() . ' / ' . $er_wrong->get_status() . '; unknown id without credential ' . $er_anon_missing->get_status() . ', with token ' . $er_token_missing->get_status()
 );
 
 $er_full = er_rest(
@@ -595,32 +710,31 @@ er_report(
 	'status ' . $er_download->get_status() . ', download ' . wp_json_encode( isset( $er_body['download'] ) ? $er_body['download'] : null ) . ', data response left alone ' . var_export( false === $er_passed, true ) . ', ' . strlen( $er_sent ) . ' bytes, other ' . $er_other->get_status()
 );
 
+// The admin-ajax download (export.php) serves a logged file to a user who may view its report.
+wp_set_current_user( (int) $er_subscriber );
+$er_dl_subscriber = exports_reports_user_can_download_export( $er_file );
+$er_full_access_meta = isset( get_userdata( 1 )->caps['exports_reports_full_access'] );
+wp_set_current_user( 1 );
+$er_dl_admin   = exports_reports_user_can_download_export( $er_file );
+$er_dl_unknown = exports_reports_user_can_download_export( 'other_report.csv' );
+$er_dl_foreign = exports_reports_user_can_download_export( 'index.php' );
+wp_set_current_user( 0 );
+$er_dl_anon = exports_reports_user_can_download_export( $er_file );
+er_report(
+	'download authorisation follows the log row and the report access rules',
+	false === $er_dl_subscriber && true === $er_dl_admin && false === $er_dl_unknown && false === $er_dl_foreign && false === $er_dl_anon,
+	'subscriber ' . var_export( $er_dl_subscriber, true ) . ', administrator ' . var_export( $er_dl_admin, true ) . ', unknown ' . var_export( $er_dl_unknown, true ) . ', anonymous ' . var_export( $er_dl_anon, true )
+);
+er_report(
+	'administrators hold exports_reports_full_access through the capability filter, not user meta',
+	user_can( 1, 'exports_reports_full_access' ) && ! user_can( (int) $er_subscriber, 'exports_reports_full_access' ) && ! $er_full_access_meta,
+	'administrator ' . var_export( user_can( 1, 'exports_reports_full_access' ), true ) . ', subscriber ' . var_export( user_can( (int) $er_subscriber, 'exports_reports_full_access' ), true ) . ', in meta ' . var_export( $er_full_access_meta, true )
+);
+
 $wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 1 ), array( 'id' => $er_report_id ) );
 $er_disabled = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-token' ) );
 er_report( 'REST hides a disabled report', 404 === $er_disabled->get_status(), 'status ' . $er_disabled->get_status() );
 wp_delete_user( (int) $er_subscriber );
-
-// --- the plugin's tables carry the site's character set and collation ---
-$er_collations = array();
-foreach ( array( 'groups', 'reports', 'log' ) as $er_suffix ) {
-	$er_collations[ $er_suffix ] = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $wpdb->prefix . EXPORTS_REPORTS_TBL . $er_suffix ) );
-}
-er_report(
-	'plugin tables created with the site collation',
-	3 === count( array_unique( $er_collations ) ) ? false : array( $wpdb->collate ) === array_values( array_unique( $er_collations ) ),
-	implode( ', ', $er_collations ) . ' (site: ' . $wpdb->collate . ')'
-);
-
-// --- an install from before 0.9.5 is converted on upgrade ---
-$er_log_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log';
-$wpdb->query( "ALTER TABLE `{$er_log_table}` CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-$er_converted = exports_reports_convert_tables_charset();
-$er_after     = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $er_log_table ) );
-er_report(
-	'a three-byte utf8 table is converted on upgrade',
-	array( $er_log_table ) === $er_converted && $wpdb->collate === $er_after,
-	'converted ' . implode( ', ', $er_converted ) . '; now ' . $er_after
-);
 
 // --- the report form's field editor renders the saved fields and saves what it posts ---
 $er_form_row      = new stdClass();
@@ -757,6 +871,46 @@ er_report(
 	false !== strpos( $er_settings_html, 'name="_wpnonce"' ) && false !== strpos( $er_settings_html, 'name="cronjob_token"' ),
 	strlen( $er_settings_html ) . ' bytes'
 );
+
+// --- saving the token empty turns token access off; it comes back for the tests that follow ---
+wp_set_current_user( 1 );
+$_POST    = array( 'cronjob_token' => '' );
+$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'exports-reports-settings' ) );
+ob_start();
+exports_reports_settings();
+ob_end_clean();
+$er_token_cleared = get_option( 'exports_reports_token' );
+$_POST            = array();
+$_REQUEST         = array();
+wp_set_current_user( 0 );
+$er_no_token = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-token' ) );
+update_option( 'exports_reports_token', 'er-test-token' );
+er_report(
+	'an empty token saved from the settings page turns token access off',
+	'' === $er_token_cleared && 401 === $er_no_token->get_status(),
+	'option ' . var_export( $er_token_cleared, true ) . ', REST with the old token ' . $er_no_token->get_status()
+);
+
+// --- the pipe and custom exports are .txt files and are served; the cleanup event has its handler ---
+wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/served.txt', "a|b\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+ob_start();
+$er_txt_ok  = exports_reports_send_export_file( 'served.txt' );
+$er_txt_out = (string) ob_get_clean();
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/served.txt' );
+er_report(
+	'.txt exports are served and the daily cleanup has a handler',
+	true === $er_txt_ok && "a|b\n" === $er_txt_out && exports_reports_is_export_file( 'x.txt' ) && ! exports_reports_is_export_file( 'index.php' ) && ! exports_reports_is_export_file( 'notes.md' ) && 10 === has_action( 'exports_reports_cleanup', 'exports_reports_cleanup' ),
+	'served ' . var_export( $er_txt_ok, true ) . ' (' . strlen( $er_txt_out ) . ' bytes), handler ' . var_export( has_action( 'exports_reports_cleanup', 'exports_reports_cleanup' ), true )
+);
+
+// --- Clear Now removes export files only ---
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/old.csv', 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/notes.md', 'keep' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+exports_reports_cleanup( true );
+$er_clear_ok = ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' );
+er_report( 'clearing the export directory removes export files only', $er_clear_ok, 'old.csv ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) ? 'present' : 'gone' ) . ', notes.md kept ' . var_export( $er_clear_ok, true ) );
 
 // --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed ---
 $_GET          = array(

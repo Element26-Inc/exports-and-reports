@@ -57,7 +57,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 		/** @var WP_Filesystem_Base $wp_filesystem */
 		global $wp_filesystem;
 
-		$export_file          = str_replace( '-', '_', sanitize_title( $admin->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.pdf';
+		$export_file          = $admin->export_file_name( 'pdf' );
 		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, 'pdf', 'pdf', $admin->items, $admin );
 		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
@@ -441,7 +441,13 @@ class Exports_Reports_Admin_UI_Export_PDF {
 			return array();
 		}
 
-		$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, null ), '0.9.5', 'wp_admin_ui_export_pdf_report_file', 'The PDF export no longer renders HTML; supply the finished file instead.' );
+		// A callback written for the TCPDF engine may call methods on the third argument, which this engine
+		// has no object for: its failure costs the preamble, not the export.
+		try {
+			$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, null ), '0.9.5', 'wp_admin_ui_export_pdf_report_file', 'The PDF export no longer renders HTML; supply the finished file instead.' );
+		} catch ( Throwable $e ) {
+			return array();
+		}
 
 		if ( ! is_string( $output ) || '' === trim( $output ) ) {
 			return array();
@@ -643,7 +649,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 		// A single word wider than the cell is cut with an ellipsis too.
 		foreach ( $lines as $index => $value ) {
 			while ( $width( $value ) > $inner && mb_strlen( $value ) > 2 ) {
-				$value = mb_substr( rtrim( $value, "\xE2\x80\xA6" ), 0, -1 ) . "\xE2\x80\xA6";
+				$value = mb_substr( (string) preg_replace( '/\x{2026}$/u', '', $value ), 0, -1 ) . "\xE2\x80\xA6";
 			}
 
 			$lines[ $index ] = $value;
