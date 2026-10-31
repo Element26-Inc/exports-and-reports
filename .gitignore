@@ -33,7 +33,6 @@ $RECYCLE.BIN/
 /tmp/
 
 # NPM / Composer
-/composer.lock
 /node_modules/
 /vendor/*
 !/vendor/composer/

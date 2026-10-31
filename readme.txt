@@ -4,7 +4,7 @@ Donate link: https://github.com/sponsors/sc0ttkclark
 Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 6.0
 Tested up to: 7.1
-Requires PHP: 8.2
+Requires PHP: 7.4
 Stable tag: 0.9.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -17,7 +17,7 @@ Define custom exports / reports for users, based off of any MySQL SELECT query y
 
 All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XLSX, XML, JSON, PDF and custom delimiter separated formats, from the admin screens or through the REST API with a token, for cronjobs.
 
-Requires PHP 8.2 (the PDF library's floor) and WordPress 6.0 or later.
+Requires PHP 7.4 and WordPress 6.0 or later. The PDF export needs PHP 8.2 (the PDF library's floor); the other formats work on 7.4.
 
 Please submit bug reports or contribute your own enhancements/fixes on [GitHub](https://github.com/sc0ttkclark/exports-and-reports).
 
@@ -105,7 +105,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * Added the `wp_admin_ui_get_data_sql` and `wp_admin_ui_get_data_sql_count` filters, applied to the report query and its count query right before they run.
 * CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`wp_admin_ui_export_escape_formulas` turns that off).
 * Tabs around the `%%LIMIT%%` placeholder are handled like newlines.
-* PDF exports use tc-lib-pdf instead of the deprecated TCPDF. The plugin requires PHP 8.2.
+* PDF exports use tc-lib-pdf instead of the deprecated TCPDF and need PHP 8.2; the rest of the plugin still runs on PHP 7.4.
 * The plugin's tables use the site's character set and collation; existing tables are converted on upgrade.
 * Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
 * The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.

@@ -1374,6 +1374,15 @@ class Exports_Reports_Admin_UI {
 		return $value;
 	}
 
+	/**
+	 * Whether this PHP can run the PDF export: the PDF library needs 8.2, the rest of the plugin runs on 7.4.
+	 *
+	 * @return bool
+	 */
+	public static function pdf_export_available() {
+		return PHP_VERSION_ID >= 80200;
+	}
+
 	public function export() {
 		$this->do_hook( 'pre_export' );
 		require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -1632,6 +1641,11 @@ class Exports_Reports_Admin_UI {
 			// phpcs:ignore
 			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 		} elseif ( 'pdf' === $this->export_type ) {
+			if ( ! self::pdf_export_available() ) {
+				$this->error( '<strong>Error:</strong> PDF exports need PHP 8.2 or later (this server runs ' . esc_html( PHP_VERSION ) . '); the other export formats work.' );
+
+				return false;
+			}
 			require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
 
 			$export_file = apply_filters( 'wp_admin_ui_export_pdf_report_file', null, $this );
@@ -2739,6 +2753,9 @@ class Exports_Reports_Admin_UI {
 									)
 								),
 							);
+							if ( ! self::pdf_export_available() ) {
+								unset( $export_format_links['PDF'] );
+							}
 							?>
 							<strong>Export:</strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
