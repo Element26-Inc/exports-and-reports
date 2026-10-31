@@ -17,13 +17,6 @@ if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
 }
 
-/** @var wpdb $wpdb */
-global $wpdb;
-
-if ( ! is_object( $wpdb ) ) {
-	wp_die( 'Access denied' );
-}
-
 /**
  * Class Exports_Reports_Admin_UI
  *
@@ -530,7 +523,7 @@ class Exports_Reports_Admin_UI {
 			foreach ( $input as $key => $val ) {
 				$output[ $key ] = $this->sanitize( $val );
 			}
-		} elseif ( ! empty( $input ) && 0 !== $input ) {
+		} elseif ( ! empty( $input ) ) {
 			$output = $wpdb->_real_escape( trim( $input ) );
 		}
 
@@ -703,14 +696,9 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( 'related' === $attributes['type'] && ( is_array( $attributes['related'] ) || strpos( $attributes['related'], ',' ) ) ) {
 			if ( ! is_array( $attributes['related'] ) ) {
-				$attributes['related'] = @explode( ',', $attributes['related'] );
-				$related_items         = array();
-				foreach ( $attributes['related'] as $key => $label ) {
-					if ( is_numeric( $key ) ) {
-						$key   = $label;
-						$label = ucwords( str_replace( '_', ' ', $label ) );
-					}
-					$related_items[ $key ] = $label;
+				$related_items = array();
+				foreach ( explode( ',', $attributes['related'] ) as $label ) {
+					$related_items[ $label ] = ucwords( str_replace( '_', ' ', $label ) );
 				}
 				$attributes['related'] = $related_items;
 			}
@@ -769,7 +757,7 @@ class Exports_Reports_Admin_UI {
 		) || ! in_array( $column, $this->filters ) ) {
 			$attributes['date_ongoing'] = false;
 		}
-		if ( false === $attributes['filter'] || ! isset( $attributes['date_ongoing'] ) || ! in_array(
+		if ( false === $attributes['filter'] || ! in_array(
 			$attributes['type'],
 			array(
 				'date',
@@ -1015,7 +1003,7 @@ class Exports_Reports_Admin_UI {
 						?>
 						<span class="description"><?php echo wp_kses_post( $attributes['comments'] ); ?></span>
 						<?php
-						if ( 'desc' !== $attributes['type'] || 'code' !== $attributes['type'] ) {
+						if ( ! in_array( $attributes['type'], array( 'desc', 'code' ), true ) ) {
 							echo '<br />';
 						}
 					}
@@ -1093,7 +1081,7 @@ class Exports_Reports_Admin_UI {
 						<?php
 					}
 					if ( ! empty( $attributes['comments'] ) && false === $attributes['comments_top'] ) {
-						if ( 'desc' !== $attributes['type'] || 'code' !== $attributes['type'] ) {
+						if ( ! in_array( $attributes['type'], array( 'desc', 'code' ), true ) ) {
 							echo '<br />';
 						}
 						?>
@@ -1443,7 +1431,7 @@ class Exports_Reports_Admin_UI {
 						}
 					}
 				}
-				if ( empty( $column_data ) && ! empty( $selected_options ) ) {
+				if ( empty( $column_data ) ) {
 					$limited = ' WHERE `' . $this->sanitize( $attributes['related_id'] ) . "` IN ('" . implode( "', '", $this->sanitize( $selected_options ) ) . "')";
 
 					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -2186,7 +2174,7 @@ class Exports_Reports_Admin_UI {
 		$selects = array();
 		if ( isset( $selectmatches[1] ) && ! empty( $selectmatches[1] ) && stripos( $selectmatches[1], ' AS ' ) !== false ) {
 			$theselects = explode( ', ', $selectmatches[1] );
-			if ( empty( $theselects ) ) {
+			if ( 1 === count( $theselects ) ) {
 				$theselects = explode( ',', $selectmatches[1] );
 			}
 			foreach ( $theselects as $selected ) {
@@ -2374,9 +2362,9 @@ class Exports_Reports_Admin_UI {
 				if ( false === stripos( $sql, ' HAVING ' ) ) {
 					$havingsql .= ' HAVING (' . implode( ' AND ', $having_sql ) . ') ';
 				} elseif ( false !== stripos( $sql, ' HAVING %%HAVING%% ' ) || false === stripos( $sql, ' %%HAVING%% ' ) ) {
-					$havingsql .= ' (' . implode( ' AND ', $havingsql ) . ') AND ';
+					$havingsql .= ' (' . implode( ' AND ', $having_sql ) . ') AND ';
 				} else {
-					$havingsql .= ' AND (' . implode( ' AND ', $havingsql ) . ') ';
+					$havingsql .= ' AND (' . implode( ' AND ', $having_sql ) . ') ';
 				}
 			}
 		}
@@ -2456,10 +2444,7 @@ class Exports_Reports_Admin_UI {
 			$ordersql       = '';
 			$limitsql       = '';
 			$sql_count      = ' ' . preg_replace( '/\s+/', ' ', ' ' . $this->sql_count ) . ' ';
-			$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
-			if ( $full || false !== $this->sql_count ) {
-				$calc_found_sql = '';
-			}
+			$calc_found_sql = '';
 			$sql_count = str_ireplace( ' SELECT ', " SELECT {$calc_found_sql} ", str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count ) );
 			if ( false !== $this->search && ! empty( $this->search_columns ) ) {
 				if ( ! empty( $other_sql ) ) {
@@ -2475,9 +2460,9 @@ class Exports_Reports_Admin_UI {
 					if ( false === stripos( $sql, ' HAVING ' ) ) {
 						$havingsql .= ' HAVING (' . implode( ' AND ', $having_sql ) . ') ';
 					} elseif ( false !== stripos( $sql, ' HAVING %%HAVING%% ' ) || false === stripos( $sql, ' %%HAVING%% ' ) ) {
-						$havingsql .= ' (' . implode( ' AND ', $havingsql ) . ') AND ';
+						$havingsql .= ' (' . implode( ' AND ', $having_sql ) . ') AND ';
 					} else {
-						$havingsql .= ' AND (' . implode( ' AND ', $havingsql ) . ') ';
+						$havingsql .= ' AND (' . implode( ' AND ', $having_sql ) . ') ';
 					}
 				}
 			}
@@ -2506,7 +2491,7 @@ class Exports_Reports_Admin_UI {
 			} elseif ( stripos( $sql_count, '%%HAVING%%' ) === false ) {
 				$sql_count = str_replace( ' HAVING ', ' HAVING %%HAVING%% ', $sql_count );
 			}
-			if ( stripos( $sql_count, '%%LIMIT%%' ) === false && stripos( $sql_count, ' LIMIT ' ) === false && ! empty( $limitsql ) ) {
+			if ( stripos( $sql_count, '%%LIMIT%%' ) === false && stripos( $sql_count, ' LIMIT ' ) === false ) {
 				$sql_count .= ' LIMIT %%LIMIT%% ';
 			} elseif ( stripos( $sql_count, '%%LIMIT%%' ) === false ) {
 				$sql_count = str_replace( ' LIMIT ', ' LIMIT %%LIMIT%% ', $sql_count );
@@ -2900,7 +2885,7 @@ class Exports_Reports_Admin_UI {
 
 			<?php if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) { ?>
 				<h3 align="center">Totals</h3>
-				<table class="widefat fixed admin_ui_table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?> style="width:auto;margin:0 auto;">
+				<table class="widefat fixed admin_ui_table" cellspacing="0" style="width:auto;margin:0 auto;">
 					<thead>
 					<tr>
 						<?php
@@ -3100,10 +3085,6 @@ class Exports_Reports_Admin_UI {
 						<tr id="item-<?php echo esc_attr( $id ); ?>" class="iedit">
 							<?php
 							foreach ( $columns as $column => $attributes ) {
-								if ( ! is_array( $attributes ) ) {
-									$column     = $attributes;
-									$attributes = $this->setup_column( $column );
-								}
 								if ( false === $attributes['display'] ) {
 									continue;
 								}
@@ -3338,7 +3319,7 @@ class Exports_Reports_Admin_UI {
 		$page          = $this->page;
 		$rows_per_page = $this->limit;
 		$total_rows    = $this->total;
-		$total_pages   = ceil( $total_rows / $rows_per_page );
+		$total_pages   = (int) ceil( $total_rows / $rows_per_page );
 
 		$request_uri = $this->var_update(
 			array( 'pg' => '' ),
@@ -3374,8 +3355,8 @@ class Exports_Reports_Admin_UI {
 			<?php
 			if ( true === $header ) {
 				?>
-				<span class="paging-input"><input class="current-page" title="<?php esc_attr_e( 'Current page', 'exports-and-reports' ); ?>" type="text" name="pg<?php echo esc_attr( $this->num ); ?>" value="<?php echo esc_attr( $this->page ); ?>" size="<?php echo esc_attr( strlen( $total_pages ) ); ?>"> <?php esc_html_e( 'of', 'exports-and-reports' ); ?>
-					<span class="total-pages"><?php echo esc_html( $total_pages ); ?></span></span>
+				<span class="paging-input"><input class="current-page" title="<?php esc_attr_e( 'Current page', 'exports-and-reports' ); ?>" type="text" name="pg<?php echo esc_attr( $this->num ); ?>" value="<?php echo esc_attr( $this->page ); ?>" size="<?php echo esc_attr( (string) strlen( (string) $total_pages ) ); ?>"> <?php esc_html_e( 'of', 'exports-and-reports' ); ?>
+					<span class="total-pages"><?php echo esc_html( (string) $total_pages ); ?></span></span>
 				<script>
 
 					jQuery( function ( $ ) {

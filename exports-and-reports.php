@@ -382,7 +382,7 @@ function exports_reports_admin_menu() {
 	}
 
 	if ( $has_full_access || exports_reports_current_user_can_any( $min_cap ) || exports_reports_current_user_can_any( 'exports_reports_settings' ) ) {
-		add_menu_page( 'Reports Admin', 'Reports Admin', $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', null, EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+		add_menu_page( 'Reports Admin', 'Reports Admin', $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
 		add_submenu_page( 'exports-reports-admin', 'Manage Groups', 'Manage Groups', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin', 'exports_reports_groups' );
 		add_submenu_page( 'exports-reports-admin', 'Manage Reports', 'Manage Reports', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-reports', 'exports_reports_reports' );
 		add_submenu_page( 'exports-reports-admin', 'Settings', 'Settings', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-settings', 'exports_reports_settings' );
@@ -438,7 +438,7 @@ function exports_reports_menu() {
 						$menu_page = 'exports-reports-group-' . $group->id;
 
 						if ( ! $init ) {
-							add_menu_page( 'Reports', 'Reports', 'read', $menu_page, null, EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+							add_menu_page( 'Reports', 'Reports', 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
 
 							$init = $menu_page;
 						}
@@ -448,7 +448,7 @@ function exports_reports_menu() {
 						break;
 					}
 
-					$roles = array_unique( array_merge( explode( ',', $group->role_access ), explode( ',', $report->role_access ) ) );
+					$roles = array_filter( array_unique( array_merge( explode( ',', $group->role_access ), explode( ',', $report->role_access ) ) ) );
 
 					if ( empty( $roles ) ) {
 						continue;
@@ -459,7 +459,7 @@ function exports_reports_menu() {
 							$menu_page = 'exports-reports-group-' . $group->id;
 
 							if ( ! $init ) {
-								add_menu_page( 'Reports', 'Reports', 'read', $menu_page, null, EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+								add_menu_page( 'Reports', 'Reports', 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
 
 								$init = $menu_page;
 							}
@@ -1325,7 +1325,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 							break;
 						}
 
-						$roles = array_unique( array_merge( explode( ',', $group->role_access ), explode( ',', $report->role_access ) ) );
+						$roles = array_filter( array_unique( array_merge( explode( ',', $group->role_access ), explode( ',', $report->role_access ) ) ) );
 
 						if ( empty( $roles ) ) {
 							continue;
@@ -1380,7 +1380,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 			continue;
 		}
 
-		$roles = array_unique( array_merge( $group_roles, explode( ',', $report->role_access ) ) );
+		$roles = array_filter( array_unique( array_merge( $group_roles, explode( ',', $report->role_access ) ) ) );
 
 		if ( empty( $roles ) ) {
 			continue;
@@ -1739,7 +1739,7 @@ function exports_reports_cleanup( $full = false ) {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$cleanup = $wpdb->get_results( $sql );
 
-		if ( false !== $cleanup && ! empty( $cleanup ) ) {
+		if ( ! empty( $cleanup ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 
 			/** @var WP_Filesystem_Base|null $wp_filesystem */ global $wp_filesystem;

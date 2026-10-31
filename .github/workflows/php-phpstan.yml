@@ -7,7 +7,6 @@ on:
       - '*.php'
       - 'composer.json'
       - 'phpstan.neon'
-      - 'phpstan-baseline.neon'
       - 'phpstan-legacy.neon'
       - 'composer.lock'
       - '.github/workflows/php-phpstan.yml'
@@ -35,14 +34,13 @@ jobs:
           fetch-depth: 0
       # ------------------------------------------------------------------------------
       # The plugin's own changed PHP files (vendor/ is third-party code). A change to the
-      # configuration, the baseline, the dependencies or this workflow analyses every path in
-      # phpstan.neon instead, which is what keeps the baseline honest.
+      # configuration, the dependencies or this workflow analyses every path in phpstan.neon.
       # ------------------------------------------------------------------------------
       - name: Decide what to analyse
         id: changed-files
         run: |
           changed="$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
-          if grep -qxE 'phpstan\.neon|phpstan-baseline\.neon|phpstan-legacy\.neon|composer\.json|composer\.lock|\.github/workflows/php-phpstan\.yml' <<< "$changed"; then
+          if grep -qxE 'phpstan\.neon|phpstan-legacy\.neon|composer\.json|composer\.lock|\.github/workflows/php-phpstan\.yml' <<< "$changed"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             echo "paths=" >> "$GITHUB_OUTPUT"
           else
