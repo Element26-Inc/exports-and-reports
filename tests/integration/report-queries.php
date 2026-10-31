@@ -747,6 +747,76 @@ er_report(
 );
 
 
+// --- save() and reorder() refuse a request without their nonce; reorder() with the nonce writes the weights; the settings form carries its nonce ---
+$er_groups_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups';
+$er_now          = current_time( 'mysql' );
+$er_order_ids    = array();
+foreach ( array( 'Order A', 'Order B' ) as $er_i => $er_group_name ) {
+	$wpdb->insert(
+		$er_groups_table,
+		array(
+			'name'        => $er_group_name,
+			'disabled'    => 0,
+			'role_access' => '',
+			'weight'      => $er_i,
+			'created'     => $er_now,
+			'updated'     => $er_now,
+		)
+	);
+	$er_order_ids[] = (int) $wpdb->insert_id;
+}
+$er_gate_admin = er_admin(
+	'',
+	'Groups',
+	array(
+		'readonly'   => false,
+		'table'      => $er_groups_table,
+		'identifier' => 'id',
+		'reorder'    => 'weight',
+		'id'         => $er_order_ids[0],
+		'do'         => 'save',
+	)
+);
+$_POST         = array( 'name' => 'Renamed' );
+ob_start();
+$er_save_refused = $er_gate_admin->save();
+$er_save_out     = (string) ob_get_clean();
+$er_name_after   = (string) $wpdb->get_var( $wpdb->prepare( "SELECT name FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'save() refuses a request without the form nonce',
+	false === $er_save_refused && false !== strpos( $er_save_out, 'expired' ) && 'Order A' === $er_name_after,
+	'returned ' . var_export( $er_save_refused, true ) . ', name now ' . $er_name_after
+);
+
+$_POST = array( 'order' => array( $er_order_ids[1], $er_order_ids[0] ) );
+ob_start();
+$er_reorder_refused = $er_gate_admin->reorder();
+$er_reorder_out     = (string) ob_get_clean();
+$er_weight_refused  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$_POST['_wpnonce']  = wp_create_nonce( 'wp-admin-ui-reorder' );
+ob_start();
+$er_gate_admin->reorder();
+$er_reorder_ok_out = (string) ob_get_clean();
+$er_weight_a       = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[0] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_weight_b       = (int) $wpdb->get_var( $wpdb->prepare( "SELECT weight FROM `{$er_groups_table}` WHERE id = %d", $er_order_ids[1] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$_POST             = array();
+er_report(
+	'reorder() needs the reorder nonce, then writes the posted order',
+	false === $er_reorder_refused && false !== strpos( $er_reorder_out, 'expired' ) && 0 === $er_weight_refused && 1 === $er_weight_a && 0 === $er_weight_b && false !== strpos( $er_reorder_ok_out, 'Order updated' ),
+	'without nonce: weight A ' . $er_weight_refused . '; with nonce: A ' . $er_weight_a . ', B ' . $er_weight_b
+);
+
+wp_set_current_user( 1 );
+ob_start();
+exports_reports_settings();
+$er_settings_html = (string) ob_get_clean();
+wp_set_current_user( 0 );
+er_report(
+	'the settings form carries its nonce',
+	false !== strpos( $er_settings_html, 'name="_wpnonce"' ) && false !== strpos( $er_settings_html, 'name="cronjob_token"' ),
+	strlen( $er_settings_html ) . ' bytes'
+);
+
 // --- saving the token empty turns token access off; it comes back for the tests that follow ---
 wp_set_current_user( 1 );
 $_POST    = array( 'cronjob_token' => '' );
@@ -797,6 +867,26 @@ exports_reports_cleanup( true );
 $er_clear_ok = ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
 wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' );
 er_report( 'clearing the export directory removes export files only', $er_clear_ok, 'old.csv ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) ? 'present' : 'gone' ) . ', notes.md kept ' . var_export( $er_clear_ok, true ) );
+
+// --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed ---
+$_GET          = array(
+	'search_query' => "O\\'Brien <b>x</b>",
+	'pg'           => '3',
+	'order_dir'    => 'asc',
+	'action'       => 'view',
+	'filter_name'  => array( "a\\'b" ),
+);
+$er_req_admin  = er_admin( '', 'Request', array( 'search' => true ) );
+ob_start();
+$er_req_admin->hidden_vars();
+$er_hidden_html = (string) ob_get_clean();
+$er_filter_var  = $er_req_admin->get_var( 'filter_name' );
+$_GET           = array();
+er_report(
+	'request values are unslashed and sanitised on the way in',
+	"O'Brien x" === $er_req_admin->search_query && 3 === $er_req_admin->page && 'DESC' === $er_req_admin->order_dir && 'view' === $er_req_admin->action && array( "a'b" ) === $er_filter_var && false !== strpos( $er_hidden_html, 'value="O&#039;Brien x"' ) && false === strpos( $er_hidden_html, '\\' ),
+	'search ' . var_export( $er_req_admin->search_query, true ) . ', page ' . var_export( $er_req_admin->page, true ) . ', order_dir ' . var_export( $er_req_admin->order_dir, true ) . ', hidden ' . strlen( $er_hidden_html ) . ' bytes'
+);
 
 // --- the pre-0.9.5 api.php answers through the REST routes with its old response shape ---
 $er_api_capture = static function ( array $query ) use ( $er_report_id ) {

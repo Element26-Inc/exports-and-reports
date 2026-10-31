@@ -485,9 +485,30 @@ function exports_reports_reset() {
  * Output the plugin settings page.
  */
 function exports_reports_settings() {
-	if ( isset( $_POST['cronjob_token'] ) ) {
-		// An empty token turns the token access off.
-		update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( $_POST['cronjob_token'] ) ) );
+	if ( ! current_user_can( 'manage_options' ) && ! exports_reports_current_user_can_any( array( 'exports_reports_full_access', 'exports_reports_settings' ) ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to manage the Exports and Reports settings.', 'exports-and-reports' ), 403 );
+	}
+
+	$cleared = false;
+	$reset   = false;
+
+	if ( isset( $_POST['cronjob_token'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+		check_admin_referer( 'exports-reports-settings' );
+
+		if ( isset( $_POST['cronjob_token'] ) ) {
+			// An empty token turns the token access off.
+			update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) ) );
+		}
+
+		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+			exports_reports_cleanup( true );
+			$cleared = true;
+		}
+
+		if ( ! empty( $_POST['reset'] ) ) {
+			exports_reports_reset();
+			$reset = true;
+		}
 	}
 
 	$rest_base  = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
@@ -501,28 +522,21 @@ function exports_reports_settings() {
 			<br /></div>
 		<h2>Exports and Reports - Settings</h2>
 
-		<?php
-		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
-			exports_reports_cleanup( true );
-			?>
+		<?php if ( $cleared ) : ?>
 			<div id="message" class="updated fade">
 				<p>Your Exports directory has been cleaned up and all export files have been removed.</p>
 			</div>
-			<?php
-		}
+		<?php endif; ?>
 
-		if ( ! empty( $_POST['reset'] ) ) {
-			exports_reports_reset();
-			?>
+		<?php if ( $reset ) : ?>
 			<div id="message" class="updated fade">
 				<p>Your Settings have been reset.</p>
 			</div>
-			<?php
-		}
-		?>
+		<?php endif; ?>
 
 		<div style="height:20px;"></div>
 		<form method="post" action="">
+			<?php wp_nonce_field( 'exports-reports-settings' ); ?>
 			<table class="form-table">
 				<tr valign="top">
 					<th scope="row"><label for="clear">Clear Exports Directory</label></th>
@@ -1218,7 +1232,10 @@ function exports_reports_report_options( $report ) {
  * @return bool
  */
 function exports_reports_view( $group_id = false, $has_full_access = null ) {
-	if ( empty( $_GET['page'] ) ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the admin page slug and the chosen report; nothing is written from them.
+	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+	if ( '' === $page ) {
 		return false;
 	}
 
@@ -1234,9 +1251,9 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		}
 	}
 
-	if ( 'exports-reports' !== $_GET['page'] && false !== strpos( $_GET['page'], 'exports-reports-group-' ) ) {
+	if ( 'exports-reports' !== $page && false !== strpos( $page, 'exports-reports-group-' ) ) {
 		if ( empty( $group_id ) ) {
-			$group_id = (int) str_replace( 'exports-reports-group-', '', sanitize_text_field( $_GET['page'] ) );
+			$group_id = (int) str_replace( 'exports-reports-group-', '', $page );
 		}
 
 		$sql = '
@@ -1371,8 +1388,11 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		return false;
 	}
 
-	if ( isset( $_GET['report'] ) && isset( $selectable_reports[ $_GET['report'] ] ) ) {
-		$current_report = absint( $_GET['report'] );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the report chosen from the dropdown.
+	$requested_report = isset( $_GET['report'] ) ? absint( wp_unslash( $_GET['report'] ) ) : 0;
+
+	if ( 0 < $requested_report && isset( $selectable_reports[ $requested_report ] ) ) {
+		$current_report = $requested_report;
 	}
 
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
@@ -1395,7 +1415,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 					echo esc_attr(
 						$admin->var_update(
 							array(
-								'page'   => sanitize_text_field( $_GET['page'] ),
+								'page'   => $page,
 								'report' => absint( $report_id ),
 							),
 							false,
