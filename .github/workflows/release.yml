@@ -1,0 +1,111 @@
+name: Release zip
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    name: Build and attach the plugin zip
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      # ------------------------------------------------------------------------------
+      # A release is built for its tag; a manual run packages whatever the header says.
+      # Either way the header, readme.txt, package.json and the version constant must agree.
+      # ------------------------------------------------------------------------------
+      - name: Determine the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            version="${{ github.event.release.tag_name }}"
+            version="${version#v}"
+          else
+            version="$(sed -n 's/^ \* Version:[[:space:]]*//p' exports-and-reports.php | head -n1 | tr -d '[:space:]')"
+          fi
+          bin/check-version.sh "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------------------
+      # The committed vendor tree is what composer.lock and Strauss produce (bin/check-vendor.sh);
+      # the zip is built from the commit, so the tools this installs stay out of it.
+      # ------------------------------------------------------------------------------
+      - name: Check the vendor tree
+        run: bin/check-vendor.sh
+
+      # ------------------------------------------------------------------------------
+      # git archive applies the export-ignore entries of .gitattributes, the same list the
+      # wordpress.org deploy uses, so the zip holds exactly what the directory receives.
+      # ------------------------------------------------------------------------------
+      - name: Build the zip
+        run: |
+          zip="exports-and-reports-${{ steps.version.outputs.version }}.zip"
+          git archive --format=zip -9 --prefix=exports-and-reports/ -o "$zip" HEAD
+          sha256sum "$zip" > "$zip.sha256"
+          echo "ZIP=$zip" >> "$GITHUB_ENV"
+          unzip -l "$zip" | tail -n1
+          cat "$zip.sha256"
+
+      # ------------------------------------------------------------------------------
+      # Nothing from the development tree, every PHP file parses on the plugin's PHP floor, the
+      # version the zip declares is the one being released, and the two autoloaders resolve the
+      # bundled libraries from the packaged paths.
+      # ------------------------------------------------------------------------------
+      - name: Check the packaged tree
+        run: |
+          rm -rf build && mkdir build && unzip -q "$ZIP" -d build
+          cd build/exports-and-reports
+          for f in tests .github bin phpcs.xml .phpcs.compat.xml .phpcs.compat-pdf.xml phpstan.neon phpstan-baseline.neon phpstan-legacy.neon composer.lock .gitattributes .gitignore; do
+            if [ -e "$f" ]; then echo "::error::$f is in the zip"; exit 1; fi
+          done
+          lint="$(find . -name '*.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
+          if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file does not parse on PHP $(php -r 'echo PHP_VERSION;')"; exit 1; fi
+          grep -q "^ \* Version:[[:space:]]*${{ steps.version.outputs.version }}$" exports-and-reports.php || { echo "::error::the packaged header does not declare ${{ steps.version.outputs.version }}"; exit 1; }
+          grep -q "^ \* Requires PHP:[[:space:]]*7\.2$" exports-and-reports.php || { echo "::error::the packaged header does not declare Requires PHP 7.2"; exit 1; }
+          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Tcpdf" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) && class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the bundled libraries"; exit 1; }
+          echo "packaged tree ok: $(find . -type f | wc -l) files"
+
+      # ------------------------------------------------------------------------------
+      # The same tree on the plugin's PHP floor: everything parses except what the plugin only loads
+      # on 8.2 (the tc-lib-pdf export class and that library; TCPDF serves there), and the autoloaders
+      # load without the Composer platform check.
+      # ------------------------------------------------------------------------------
+      - name: Configure PHP 7.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '7.2'
+          coverage: none
+
+      - name: Check the packaged tree on PHP 7.2
+        run: |
+          cd build/exports-and-reports
+          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -path './wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
+          if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file the plugin loads on 7.2 does not parse there"; exit 1; fi
+          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the libraries the plugin uses on PHP 7.2"; exit 1; }
+          echo "packaged tree ok on PHP $(php -r 'echo PHP_VERSION;')"
+
+      - name: Upload the zip as a workflow artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: exports-and-reports-${{ steps.version.outputs.version }}
+          path: |
+            ${{ env.ZIP }}
+            ${{ env.ZIP }}.sha256
+          if-no-files-found: error
+
+      - name: Attach the zip to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$ZIP" "$ZIP.sha256" --clobber
