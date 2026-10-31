@@ -112,18 +112,12 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	$sql = $wp_filesystem->get_contents( EXPORTS_REPORTS_DIR . 'assets/dump.sql' );
 
-	$charset_collate = 'DEFAULT CHARSET utf8';
+	// The dump carries the three-byte utf8 the tables were first written with; the site's own
+	// character set and collation take its place (utf8mb4 on any current install).
+	$charset_collate = $wpdb->get_charset_collate();
 
-	if ( ! empty( $wpdb->charset ) ) {
-		$charset_collate = "DEFAULT CHARSET {$wpdb->charset}";
-	}
-
-	if ( ! empty( $wpdb->collate ) ) {
-		$charset_collate .= " COLLATE {$wpdb->collate}";
-	}
-
-	if ( 'DEFAULT CHARSET utf8' !== $charset_collate ) {
-		$sql = str_replace( 'DEFAULT CHARSET utf8', $charset_collate, $sql );
+	if ( '' !== $charset_collate ) {
+		$sql = str_replace( 'DEFAULT CHARSET=utf8', $charset_collate, $sql );
 	}
 
 	$sql = explode( ";\n", str_replace( array( "\r", 'wp_' ), array( "\n", $wpdb->prefix ), $sql ) );
@@ -151,6 +145,10 @@ function exports_reports_sql_install( $upgrade = false ) {
 		dbDelta( $query );
 	}
 
+	if ( $upgrade ) {
+		exports_reports_convert_tables_charset();
+	}
+
 	delete_option( 'exports_reports_version' );
 	add_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
 
@@ -162,6 +160,81 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	exports_reports_schedule_cleanup();
 }
+
+/**
+ * Converts the plugin's tables to the site's character set and collation when they differ.
+ *
+ * Installs before 0.9.5 created the tables in three-byte utf8 whatever the site used (the
+ * replacement in the installer never matched the dump), so a report name or filter value outside
+ * the Basic Multilingual Plane could not be stored. dbDelta() does not change the character set of
+ * an existing table, so the upgrade converts them.
+ *
+ * @since 0.9.5
+ *
+ * @return string[] The tables converted.
+ */
+function exports_reports_convert_tables_charset() {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	// Only towards utf8mb4, the superset every earlier WordPress character set converts into without loss;
+	// a site on another character set keeps its tables as they are.
+	if ( 'utf8mb4' !== $wpdb->charset || empty( $wpdb->collate ) ) {
+		return array();
+	}
+
+	$converted = array();
+	$failed    = array();
+
+	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
+		$table = $wpdb->prefix . EXPORTS_REPORTS_TBL . $suffix;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- schema lookup at upgrade time.
+		$current = $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $table ) );
+
+		if ( empty( $current ) || $current === $wpdb->collate ) {
+			continue;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table; character set and collation are wpdb's, not request data.
+		$wpdb->query( "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$wpdb->charset} COLLATE {$wpdb->collate}" );
+
+		if ( '' === $wpdb->last_error ) {
+			$converted[] = $table;
+		} else {
+			$failed[ $table ] = $wpdb->last_error;
+		}
+	}
+
+	// A table that did not convert is reported on the plugin's pages until it does (the next upgrade retries).
+	if ( array() === $failed ) {
+		delete_option( 'exports_reports_charset_errors' );
+	} else {
+		update_option( 'exports_reports_charset_errors', $failed, false );
+	}
+
+	return $converted;
+}
+
+/**
+ * Shows the character set conversion errors, if any, on the plugin's pages.
+ */
+function exports_reports_charset_errors_notice() {
+	$failed = get_option( 'exports_reports_charset_errors' );
+
+	if ( ! is_array( $failed ) || array() === $failed || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	echo '<div class="notice notice-error"><p><strong>Exports and Reports:</strong> a table could not be converted to the site\'s character set. Convert it by hand or ask your host, then deactivate and reactivate the plugin to retry.</p><ul>';
+
+	foreach ( $failed as $table => $error ) {
+		echo '<li><code>' . esc_html( $table ) . '</code>: ' . esc_html( $error ) . '</li>';
+	}
+
+	echo '</ul></div>';
+}
+
+add_action( 'admin_notices', 'exports_reports_charset_errors_notice' );
 
 /**
  *

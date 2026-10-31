@@ -148,6 +148,28 @@ function er_shout( $value ) {
 }
 
 // --- the table ---
+// --- the plugin's tables carry the site's character set and collation ---
+$er_collations = array();
+foreach ( array( 'groups', 'reports', 'log' ) as $er_suffix ) {
+	$er_collations[ $er_suffix ] = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $wpdb->prefix . EXPORTS_REPORTS_TBL . $er_suffix ) );
+}
+er_report(
+	'plugin tables created with the site collation',
+	3 === count( array_unique( $er_collations ) ) ? false : array( $wpdb->collate ) === array_values( array_unique( $er_collations ) ),
+	implode( ', ', $er_collations ) . ' (site: ' . $wpdb->collate . ')'
+);
+
+// --- an install from before 0.9.5 is converted on upgrade ---
+$er_log_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log';
+$wpdb->query( "ALTER TABLE `{$er_log_table}` CONVERT TO CHARACTER SET utf8 COLLATE utf8_general_ci" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_converted = exports_reports_convert_tables_charset();
+$er_after     = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $er_log_table ) );
+er_report(
+	'a three-byte utf8 table is converted on upgrade',
+	array( $er_log_table ) === $er_converted && $wpdb->collate === $er_after,
+	'converted ' . implode( ', ', $er_converted ) . '; now ' . $er_after
+);
+
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 $wpdb->query( "CREATE TABLE `{$er_table}` ( `id` INT NOT NULL AUTO_INCREMENT, `channel` VARCHAR(32) NOT NULL, `title` VARCHAR(191) NOT NULL, `revenue` DECIMAL(10,2) NOT NULL, `published` DATE NOT NULL, PRIMARY KEY (`id`) )" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 $er_over_fifty = 0;
