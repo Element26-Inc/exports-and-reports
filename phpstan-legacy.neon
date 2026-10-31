@@ -1,8 +1,9 @@
-# Analysis on a PHP version below the plugin's floor (8.2): the prefixed PDF library is written for
-# 8.2 and cannot be scanned there, so the PDF export class is left out of the run.
+# Analysis below PHP 8.2, down to the plugin's floor of 7.4: the PDF export class and the prefixed PDF
+# library are written for 8.2 and are the only files the plugin loads there, so they are left out.
 includes:
 	- phpstan.neon
 parameters:
+	phpVersion: 70400
 	scanDirectories!:
 		- wp-admin-ui
 		- vendor/vendor-prefixed/mk-j

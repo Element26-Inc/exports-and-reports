@@ -14,7 +14,7 @@
   "require": {
     "composer/installers": "2.2.*",
     "mk-j/php_xlsxwriter": "^0.39",
-    "php": ">=8.2",
+    "php": ">=7.4",
     "tecnickcom/tc-lib-pdf": "^8.82"
   },
   "require-dev": {
@@ -35,7 +35,8 @@
   },
   "scripts": {
     "strauss": [
-      "test -f ./bin/strauss.phar || curl -o bin/strauss.phar -L -C - https://github.com/BrianHenryIE/strauss/releases/latest/download/strauss.phar",
+      "test -f ./bin/strauss.phar || curl -sSL -o bin/strauss.phar https://github.com/BrianHenryIE/strauss/releases/download/0.31.1/strauss.phar",
+      "@php -r \"if ( '17dc2baf27b9a3f52834e3db729c8365d8915a80e37a087d253cf705387aa887' !== hash_file( 'sha256', 'bin/strauss.phar' ) ) { fwrite( STDERR, 'bin/strauss.phar is not Strauss 0.31.1; delete it and run the script again' . PHP_EOL ); exit( 1 ); }\"",
       "@php bin/strauss.phar"
     ],
     "post-install-cmd": [
@@ -79,6 +80,10 @@
       "dealerdirect/phpcodesniffer-composer-installer": true,
       "kylekatarnls/update-helper": true,
       "phpstan/extension-installer": true
-    }
+    },
+    "platform": {
+      "php": "8.2"
+    },
+    "platform-check": false
   }
 }

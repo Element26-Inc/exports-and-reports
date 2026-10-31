@@ -2,6 +2,9 @@ includes:
   - phpstan-baseline.neon
 parameters:
   level: 5
+  # The PDF export class is written for PHP 8.2 (named arguments, the library's floor); the rest of the
+  # plugin runs on 7.4, which phpstan-legacy.neon analyses with the class left out.
+  phpVersion: 80200
   paths:
     - wp-admin-ui
     - api.php

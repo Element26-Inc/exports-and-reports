@@ -17,7 +17,7 @@
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 6.0
- * Requires PHP:      8.2
+ * Requires PHP:      7.4
  * GitHub Plugin URI: https://github.com/sc0ttkclark/exports-and-reports
  * Primary Branch:    main
  */

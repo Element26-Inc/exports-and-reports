@@ -4,7 +4,7 @@
     'name' => 'sc0ttkclark/exports-and-reports',
     'pretty_version' => 'dev-main',
     'version' => 'dev-main',
-    'reference' => 'd2b773ee2469722d602c24ca80ca4c70924ddea8',
+    'reference' => '25032f1b341984789ec535c2d1c6ad0760fdeb45',
     'type' => 'wordpress-plugin',
     'install_path' => __DIR__ . '/../',
     'aliases' => 
