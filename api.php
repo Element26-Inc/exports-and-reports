@@ -23,9 +23,14 @@ if ( ! function_exists( 'is_plugin_active' ) || ! is_plugin_active( basename( __
 	wp_die( 'Exports and Reports plugin not activated' );
 }
 
+_deprecated_file( basename( __FILE__ ), '0.9.5', 'the REST API under exports-reports/v1 (the Settings page shows the URLs)' );
+
 if ( ! headers_sent() ) {
 	status_header( 200 );
 	nocache_headers();
+	header( 'Deprecation: true' );
+	header( 'Link: <' . esc_url_raw( rest_url( 'exports-reports/v1/' ) ) . '>; rel="successor-version"' );
+	header( 'X-Exports-Reports-Deprecated: api.php answers through the REST API and will be removed in 1.0; see the plugin Settings page for the URLs to move to' );
 }
 
 // phpcs:disable WordPress.Security.NonceVerification.Recommended -- the token in the request is the credential; the REST route checks it.

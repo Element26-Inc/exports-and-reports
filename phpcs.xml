@@ -27,6 +27,9 @@
     <!-- Let's also check that everything is properly documented. -->
 <!--    <rule ref="WordPress-Docs"/>-->
 
+    <!-- Every request read is unslashed and sanitised (part of the full WordPress standard, not of WordPress-Extra). -->
+    <rule ref="WordPress.Security.ValidatedSanitizedInput"/>
+
     <!-- Add in some extra rules from other standards. -->
     <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter"/>
     <rule ref="Generic.Commenting.Todo"/>

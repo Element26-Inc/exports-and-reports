@@ -418,6 +418,10 @@ function exports_reports_reset() {
  * Output the plugin settings page.
  */
 function exports_reports_settings() {
+	if ( ! current_user_can( 'manage_options' ) && ! exports_reports_current_user_can_any( array( 'exports_reports_full_access', 'exports_reports_settings' ) ) ) {
+		wp_die( esc_html__( 'Sorry, you are not allowed to manage the Exports and Reports settings.', 'exports-and-reports' ), 403 );
+	}
+
 	$cleared = false;
 	$reset   = false;
 
@@ -854,6 +858,8 @@ function exports_reports_report_field_save( $value, $column, $attributes, $obj )
 		return wp_json_encode( $value );
 	}
 
+	$names = array_map( 'sanitize_text_field', wp_unslash( $_POST['field_name'] ) );
+
 	$types = array_keys( exports_reports_field_types() );
 	$texts = array(
 		'real_name'              => 'field_real_name',
@@ -876,9 +882,7 @@ function exports_reports_report_field_save( $value, $column, $attributes, $obj )
 		'filter'      => 'field_filter',
 	);
 
-	foreach ( $_POST['field_name'] as $key => $name ) {
-		$name = sanitize_text_field( $name );
-
+	foreach ( $names as $key => $name ) {
 		if ( '' === $name ) {
 			continue;
 		}
@@ -886,19 +890,20 @@ function exports_reports_report_field_save( $value, $column, $attributes, $obj )
 		$field = array( 'name' => $name );
 
 		foreach ( $texts as $option => $input ) {
-			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? sanitize_text_field( $_POST[ $input ][ $key ] ) : '';
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? sanitize_text_field( wp_unslash( $_POST[ $input ][ $key ] ) ) : '';
 		}
 
 		foreach ( $flags as $option => $input ) {
-			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? absint( $_POST[ $input ][ $key ] ) : 0;
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? absint( wp_unslash( $_POST[ $input ][ $key ] ) ) : 0;
 		}
 
-		$type = isset( $_POST['field_type'][ $key ] ) ? sanitize_key( $_POST['field_type'][ $key ] ) : 'text';
+		$type = isset( $_POST['field_type'][ $key ] ) ? sanitize_key( wp_unslash( $_POST['field_type'][ $key ] ) ) : 'text';
 
 		$field['type']        = in_array( $type, $types, true ) ? $type : 'text';
 		$field['total_field'] = '';
 		// A query fragment written by the administrator; stored as typed, like the report's own queries.
-		$field['related_sql'] = isset( $_POST['field_related_sql'][ $key ] ) ? trim( (string) $_POST['field_related_sql'][ $key ] ) : '';
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$field['related_sql'] = isset( $_POST['field_related_sql'][ $key ] ) ? trim( (string) wp_unslash( $_POST['field_related_sql'][ $key ] ) ) : '';
 
 		$value[] = $field;
 	}
@@ -1159,7 +1164,10 @@ function exports_reports_report_options( $report ) {
  * @return bool
  */
 function exports_reports_view( $group_id = false, $has_full_access = null ) {
-	if ( empty( $_GET['page'] ) ) {
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the admin page slug and the chosen report; nothing is written from them.
+	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+	if ( '' === $page ) {
 		return false;
 	}
 
@@ -1175,9 +1183,9 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		}
 	}
 
-	if ( 'exports-reports' !== $_GET['page'] && false !== strpos( $_GET['page'], 'exports-reports-group-' ) ) {
+	if ( 'exports-reports' !== $page && false !== strpos( $page, 'exports-reports-group-' ) ) {
 		if ( empty( $group_id ) ) {
-			$group_id = (int) str_replace( 'exports-reports-group-', '', sanitize_text_field( $_GET['page'] ) );
+			$group_id = (int) str_replace( 'exports-reports-group-', '', $page );
 		}
 
 		$sql = '
@@ -1312,8 +1320,11 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		return false;
 	}
 
-	if ( isset( $_GET['report'] ) && isset( $selectable_reports[ $_GET['report'] ] ) ) {
-		$current_report = absint( $_GET['report'] );
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the report chosen from the dropdown.
+	$requested_report = isset( $_GET['report'] ) ? absint( wp_unslash( $_GET['report'] ) ) : 0;
+
+	if ( 0 < $requested_report && isset( $selectable_reports[ $requested_report ] ) ) {
+		$current_report = $requested_report;
 	}
 
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
@@ -1336,7 +1347,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 					echo esc_attr(
 						$admin->var_update(
 							array(
-								'page'   => sanitize_text_field( $_GET['page'] ),
+								'page'   => $page,
 								'report' => absint( $report_id ),
 							),
 							false,
