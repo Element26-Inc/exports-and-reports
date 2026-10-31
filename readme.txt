@@ -35,6 +35,10 @@ A Report is defined by a Custom MySQL query and can be configured to display how
 
 As an admin, add &debug=1 to the end of the report URL to see the query that this plugin uses, take that query and use it in your own MySQL client or PHPMyAdmin to see if there are any errors in your own query.
 
+= My report starts with WITH or EXECUTE IMMEDIATE and shows one page. Why? =
+
+The plugin places its paging and its row count into statements that begin with SELECT. For a statement that begins with anything else, write %%LIMIT%% where the page belongs (inside the EXECUTE IMMEDIATE string, for example) and supply the total through the `wp_admin_ui_get_data_total` filter, or add the report's own LIMIT and ORDER BY and treat it as a single page. Exports are not affected: they always write every row.
+
 = Where do the export files go, and who can download them? =
 
 In wp-content/exports by default. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
@@ -110,6 +114,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
 * The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.
 * The daily cleanup event has its handler, is cleared on deactivation and is put back when it is missing.
+* The page view of a report with a count query (the totals row) counts every row again; it had stopped at the first page.
 * Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
 
 = 0.9.4 =
