@@ -93,16 +93,18 @@ function er_admin( $sql, $name, $options = array() ) {
  *
  * @param string $sql     The report SQL.
  * @param string $name    The report name.
+ * @param bool   $stream  Whether export_sv() should read the rows itself.
  * @param array  $options Options added to the defaults.
  * @param string $type    The export type.
  * @return array{0: Exports_Reports_Admin_UI, 1: array, 2: string}
  */
-function er_run( $sql, $name, $options = array(), $type = 'csv' ) {
+function er_run( $sql, $name, $stream = false, $options = array(), $type = 'csv' ) {
 	global $wpdb, $er_errors;
-	$er_errors          = array();
-	$wpdb->last_error   = '';
-	$admin              = er_admin( $sql, $name, $options );
-	$admin->export_type = $type;
+	$er_errors            = array();
+	$wpdb->last_error     = '';
+	$admin                = er_admin( $sql, $name, $options );
+	$admin->export_type   = $type;
+	$admin->stream_export = $stream;
 	ob_start();
 	$admin->get_data( true );
 	ob_end_clean();
@@ -236,6 +238,42 @@ list( , $rows, $er_error ) = er_run( "SET @cutoff = 50;\nCREATE TEMPORARY TABLE 
 er_report( 'variables and a temporary table through the filter', '' === $er_error && count( $rows ) === $er_over_fifty, '' !== $er_error ? $er_error : count( $rows ) . ' rows' );
 $wpdb->query( 'DROP TEMPORARY TABLE IF EXISTS er_test_top' );
 
+// --- the CSV export, streamed and buffered, byte for byte the same ---
+wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
+$er_csv = array();
+$er_modes = array(
+	'streamed' => true,
+	'buffered' => false,
+);
+foreach ( $er_modes as $er_mode => $stream ) {
+	list( $admin, , $er_error ) = er_run( "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id", 'Export ' . $er_mode, $stream );
+	ob_start();
+	$file = $admin->export_sv();
+	ob_end_clean();
+	$er_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $file;
+	if ( '' !== $er_error || ! is_string( $file ) || ! is_readable( $er_path ) ) {
+		er_report( 'CSV export (' . $er_mode . ')', false, '' !== $er_error ? $er_error : 'no file written' );
+		continue;
+	}
+	$er_csv[ $er_mode ] = (string) file_get_contents( $er_path ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	wp_delete_file( $er_path );
+	$lines = explode( "\n", rtrim( $er_csv[ $er_mode ], "\n" ) );
+	// Every value quoted, the labels ucwords() of the column names, the formula-like title wrapped in a
+	// string formula, the title with quotes, a comma and a semicolon intact, a negative amount left a number,
+	// a line break replaced by a space.
+	$check = ( 0 === strpos( $er_csv[ $er_mode ], "\xEF\xBB\xBF" ) )
+		&& count( $lines ) === $er_rows + 1
+		&& "\xEF\xBB\xBF" . '"Id","Channel","Title","Revenue"' === $lines[0]
+		&& '"7","beta","="""" & ""=1+1""","10.50"' === $lines[7]
+		&& '"8","gamma","Say ""hi"", pause; go","12.00"' === $lines[8]
+		&& '"9","alpha","Video 9","-13.50"' === $lines[9]
+		&& '"10","beta","Two lines","15.00"' === $lines[10];
+	er_report( 'CSV export (' . $er_mode . ')', $check, $check ? ( count( $lines ) - 1 ) . ' rows, BOM, quoted, formula neutralised' : 'unexpected content: ' . substr( $er_csv[ $er_mode ], 0, 120 ) . ' ... ' . ( isset( $lines[7], $lines[8] ) ? $lines[7] . ' / ' . $lines[8] : count( $lines ) . ' lines' ) );
+}
+if ( isset( $er_csv['streamed'], $er_csv['buffered'] ) ) {
+	er_report( 'streamed and buffered exports identical', $er_csv['streamed'] === $er_csv['buffered'], strlen( $er_csv['streamed'] ) . ' bytes' );
+}
+
 // --- the count query through its filter (the view path runs it for the totals row) ---
 $er_count_seen = '';
 $er_count_cb   = static function ( $args ) use ( &$er_count_seen ) {
@@ -276,6 +314,66 @@ er_report(
 	'declined query runs nothing and writes no export',
 	false === $er_data && false === $er_export && empty( $er_new ) && empty( $er_admin->full_data ),
 	'get_data ' . var_export( $er_data, true ) . ', export ' . var_export( $er_export, true ) . ', ' . count( $er_new ) . ' new files'
+);
+
+// --- streaming needs plain columns: a related column or a custom display callback keeps the buffered path ---
+$er_columns = array(
+	'id'      => array( 'label' => 'Id' ),
+	'channel' => array( 'label' => 'Channel' ),
+);
+$er_plain   = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Plain columns', array( 'columns' => $er_columns ) );
+$er_columns['channel']['custom_display'] = 'er_shout';
+$er_custom             = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Custom display', array( 'columns' => $er_columns ) );
+$er_columns['channel'] = array(
+	'label'         => 'Channel',
+	'type'          => 'related',
+	'related'       => $er_table,
+	'related_id'    => 'channel',
+	'related_field' => 'channel',
+);
+$er_related = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Related column', array( 'columns' => $er_columns ) );
+er_report(
+	'streaming only with plain columns',
+	$er_plain->can_stream_export() && ! $er_custom->can_stream_export() && ! $er_related->can_stream_export(),
+	'plain ' . var_export( $er_plain->can_stream_export(), true ) . ', custom display ' . var_export( $er_custom->can_stream_export(), true ) . ', related ' . var_export( $er_related->can_stream_export(), true )
+);
+$er_custom->export_type = 'csv';
+$er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+ob_start();
+$er_custom->export();
+ob_end_clean();
+$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files ) );
+$er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+foreach ( $er_new as $er_path ) {
+	wp_delete_file( $er_path );
+}
+$er_want   = "\xEF\xBB\xBF\"Id\",\"Channel\"\n\"1\",\"BETA\"\n";
+$er_detail = 'content ' . substr( $er_out, 3, 60 );
+if ( 1 !== count( $er_new ) ) {
+	$er_detail = count( $er_new ) . ' files';
+}
+er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
+
+// --- TSV: the same writer with a tab ---
+list( $er_admin, , $er_error ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Export tsv', true, array(), 'tsv' );
+$er_out                       = er_export_contents( $er_admin );
+$er_want                      = "\xEF\xBB\xBF\"Id\"\t\"Channel\"\n\"1\"\t\"beta\"\n\"2\"\t\"gamma\"\n";
+er_report(
+	'TSV export',
+	'' === $er_error && $er_want === $er_out,
+	'' !== $er_error ? $er_error : 'content ' . str_replace( "\t", '<tab>', substr( $er_out, 3, 60 ) )
+);
+
+// --- the formula wrapping can be turned off ---
+add_filter( 'wp_admin_ui_export_escape_formulas', '__return_false' );
+list( $er_admin, , $er_error ) = er_run( "SELECT id, title FROM `{$er_table}` WHERE id = 7", 'Formulas kept', true );
+$er_out                       = er_export_contents( $er_admin );
+remove_filter( 'wp_admin_ui_export_escape_formulas', '__return_false' );
+$er_want = "\xEF\xBB\xBF\"Id\",\"Title\"\n\"7\",\"=1+1\"\n";
+er_report(
+	'formula wrapping off through the filter',
+	'' === $er_error && $er_want === $er_out,
+	'' !== $er_error ? $er_error : 'content ' . substr( $er_out, 3, 60 )
 );
 
 // --- the XLSX, XML and JSON writers: a file of each, with the labels and rows the report shows ---
