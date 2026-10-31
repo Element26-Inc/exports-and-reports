@@ -13,6 +13,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
+
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
 }
@@ -444,7 +446,11 @@ class Exports_Reports_Admin_UI {
 	public function verify_export_request() {
 		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
-		return '' !== $nonce && false !== wp_verify_nonce( $nonce, 'wp-admin-ui-export-request' );
+		if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'wp-admin-ui-export-request' ) ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -1438,7 +1444,7 @@ class Exports_Reports_Admin_UI {
 				if ( empty( $column_data ) ) {
 					$limited = ' WHERE `' . $this->sanitize( $attributes['related_id'] ) . "` IN ('" . implode( "', '", $this->sanitize( $selected_options ) ) . "')";
 
-					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a related lookup the administrator defined for the column.
 					$related = $wpdb->get_results( 'SELECT `' . $this->sanitize( $attributes['related_id'] ) . '`,`' . $attributes['related_field'] . '` FROM ' . $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . $attributes['related_sql'] : $limited ) );
 
 					foreach ( $related as $option ) {
@@ -1499,7 +1505,7 @@ class Exports_Reports_Admin_UI {
 
 			$sql = "SELECT `{$wha}` FROM `{$table}` WHERE `{$on}` = %s";
 
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table and column names sanitised above, the value prepared.
 			$results = current( $wpdb->get_results( $wpdb->prepare( $sql, array( $is ) ), ARRAY_A ) );
 
 			if ( ! empty( $results ) ) {
@@ -1591,8 +1597,8 @@ class Exports_Reports_Admin_UI {
 			return false;
 		}
 		$this->protect_export_dir();
-		if ( ! $this->api && ! empty( $_GET['remove_export'] ) ) {
-			$remove_export      = str_replace( '/', '', sanitize_file_name( wp_unslash( $_GET['remove_export'] ) ) );
+		$remove_export = str_replace( '/', '', sanitize_file_name( (string) $this->get_var( 'remove_export', '' ) ) );
+		if ( ! $this->api && '' !== $remove_export ) {
 			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $remove_export;
 
 			if ( ! self::is_export_file_name( $remove_export ) ) {
@@ -2529,13 +2535,13 @@ class Exports_Reports_Admin_UI {
 			return false;
 		}
 
-		if ( current_user_can( 'manage_options' ) && isset( $_GET['debug'] ) && 1 === (int) $_GET['debug'] ) {
+		if ( current_user_can( 'manage_options' ) && 1 === (int) $this->get_var( 'debug', 0 ) ) {
 			echo "<textarea cols='130' rows='30'>" . esc_textarea( $sql ) . '</textarea>';
 		}
 		if ( false !== $this->default_none && false === $this->search_query && false === $full && empty( $wheresql ) && empty( $havingsql ) ) {
 			return false;
 		}
-		if ( current_user_can( 'manage_options' ) && isset( $_GET['debug'] ) && 1 === (int) $_GET['debug'] ) {
+		if ( current_user_can( 'manage_options' ) && 1 === (int) $this->get_var( 'debug', 0 ) ) {
 			$wpdb->show_errors( true );
 		}
 
@@ -2546,7 +2552,7 @@ class Exports_Reports_Admin_UI {
 			// export_sv() reads the result row by row.
 			$this->stream_sql = $sql;
 		} else {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the report's own query, written by an administrator.
 			$results = $wpdb->get_results( $sql, ARRAY_A );
 
 			$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
@@ -2598,7 +2604,7 @@ class Exports_Reports_Admin_UI {
 		}
 
 		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the report's own count query, written by an administrator.
 			$this->sum_data = $wpdb->get_results( $sql_count, ARRAY_A );
 		}
 
@@ -2620,7 +2626,7 @@ class Exports_Reports_Admin_UI {
 					// A related array is already key => label.
 					$related_lookup = $filter_column['related'];
 				} else {
-					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a related lookup the administrator defined for the filter.
 					$lookup_results = $wpdb->get_results( 'SELECT `' . $filter_column['related_id'] . '`,`' . $filter_column['related_field'] . '` FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ), ARRAY_A );
 
 					$id_field       = $filter_column['related_id'];
@@ -2719,7 +2725,7 @@ class Exports_Reports_Admin_UI {
 								<?php
 							} elseif ( 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 								if ( ! is_array( $filter_column['related'] ) ) {
-									// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+									// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a related lookup the administrator defined for the filter.
 									$related  = $wpdb->get_results( 'SELECT `' . $this->sanitize( $filter_column['related_id'] ) . '`,`' . $this->sanitize( $filter_column['related_field'] ) . '` FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ) );
 									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
