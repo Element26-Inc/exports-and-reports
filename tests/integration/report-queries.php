@@ -326,10 +326,12 @@ add_filter( 'wp_admin_ui_get_data_sql', $er_decline );
 $er_admin              = er_admin( "SELECT id FROM `{$er_table}`", 'Declined' );
 $er_admin->export_type = 'csv';
 $er_files              = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+$_GET                  = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 ob_start();
 $er_data   = $er_admin->get_data( true );
 $er_export = $er_admin->export();
 ob_end_clean();
+$_GET = array();
 remove_filter( 'wp_admin_ui_get_data_sql', $er_decline );
 $er_new = array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files );
 er_report(
@@ -361,9 +363,11 @@ er_report(
 );
 $er_custom->export_type = 'csv';
 $er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+$_GET                   = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 ob_start();
 $er_custom->export();
 ob_end_clean();
+$_GET = array();
 $er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 foreach ( $er_new as $er_path ) {
@@ -375,6 +379,27 @@ if ( 1 !== count( $er_new ) ) {
 	$er_detail = count( $er_new ) . ' files';
 }
 er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
+
+// --- a display function PHP itself defines is not called; a plugin's is; the filter has the last word ---
+$er_columns['channel'] = array(
+	'label'          => 'Channel',
+	'custom_display' => 'strtoupper',
+);
+$er_internal           = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback', array( 'columns' => $er_columns ) );
+$er_allow_strtoupper   = static function ( $args ) {
+	if ( 'strtoupper' === $args[2] ) {
+		$args[1] = true;
+	}
+	return $args;
+};
+add_filter( 'wp_admin_ui_allowed_callback', $er_allow_strtoupper );
+$er_internal_allowed = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback allowed', array( 'columns' => $er_columns ) );
+remove_filter( 'wp_admin_ui_allowed_callback', $er_allow_strtoupper );
+er_report(
+	'display functions: a plugin function is called, a PHP function is not unless a filter allows it',
+	$er_internal->is_allowed_callback( 'er_shout' ) && ! $er_internal->is_allowed_callback( 'strtoupper' ) && ! $er_internal->is_allowed_callback( 'no_such_function_er' ) && false === $er_internal->columns['channel']['custom_display'] && 'strtoupper' === $er_internal_allowed->columns['channel']['custom_display'],
+	'er_shout ' . var_export( $er_internal->is_allowed_callback( 'er_shout' ), true ) . ', strtoupper ' . var_export( $er_internal->is_allowed_callback( 'strtoupper' ), true ) . ', column keeps ' . var_export( $er_internal->columns['channel']['custom_display'], true ) . ', allowed by filter ' . var_export( $er_internal_allowed->columns['channel']['custom_display'], true )
+);
 
 // --- a report name outside ASCII still gives a file name the download link carries ---
 list( $er_utf_admin ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", '报告 Ünïcode / Sales' );
@@ -391,6 +416,73 @@ er_report(
 	var_export( $er_utf_file, true ) . ', nothing left: ' . $er_blank_admin->export_file_name( 'csv' )
 );
 
+// --- an export from a link needs its nonce; remove_export takes export files only ---
+$er_nonce_admin              = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Export nonce' );
+$er_nonce_admin->export_type = 'csv';
+$_GET                        = array();
+ob_start();
+$er_no_nonce     = $er_nonce_admin->export();
+$er_no_nonce_out = (string) ob_get_clean();
+$_GET            = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
+ob_start();
+$er_nonce_admin->export();
+ob_end_clean();
+$er_nonce_file = (string) $er_nonce_admin->exported_file;
+if ( '' !== $er_nonce_file ) {
+	wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_nonce_file );
+}
+$er_link = $er_nonce_admin->export_link( array( 'export_type' => 'csv' ) );
+$_GET    = array(
+	'_wpnonce'      => wp_create_nonce( 'wp-admin-ui-export-request' ),
+	'remove_export' => '.htaccess',
+);
+ob_start();
+$er_remove_protected     = $er_nonce_admin->export();
+$er_remove_protected_out = (string) ob_get_clean();
+$_GET                    = array();
+er_report(
+	'export() needs the link nonce; remove_export leaves the protection files alone',
+	false === $er_no_nonce && false !== strpos( $er_no_nonce_out, 'expired' ) && '' !== $er_nonce_file && false !== strpos( $er_link, 'action=export' ) && false !== strpos( $er_link, '_wpnonce=' ) && false === $er_remove_protected && false !== strpos( $er_remove_protected_out, 'not an export file' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ),
+	'without nonce ' . var_export( $er_no_nonce, true ) . ', with nonce file ' . var_export( $er_nonce_file, true ) . ', .htaccess ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ? 'kept' : 'gone' )
+);
+
+// --- a multiple-select filter sends an array: the SQL takes every value, and the page does not fail ---
+$er_filter_sql     = array();
+$er_capture_filter = static function ( $filter_sql ) use ( &$er_filter_sql ) {
+	$er_filter_sql[] = $filter_sql;
+	return $filter_sql;
+};
+add_filter( 'wp_admin_ui_data_filter_sql', $er_capture_filter );
+$_GET = array( 'filter_channel' => array( 'alpha', 'beta', '' ) );
+list( $er_multi_admin, $er_multi_rows, $er_multi_error ) = er_run(
+	"SELECT id, channel FROM `{$er_table}`",
+	'Array filter',
+	false,
+	array(
+		'search'  => true,
+		'columns' => array(
+			'id'      => array( 'label' => 'Id' ),
+			'channel' => array(
+				'label'   => 'Channel',
+				'type'    => 'related',
+				'related' => array(
+					'alpha' => 'Alpha',
+					'beta'  => 'Beta',
+				),
+				'filter'  => true,
+			),
+		),
+	)
+);
+$_GET = array();
+remove_filter( 'wp_admin_ui_data_filter_sql', $er_capture_filter );
+$er_multi_want = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$er_table}` WHERE channel IN ('alpha', 'beta')" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'an array filter value filters on each value',
+	'' === $er_multi_error && array( "(`channel` LIKE '%alpha%' OR `channel` LIKE '%beta%')" ) === $er_filter_sql && 0 < $er_multi_want && count( $er_multi_rows ) === $er_multi_want,
+	'filter sql ' . wp_json_encode( $er_filter_sql ) . ', ' . count( $er_multi_rows ) . ' rows' . ( '' !== $er_multi_error ? ', error ' . $er_multi_error : '' )
+);
+
 // --- PDF export: a file the viewer can open, with the pages the rows need; both engines where the PHP allows ---
 $er_pdf_engines = PHP_VERSION_ID >= 80200 ? array( 'tc-lib-pdf', 'tcpdf' ) : array( 'tcpdf' );
 foreach ( $er_pdf_engines as $er_pdf_engine ) {
@@ -401,9 +493,11 @@ foreach ( $er_pdf_engines as $er_pdf_engine ) {
 	$er_pdf_admin              = er_admin( "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id", 'PDF export' );
 	$er_pdf_admin->action      = 'export';
 	$er_pdf_admin->export_type = 'pdf';
+	$_GET                      = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 	ob_start();
 	$er_pdf_admin->export();
 	ob_end_clean();
+	$_GET = array();
 	remove_filter( 'wp_admin_ui_export_pdf_engine', $er_force_engine );
 	$er_pdf_file  = (string) $er_pdf_admin->exported_file;
 	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
@@ -474,9 +568,11 @@ foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
 	list( $er_writer ) = er_run( "SELECT id, channel, title FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Writers' );
 	$er_writer->action      = 'export';
 	$er_writer->export_type = $er_type;
+	$_GET                   = array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) );
 	ob_start();
 	$er_writer->export();
 	ob_end_clean();
+	$_GET           = array();
 	$er_writer_file = (string) $er_writer->exported_file;
 	$er_writer_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $er_writer_file;
 	$er_writer_out  = '' === $er_writer_file ? '' : (string) file_get_contents( $er_writer_path ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown

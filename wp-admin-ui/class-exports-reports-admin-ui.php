@@ -355,6 +355,57 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
+	 * Whether a function named in a report definition may be called back with a value: a function
+	 * WordPress, a plugin or a theme defines. PHP's own functions are not called: none of them takes the
+	 * arguments the callbacks receive, and the variadic ones among them could reach anything. The
+	 * wp_admin_ui_allowed_callback filter decides for a name this rule does not settle the way a site needs.
+	 *
+	 * @param mixed $callback The function name.
+	 *
+	 * @return bool
+	 */
+	public function is_allowed_callback( $callback ) {
+		$allowed = false;
+
+		if ( is_string( $callback ) && '' !== $callback && function_exists( $callback ) ) {
+			$allowed = ! ( new ReflectionFunction( $callback ) )->isInternal();
+		}
+
+		/**
+		 * Filters whether a function named in a report definition is called back.
+		 *
+		 * @param array $args { @type bool $1 Whether it is called. @type string $2 The function name. }
+		 */
+		return false !== $this->do_hook( 'allowed_callback', $allowed, $callback );
+	}
+
+	/**
+	 * A request value as a list of non-empty strings: a multiple select sends an array, the other
+	 * inputs a string, and the SQL and the form read both the same way.
+	 *
+	 * @param string      $name    The query variable.
+	 * @param bool|string $default The value when the request has none.
+	 *
+	 * @return string[]
+	 */
+	public function filter_values( $name, $default = false ) {
+		$value  = $this->get_var( $name, $default );
+		$values = array();
+
+		if ( false === $value || null === $value ) {
+			return $values;
+		}
+
+		foreach ( (array) $value as $item ) {
+			if ( is_scalar( $item ) && '' !== trim( (string) $item ) ) {
+				$values[] = (string) $item;
+			}
+		}
+
+		return $values;
+	}
+
+	/**
 	 * The name of a new export file: the report's name as a slug of ASCII letters, digits and
 	 * underscores ('export' when nothing of it survives), the time, a random suffix and the extension.
 	 * A name the download link can carry as it is: export.php and the REST route read it back through
@@ -399,6 +450,30 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
+	 * A link that runs or removes an export: var_update() with the action and the nonce export() checks.
+	 *
+	 * @param array $args The query arguments (export_type, or remove_export).
+	 *
+	 * @return string
+	 */
+	public function export_link( $args ) {
+		return $this->var_update( array_merge( array( 'action' => 'export' ), $args, array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) ) ) );
+	}
+
+	/**
+	 * Whether the request carries the nonce export_link() put in it. The REST route does not come through
+	 * here: its token or user is the credential.
+	 *
+	 * @return bool
+	 */
+	public function verify_export_request() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- this is the verification.
+		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+
+		return '' !== $nonce && false !== wp_verify_nonce( $nonce, 'wp-admin-ui-export-request' );
+	}
+
+	/**
 	 * @param array|bool  $array
 	 * @param array|bool  $allowed
 	 * @param bool|string $url
@@ -421,6 +496,7 @@ class Exports_Reports_Admin_UI {
 			'export_type',
 			'export_delimiter',
 			'remove_export',
+			'_wpnonce',
 			'updated',
 			'duplicate',
 		);
@@ -741,6 +817,9 @@ class Exports_Reports_Admin_UI {
 			$attributes['custom_input'] = false;
 		}
 		if ( ! isset( $attributes['custom_display'] ) ) {
+			$attributes['custom_display'] = false;
+		}
+		if ( false !== $attributes['custom_display'] && ! $this->is_allowed_callback( $attributes['custom_display'] ) ) {
 			$attributes['custom_display'] = false;
 		}
 		if ( ! isset( $attributes['custom_form_display'] ) ) {
@@ -1506,6 +1585,11 @@ class Exports_Reports_Admin_UI {
 
 		WP_Filesystem();
 
+		if ( ! $this->api && ! $this->verify_export_request() ) {
+			$this->error( '<strong>Error:</strong> The export link has expired. Go back to the report and use its export buttons again.' );
+
+			return false;
+		}
 		if ( isset( $this->custom['export'] ) && function_exists( "{$this->custom['export']}" ) ) {
 			return call_user_func( $this->custom['export'], $this );
 		}
@@ -1608,12 +1692,7 @@ class Exports_Reports_Admin_UI {
 
 			$this->message(
 				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to download your XML export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->var_update(
-						array(
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						)
-					)
+					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
 			// phpcs:ignore
@@ -1683,12 +1762,7 @@ class Exports_Reports_Admin_UI {
 
 			$this->message(
 				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your XLSX export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->var_update(
-						array(
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						)
-					)
+					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
 			// phpcs:ignore
@@ -1731,12 +1805,7 @@ class Exports_Reports_Admin_UI {
 
 			$this->message(
 				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your JSON export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->var_update(
-						array(
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						)
-					)
+					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
 			// phpcs:ignore
@@ -1758,12 +1827,7 @@ class Exports_Reports_Admin_UI {
 
 			$this->message(
 				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your PDF export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->var_update(
-						array(
-							'remove_export' => urlencode( $export_file ),
-							'action'        => 'export',
-						)
-					)
+					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
 			// phpcs:ignore
@@ -2027,12 +2091,7 @@ class Exports_Reports_Admin_UI {
 
 		$this->message(
 			'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . urlencode( $export_file ) ) . '" target="_blank">click here to access your ' . esc_html( strtoupper( $export_ext ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-				$this->var_update(
-					array(
-						'remove_export' => urlencode( $export_file ),
-						'action'        => 'export',
-					)
-				)
+				$this->export_link( array( 'remove_export' => $export_file ) )
 			) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 		);
 		// phpcs:ignore
@@ -2230,6 +2289,7 @@ class Exports_Reports_Admin_UI {
 				}
 
 				$filter_column = $this->search_columns[ $filter ];
+				$filter_values = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 
 				$filterfield  = '`' . $filter . '`';
 				$filter_sql   = false;
@@ -2245,14 +2305,16 @@ class Exports_Reports_Admin_UI {
 				if ( in_array( $filter_column['type'], array( 'date', 'datetime' ) ) ) {
 					$start = date_i18n( 'Y-m-d' ) . ( 'datetime' === $filter_column['type'] ? ' 00:00:00' : '' );
 					$end   = date_i18n( 'Y-m-d' ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
-					if ( strlen( $this->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) ) < 1 && strlen( $this->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) ) < 1 ) {
+					$start_values = $this->filter_values( 'filter_' . $filter . '_start', $filter_column['filter_default'] );
+					$end_values   = $this->filter_values( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] );
+					if ( array() === $start_values && array() === $end_values ) {
 						continue;
 					}
-					if ( 0 < strlen( $this->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) ) ) {
-						$start = date_i18n( 'Y-m-d', strtotime( $this->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) ) ) . ( 'datetime' === $filter_column['type'] ? ' 00:00:00' : '' );
+					if ( array() !== $start_values ) {
+						$start = date_i18n( 'Y-m-d', strtotime( $start_values[0] ) ) . ( 'datetime' === $filter_column['type'] ? ' 00:00:00' : '' );
 					}
-					if ( 0 < strlen( $this->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) ) ) {
-						$end = date_i18n( 'Y-m-d', strtotime( $this->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) ) ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
+					if ( array() !== $end_values ) {
+						$end = date_i18n( 'Y-m-d', strtotime( $end_values[0] ) ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
 					}
 					if ( false !== $filter_column['date_ongoing'] ) {
 						$date_ongoing = $filter_column['date_ongoing'];
@@ -2264,14 +2326,14 @@ class Exports_Reports_Admin_UI {
 					} else {
 						$filter_sql = "($filterfield BETWEEN '$start' AND '$end')";
 					}
-				} elseif ( 0 < strlen( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ) && 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
+				} elseif ( array() !== $filter_values && 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 					if ( ! is_array( $filter_column['related'] ) ) {
-						$search_value = $this->sanitize( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) );
-						if ( preg_match( '/[^0-9]/', $search_value ) ) {
-							$search_value = "'" . $search_value . "'";
-						} else {
-							$search_value = (int) $search_value;
+						$search_values = array();
+						foreach ( $filter_values as $filter_value ) {
+							$filter_value    = (string) $this->sanitize( $filter_value );
+							$search_values[] = preg_match( '/[^0-9]/', $filter_value ) ? "'" . $filter_value . "'" : (string) (int) $filter_value;
 						}
+						$search_value = implode( ', ', $search_values );
 						$related_filterfield = '`' . $filter . '`.`' . $filter_column['related_id'] . '`';
 						if ( isset( $selects[ $filter ] ) ) {
 							$related_filterfield = '`' . $selects[ $filter ] . '`.`' . $filter_column['related_id'] . '`';
@@ -2280,14 +2342,18 @@ class Exports_Reports_Admin_UI {
 							$related_filterfield = $filter_column['real_name'];
 						}
 
-						$filter_sql = "{$related_filterfield} = {$search_value}";
+						$filter_sql = 1 === count( $search_values ) ? "{$related_filterfield} = {$search_value}" : "{$related_filterfield} IN ({$search_value})";
 					} else {
-						$filter_sql = "$filterfield LIKE '%" . $this->sanitize( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ) . "%'";
+						$likes = array();
+						foreach ( $filter_values as $filter_value ) {
+							$likes[] = "$filterfield LIKE '%" . $this->sanitize( $filter_value ) . "%'";
+						}
+						$filter_sql = 1 === count( $likes ) ? $likes[0] : '(' . implode( ' OR ', $likes ) . ')';
 					}
-				} elseif ( 'bool' === $filter_column['type'] && false !== $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) && '' !== $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ) {
-					$filter_sql = "$filterfield = " . (int) $this->sanitize( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) );
-				} elseif ( 0 < strlen( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ) ) {
-					$filter_sql = "$filterfield LIKE '%" . $this->sanitize( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ) . "%'";
+				} elseif ( 'bool' === $filter_column['type'] && array() !== $filter_values ) {
+					$filter_sql = "$filterfield = " . (int) $filter_values[0];
+				} elseif ( array() !== $filter_values ) {
+					$filter_sql = "$filterfield LIKE '%" . $this->sanitize( $filter_values[0] ) . "%'";
 				}
 
 				if ( $filter_sql ) {
@@ -2678,20 +2744,20 @@ class Exports_Reports_Admin_UI {
 									$html_input_type = 'datetime-local';
 								}
 
-								$start = $this->get_var( 'filter_' . $filter . '_start', $filter_column['filter_default'] );
-								$end   = $this->get_var( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] );
+								$start = implode( ', ', $this->filter_values( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) );
+								$end   = implode( ', ', $this->filter_values( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) );
 								?>
 								&nbsp;&nbsp;
 								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_start"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_start" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_start" value="<?php echo( false !== $start && 0 < strlen( $start ) ? esc_attr( $start ) : '' ); ?>" />
+								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_start" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_start" value="<?php echo esc_attr( $start ); ?>" />
 								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_end">to</label>
-								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_end" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_end" value="<?php echo( false !== $end && 0 < strlen( $end ) ? esc_attr( $end ) : '' ); ?>" />
+								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_end" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_end" value="<?php echo esc_attr( $end ); ?>" />
 								<?php
 							} elseif ( 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 								if ( ! is_array( $filter_column['related'] ) ) {
 									// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 									$related  = $wpdb->get_results( 'SELECT `' . $this->sanitize( $filter_column['related_id'] ) . '`,`' . $this->sanitize( $filter_column['related_field'] ) . '` FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ) );
-									$selected = $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] );
+									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
 									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
 									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
@@ -2699,7 +2765,7 @@ class Exports_Reports_Admin_UI {
 										<?php
 										foreach ( $related as $option ) {
 											?>
-											<option value="<?php echo esc_attr( $option->{$filter_column['related_id']} ); ?>"<?php selected( $option->{$filter_column['related_id']}, $selected ); ?>><?php echo esc_html( $option->{$filter_column['related_field']} ); ?></option>
+											<option value="<?php echo esc_attr( $option->{$filter_column['related_id']} ); ?>"<?php selected( in_array( (string) $option->{$filter_column['related_id']}, $selected, true ) ); ?>><?php echo esc_html( $option->{$filter_column['related_field']} ); ?></option>
 											<?php
 										}
 										?>
@@ -2707,7 +2773,7 @@ class Exports_Reports_Admin_UI {
 									<?php
 								} else {
 									$related  = $filter_column['related'];
-									$selected = $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] );
+									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
 									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
 									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
@@ -2715,7 +2781,7 @@ class Exports_Reports_Admin_UI {
 										<?php
 										foreach ( $related as $option_id => $option ) {
 											?>
-											<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( $option->id, $selected ); ?>><?php echo esc_html( $option ); ?></option>
+											<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( in_array( (string) $option_id, $selected, true ) ); ?>><?php echo esc_html( $option ); ?></option>
 											<?php
 										}
 										?>
@@ -2723,23 +2789,20 @@ class Exports_Reports_Admin_UI {
 									<?php
 								}
 							} elseif ( 'bool' === $filter_column['type'] ) {
-								$selected = (int) $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] );
-
-								if ( 1 !== $selected ) {
-									$selected = 0;
-								}
+								$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
+								$selected = array() === $selected ? '' : ( 1 === (int) $selected[0] ? '1' : '0' );
 								?>
 								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
 								<select name="filter_<?php echo esc_attr( $filter ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>">
 									<option value="">-- Show All --</option>
-									<option value="1"<?php selected( 1, $selected ); ?>>Yes</option>
-									<option value="0"<?php selected( 0, $selected ); ?>>No</option>
+									<option value="1"<?php selected( '1', $selected ); ?>>Yes</option>
+									<option value="0"<?php selected( '0', $selected ); ?>>No</option>
 								</select>
 								<?php
 							} else {
 								?>
 								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-								<input type="text" name="filter_<?php echo esc_attr( $filter ); ?>" class="admin_ui_filter" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>" value="<?php echo esc_attr( $this->get_var( 'filter_' . $filter, $filter_column['filter_default'] ) ); ?>" />
+								<input type="text" name="filter_<?php echo esc_attr( $filter ); ?>" class="admin_ui_filter" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>" value="<?php echo esc_attr( implode( ', ', $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] ) ) ); ?>" />
 								<?php
 							}
 						}
@@ -2813,50 +2876,19 @@ class Exports_Reports_Admin_UI {
 
 						<?php if ( $this->export && ! empty( $this->data ) ) { ?>
 							<?php
-							$export_format_links = array(
-								'CSV' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'csv',
-									)
-								),
-								'TSV' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'tsv',
-									)
-								),
-								'TXT' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'pipe',
-									)
-								),
-								'XLSX' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'xlsx',
-									)
-								),
-								'XML' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'xml',
-									)
-								),
-								'JSON' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'json',
-									)
-								),
-								'PDF' => $this->var_update(
-									array(
-										'action'      => 'export',
-										'export_type' => 'pdf',
-									)
-								),
+							$export_format_types = array(
+								'CSV'  => 'csv',
+								'TSV'  => 'tsv',
+								'TXT'  => 'pipe',
+								'XLSX' => 'xlsx',
+								'XML'  => 'xml',
+								'JSON' => 'json',
+								'PDF'  => 'pdf',
 							);
+							$export_format_links = array();
+							foreach ( $export_format_types as $export_format_text => $export_format_type ) {
+								$export_format_links[ $export_format_text ] = $this->export_link( array( 'export_type' => $export_format_type ) );
+							}
 							?>
 							<strong>Export:</strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
@@ -3450,8 +3482,8 @@ class Exports_Reports_Admin_UI {
 		}
 		$value = $this->row[ $name ];
 		// Use helper if necessary.
-		if ( ! empty( $helper ) ) {
-			$value = $$helper( $value, $name, $this->row );
+		if ( '' !== $helper && $this->is_allowed_callback( $helper ) ) {
+			$value = $helper( $value, $name, $this->row );
 		}
 
 		return $value;
