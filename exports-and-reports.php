@@ -49,6 +49,7 @@ add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' );
 add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
+add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
 
 if ( ! class_exists( 'TCPDF' ) ) {
 	require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
@@ -240,6 +241,39 @@ function exports_reports_charset_errors_notice() {
 add_action( 'admin_notices', 'exports_reports_charset_errors_notice' );
 
 /**
+ * Grants exports_reports_full_access to administrators while the plugin is active, without writing it
+ * to their user meta. The exports_reports_full_access filter decides who gets it, as before.
+ * Sites with the Members plugin manage the capabilities through its roles instead.
+ *
+ * @param array   $allcaps The user's capabilities.
+ * @param array   $caps    The capabilities asked for.
+ * @param array   $args    The arguments of the check.
+ * @param WP_User $user    The user.
+ *
+ * @return array
+ */
+function exports_reports_user_has_cap( $allcaps, $caps, $args, $user ) {
+	static $inside = false;
+
+	if ( $inside || function_exists( 'members_get_capabilities' ) ) {
+		return $allcaps;
+	}
+
+	$inside = true;
+
+	$full_access = in_array( 'administrator', (array) $user->roles, true ) ? 'exports_reports_full_access' : '';
+	$full_access = apply_filters( 'exports_reports_full_access', $full_access );
+
+	$inside = false;
+
+	if ( ! empty( $full_access ) && is_string( $full_access ) ) {
+		$allcaps[ $full_access ] = true;
+	}
+
+	return $allcaps;
+}
+
+/**
  *
  */
 function exports_reports_install_upgrade() {
@@ -312,15 +346,12 @@ function exports_reports_init() {
 			}
 		}
 	} else {
-		$exports_reports_full_access = exports_reports_has_role( 'administrator' ) ? 'exports_reports_full_access' : '';
-		$exports_reports_full_access = apply_filters( 'exports_reports_full_access', $exports_reports_full_access );
+		// exports_reports_user_has_cap() grants full access while the plugin is active; a copy an earlier
+		// version wrote to the user's meta would outlive the plugin, so it is removed.
+		$user = get_userdata( get_current_user_id() );
 
-		if ( ! empty( $exports_reports_full_access ) ) {
-			$user = get_userdata( get_current_user_id() );
-
-			if ( $user instanceof WP_User ) {
-				$user->add_cap( $exports_reports_full_access );
-			}
+		if ( $user && isset( $user->caps['exports_reports_full_access'] ) ) {
+			$user->remove_cap( 'exports_reports_full_access' );
 		}
 	}
 }
@@ -1721,7 +1752,14 @@ function exports_reports_capabilities() {
 		'exports_reports_view',
 	);
 
-	$caps = apply_filters( 'export_reports_capabilites', $caps );
+	/**
+	 * Filters the capabilities the plugin registers.
+	 *
+	 * @since 0.9.5 Replaces export_reports_capabilites, which still runs first.
+	 *
+	 * @param string[] $caps Capability names.
+	 */
+	$caps = apply_filters( 'exports_reports_capabilities', apply_filters_deprecated( 'export_reports_capabilites', array( $caps ), '0.9.5', 'exports_reports_capabilities' ) );
 
 	return $caps;
 }

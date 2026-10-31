@@ -5,6 +5,7 @@
     <!-- Scan all files in directory -->
     <file>./exports-and-reports.php</file>
     <file>./api.php</file>
+    <file>./uninstall.php</file>
     <file>./wp-admin-ui</file>
 
     <!-- Scan only PHP files -->

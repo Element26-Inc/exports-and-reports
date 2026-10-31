@@ -575,6 +575,19 @@ er_report( 'clearing the export directory removes export files only', $er_clear_
 
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
+// --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
+$er_reports_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports';
+wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv', 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+define( 'WP_UNINSTALL_PLUGIN', true );
+include EXPORTS_REPORTS_DIR . 'uninstall.php';
+$er_table_left = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $er_reports_table ) );
+er_report(
+	'uninstall removes tables, options, the cleanup event and export files',
+	null === $er_table_left && false === get_option( 'exports_reports_version' ) && false === get_option( 'exports_reports_token' ) && false === wp_next_scheduled( 'exports_reports_cleanup' ) && ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv' ),
+	'table ' . ( null === $er_table_left ? 'gone' : 'present' ) . ', version option ' . var_export( get_option( 'exports_reports_version' ), true ) . ', event ' . var_export( wp_next_scheduled( 'exports_reports_cleanup' ), true ) . ', file ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/leftover.csv' ) ? 'present' : 'gone' )
+);
+
 if ( $er_failed > 0 ) {
 	WP_CLI::halt( 1 );
 }
