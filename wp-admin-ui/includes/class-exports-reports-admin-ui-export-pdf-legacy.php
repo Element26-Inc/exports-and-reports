@@ -137,7 +137,7 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 	 *
 	 * @return string The file name.
 	 */
-	public static function CreateReport( $admin ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid -- the entry point export() has always called.
+	public static function CreateReport( $admin ) {
 		$page_orientation = ! empty( $admin->page_orientation ) ? $admin->page_orientation : 'P';
 		$pdf              = self::create( $admin, $page_orientation );
 

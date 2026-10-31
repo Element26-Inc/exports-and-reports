@@ -53,7 +53,8 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	 * @param Exports_Reports_Admin_UI $admin The admin UI, get_data( true ) already run.
 	 * @return string The file name inside the export directory.
 	 */
-	public static function CreateReport( $admin ) { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid -- the entry point export() has always called.
+	// phpcs:ignore WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid -- the method name predates 0.9.5 and site code may call it.
+	public static function CreateReport( $admin ) {
 		/** @var WP_Filesystem_Base $wp_filesystem */
 		global $wp_filesystem;
 
@@ -102,7 +103,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 		$widths = self::column_widths( $columns, $width, $rows );
 		self::size_for( $width / max( 1, count( $columns ) ) );
 
-		// The title block (first page) and the lines a legacy content filter supplied.
+		// The title block (first page) and the lines a callback on the deprecated exports_and_reports_pdf_content filter supplied.
 		$y = self::MARGIN;
 		$pdf->page->addContent( self::select( $pdf, 'B', self::TITLE_SIZE ) );
 		$pdf->page->addContent( self::cell( $pdf, $title, $x0, $y, $width, self::LINE_H + 1, 'L', array() ) );
@@ -430,8 +431,8 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	}
 
 	/**
-	 * What a callback on the deprecated content filter supplies, as text lines; the HTML it used
-	 * to return is no longer rendered.
+	 * What a callback on the deprecated exports_and_reports_pdf_content filter supplies, as text
+	 * lines; HTML in it is not rendered.
 	 *
 	 * @param Exports_Reports_Admin_UI $admin The admin UI.
 	 * @return string[]

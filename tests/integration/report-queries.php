@@ -4,11 +4,12 @@
  *
  *   wp eval-file tests/integration/report-queries.php
  *
- * Creates a small table, runs report definitions of several shapes through get_data( true ), the
- * path the view and the exports share, and writes two CSV exports (streamed and buffered) of the
- * same report. One line per case; the exit code is non-zero when a case fails. The table and the
- * export files are removed at the end. CTEs need MariaDB 10.2 or MySQL 8; EXECUTE IMMEDIATE is
- * MariaDB only and is skipped elsewhere.
+ * Creates a small table and runs the cases tests/integration/README.md lists: report definitions of
+ * several shapes through get_data( true ), the path the view and the exports share; the export
+ * writers and the download paths; the REST routes; the request handling; the uninstall. One line
+ * per case; the exit code is non-zero when a case fails. The table and the export files are removed
+ * at the end. CTEs need MariaDB 10.2 or MySQL 8; EXECUTE IMMEDIATE is MariaDB only and is skipped
+ * elsewhere.
  *
  * @package Exports_And_Reports
  */
@@ -132,7 +133,7 @@ function er_export_contents( $admin ) {
 	if ( ! is_readable( $path ) ) {
 		return '';
 	}
-	$contents = (string) file_get_contents( $path ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	$contents = (string) file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 	wp_delete_file( $path );
 	return $contents;
 }
@@ -277,7 +278,7 @@ foreach ( $er_modes as $er_mode => $stream ) {
 		er_report( 'CSV export (' . $er_mode . ')', false, '' !== $er_error ? $er_error : 'no file written' );
 		continue;
 	}
-	$er_csv[ $er_mode ] = (string) file_get_contents( $er_path ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	$er_csv[ $er_mode ] = (string) file_get_contents( $er_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 	wp_delete_file( $er_path );
 	$lines = explode( "\n", rtrim( $er_csv[ $er_mode ], "\n" ) );
 	// Every value quoted, the labels ucwords() of the column names, the formula-like title wrapped in a
@@ -369,7 +370,7 @@ $er_custom->export();
 ob_end_clean();
 $_GET = array();
 $er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
-$er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+$er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 foreach ( $er_new as $er_path ) {
 	wp_delete_file( $er_path );
 }
@@ -500,7 +501,7 @@ foreach ( $er_pdf_engines as $er_pdf_engine ) {
 	$_GET = array();
 	remove_filter( 'wp_admin_ui_export_pdf_engine', $er_force_engine );
 	$er_pdf_file  = (string) $er_pdf_admin->exported_file;
-	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 	$er_pdf_pages = preg_match_all( '#/Type\s*/Page[^s]#', $er_pdf );
 	// The producer string (UTF-16BE) names the library: TCPDF 6 is the TCPDF engine, "TCPDF 8" is tc-lib-pdf.
 	$er_pdf_major = preg_match( '/T\x00C\x00P\x00D\x00F\x00 \x00(\d)/', $er_pdf, $er_pdf_producer ) ? (int) $er_pdf_producer[1] : 0; // PCRE escapes: a NUL byte in the pattern itself is refused below PHP 8.2.
@@ -575,7 +576,7 @@ foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
 	$_GET           = array();
 	$er_writer_file = (string) $er_writer->exported_file;
 	$er_writer_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $er_writer_file;
-	$er_writer_out  = '' === $er_writer_file ? '' : (string) file_get_contents( $er_writer_path ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	$er_writer_out  = '' === $er_writer_file ? '' : (string) file_get_contents( $er_writer_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 	$er_writer_ok   = '' !== $er_writer_out && 0 === substr_compare( $er_writer_file, '.' . $er_type, -1 - strlen( $er_type ) );
 	if ( $er_writer_ok && 'xlsx' === $er_type ) {
 		// A zip with one worksheet; XLSXWriter writes the labels and the values as inline strings.
@@ -739,7 +740,7 @@ $er_other    = er_rest( 'GET', $er_route . '/exports/other_report.csv', array( '
 ob_start();
 $er_sent_ok = exports_reports_send_export_file( $er_file );
 $er_sent    = ob_get_clean();
-$er_on_disk = '' === $er_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+$er_on_disk = '' === $er_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- a local file the test wrote
 er_report(
 	'REST download names the logged export for serving and refuses other names',
 	200 === $er_download->get_status() && isset( $er_body['download'], $er_body['file'] ) && true === $er_body['download'] && $er_file === $er_body['file'] && false === $er_passed && true === $er_sent_ok && '' !== $er_sent && $er_sent === $er_on_disk && 404 === $er_other->get_status(),
