@@ -364,7 +364,7 @@ $er_files               = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
 ob_start();
 $er_custom->export();
 ob_end_clean();
-$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files ) );
+$er_new = array_values( array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files, array( WP_ADMIN_UI_EXPORT_DIR . '/index.php' ) ) );
 $er_out = 1 === count( $er_new ) ? (string) file_get_contents( $er_new[0] ) : ''; // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 foreach ( $er_new as $er_path ) {
 	wp_delete_file( $er_path );
@@ -375,6 +375,44 @@ if ( 1 !== count( $er_new ) ) {
 	$er_detail = count( $er_new ) . ' files';
 }
 er_report( 'custom display column exports through the buffered path', $er_want === $er_out, $er_detail );
+
+// --- a report name outside ASCII still gives a file name the download link carries ---
+list( $er_utf_admin ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", '报告 Ünïcode / Sales' );
+ob_start();
+$er_utf_file = $er_utf_admin->export_sv();
+ob_end_clean();
+$er_utf_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $er_utf_file;
+$er_utf_ok   = is_string( $er_utf_file ) && 1 === preg_match( '/^unicode_sales_\d{2}-\d{2}-\d{4}_\d{2}-\d{2}-\d{2}_[A-Za-z0-9]{8}\.csv$/', $er_utf_file ) && sanitize_file_name( $er_utf_file ) === $er_utf_file && file_exists( $er_utf_path );
+wp_delete_file( $er_utf_path );
+$er_blank_admin = er_admin( "SELECT id FROM `{$er_table}` WHERE id = 1", '报告' );
+er_report(
+	'export file names stay ASCII for a report named outside ASCII',
+	$er_utf_ok && 0 === strpos( $er_blank_admin->export_file_name( 'csv' ), 'export_' ),
+	var_export( $er_utf_file, true ) . ', nothing left: ' . $er_blank_admin->export_file_name( 'csv' )
+);
+
+// --- the export directory refuses direct requests, and the download function serves only exports ---
+$er_guards = file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
+er_report( 'export directory carries .htaccess and index.php after an export', $er_guards, $er_guards ? 'both present' : 'missing' );
+
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/download_test.csv', "a,b\n1,2\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+ob_start();
+$er_sent = exports_reports_send_export_file( 'download_test.csv' );
+$er_body = ob_get_clean();
+ob_start();
+$er_refused = array(
+	exports_reports_send_export_file( '../index.php' ),
+	exports_reports_send_export_file( 'index.php' ),
+	exports_reports_send_export_file( '.htaccess' ),
+	exports_reports_send_export_file( 'missing.csv' ),
+);
+ob_end_clean();
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/download_test.csv' );
+er_report(
+	'download function streams an export and refuses anything else',
+	true === $er_sent && "a,b\n1,2\n" === $er_body && array( false, false, false, false ) === $er_refused,
+	'sent ' . var_export( $er_sent, true ) . ', body ' . str_replace( "\n", '\\n', $er_body ) . ', refused ' . wp_json_encode( $er_refused )
+);
 
 // --- TSV: the same writer with a tab ---
 list( $er_admin, , $er_error ) = er_run( "SELECT id, channel FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Export tsv', true, array(), 'tsv' );
@@ -502,6 +540,38 @@ er_report(
 	is_array( $er_saved ) ? count( $er_saved ) . ' fields: ' . wp_json_encode( $er_saved_summary ) : 'not an array'
 );
 
+
+// --- the pipe and custom exports are .txt files and are served; the cleanup event has its handler ---
+wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/served.txt', "a|b\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+ob_start();
+$er_txt_ok  = exports_reports_send_export_file( 'served.txt' );
+$er_txt_out = (string) ob_get_clean();
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/served.txt' );
+er_report(
+	'.txt exports are served and the daily cleanup has a handler',
+	true === $er_txt_ok && "a|b\n" === $er_txt_out && exports_reports_is_export_file( 'x.txt' ) && ! exports_reports_is_export_file( 'index.php' ) && ! exports_reports_is_export_file( 'notes.md' ) && 10 === has_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' ),
+	'served ' . var_export( $er_txt_ok, true ) . ' (' . strlen( $er_txt_out ) . ' bytes), handler ' . var_export( has_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' ), true )
+);
+
+// --- deactivation clears the daily cleanup event; an admin request puts a missing event back ---
+exports_reports_deactivate();
+$er_event_cleared = wp_next_scheduled( 'exports_reports_cleanup' );
+exports_reports_ensure_cleanup_scheduled();
+$er_event_back = wp_next_scheduled( 'exports_reports_cleanup' );
+er_report(
+	'deactivation clears the cleanup event and the next admin request reschedules it',
+	false === $er_event_cleared && false !== $er_event_back,
+	'after deactivation ' . var_export( $er_event_cleared, true ) . ', after admin_init ' . var_export( $er_event_back, true )
+);
+
+// --- Clear Now removes export files only ---
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/old.csv', 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/notes.md', 'keep' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+exports_reports_cleanup( true );
+$er_clear_ok = ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
+wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' );
+er_report( 'clearing the export directory removes export files only', $er_clear_ok, 'old.csv ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) ? 'present' : 'gone' ) . ', notes.md kept ' . var_export( $er_clear_ok, true ) );
 
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 

@@ -305,6 +305,50 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
+	 * The name of a new export file: the report's name as a slug of ASCII letters, digits and
+	 * underscores ('export' when nothing of it survives), the time, a random suffix and the extension.
+	 * A name the download link can carry as it is: export.php and the REST route read it back through
+	 * sanitize_file_name().
+	 *
+	 * @param string $extension The extension, without the dot.
+	 *
+	 * @return string
+	 */
+	public function export_file_name( $extension ) {
+		$slug = preg_replace( '/%[0-9a-f]{2}/i', '', sanitize_title( (string) $this->items ) );
+		$slug = trim( (string) preg_replace( '/[^a-z0-9]+/', '_', strtolower( (string) $slug ) ), '_' );
+
+		if ( '' === $slug ) {
+			$slug = 'export';
+		}
+
+		return $slug . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $extension;
+	}
+
+	/**
+	 * The extensions export files have.
+	 *
+	 * @return string[]
+	 */
+	public static function export_file_extensions() {
+		return array( 'csv', 'tsv', 'txt', 'xlsx', 'xml', 'json', 'pdf' );
+	}
+
+	/**
+	 * Whether a file name is one an export writes: an export extension, and not one of the files that
+	 * keep the directory from being served.
+	 *
+	 * @param mixed $file The file name.
+	 *
+	 * @return bool
+	 */
+	public static function is_export_file_name( $file ) {
+		$file = (string) $file;
+
+		return '' !== $file && ! in_array( $file, array( 'index.php', '.htaccess' ), true ) && in_array( strtolower( (string) pathinfo( $file, PATHINFO_EXTENSION ) ), self::export_file_extensions(), true );
+	}
+
+	/**
 	 * @param array|bool  $array
 	 * @param array|bool  $allowed
 	 * @param bool|string $url
@@ -1423,9 +1467,16 @@ class Exports_Reports_Admin_UI {
 
 			return false;
 		}
-		if ( ! empty( $_GET['remove_export'] ) ) {
-			$remove_export = sanitize_text_field( $_GET['remove_export'] );
-			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( '/', '', $remove_export );
+		$this->protect_export_dir();
+		if ( ! $this->api && ! empty( $_GET['remove_export'] ) ) {
+			$remove_export      = str_replace( '/', '', sanitize_file_name( wp_unslash( $_GET['remove_export'] ) ) );
+			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $remove_export;
+
+			if ( ! self::is_export_file_name( $remove_export ) ) {
+				$this->error( '<strong>Error:</strong> That is not an export file.' );
+
+				return false;
+			}
 
 			$this->do_hook( 'pre_remove_export', $remove_export, $remove_export_path );
 
@@ -1450,7 +1501,7 @@ class Exports_Reports_Admin_UI {
 		} elseif ( in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) ) {
 			$export_file = $this->export_sv();
 		} elseif ( 'xml' === $this->export_type ) {
-			$export_file          = str_replace( '-', '_', sanitize_title( $this->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $this->export_type;
+			$export_file          = $this->export_file_name( $this->export_type );
 			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
 			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
@@ -1504,7 +1555,7 @@ class Exports_Reports_Admin_UI {
 		} elseif ( 'xlsx' === $this->export_type ) {
 			$writer = new ExportsReports__Prefixed__XLSXWriter();
 
-			$export_file          = str_replace( '-', '_', sanitize_title( $this->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $this->export_type;
+			$export_file          = $this->export_file_name( $this->export_type );
 			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
 			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
@@ -1577,7 +1628,7 @@ class Exports_Reports_Admin_UI {
 			// phpcs:ignore
 			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 		} elseif ( 'json' === $this->export_type ) {
-			$export_file          = str_replace( '-', '_', sanitize_title( $this->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $this->export_type;
+			$export_file          = $this->export_file_name( $this->export_type );
 			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
 			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
@@ -1654,6 +1705,32 @@ class Exports_Reports_Admin_UI {
 		$this->exported_file = $export_file;
 
 		$this->do_hook( 'post_export', $export_file );
+	}
+
+	/**
+	 * Keeps the export directory from being served directly: an .htaccess that denies every request
+	 * (Apache 2.4 and 2.2 syntax) and an index.php, written once. Downloads go through
+	 * exports_reports_send_export_file() after a nonce or token check; nginx needs the equivalent
+	 * location rule in the server configuration (see the readme).
+	 *
+	 * @since 0.9.5
+	 */
+	protected function protect_export_dir() {
+		/** @var WP_Filesystem_Base $wp_filesystem */
+		global $wp_filesystem;
+
+		$rules = array(
+			'.htaccess' => "# Exports and Reports: export files are served by the plugin after an access check.\n<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n\tOrder deny,allow\n\tDeny from all\n</IfModule>\n",
+			'index.php' => "<?php\n// Silence is golden.\n",
+		);
+
+		foreach ( $rules as $name => $contents ) {
+			$path = WP_ADMIN_UI_EXPORT_DIR . '/' . $name;
+
+			if ( ! $wp_filesystem->exists( $path ) ) {
+				$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
+			}
+		}
 	}
 
 	/**
@@ -1748,7 +1825,7 @@ class Exports_Reports_Admin_UI {
 			$export_ext = $file_ext[ $this->export_type ];
 		}
 
-		$export_file          = str_replace( '-', '_', sanitize_title( $this->items ) ) . '_' . date_i18n( 'm-d-Y_H-i-s' ) . '_' . wp_generate_password( 8, false ) . '.' . $export_ext;
+		$export_file          = $this->export_file_name( $export_ext );
 		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
 		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 

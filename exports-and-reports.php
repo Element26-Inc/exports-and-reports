@@ -40,12 +40,15 @@ if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 }
 
 register_activation_hook( __FILE__, 'exports_reports_install_upgrade' );
+register_deactivation_hook( __FILE__, 'exports_reports_deactivate' );
 
 add_action( 'admin_init', 'exports_reports_init' );
+add_action( 'admin_init', 'exports_reports_ensure_cleanup_scheduled' );
 add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' );
+add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
 
 if ( ! class_exists( 'TCPDF' ) ) {
 	require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
@@ -496,6 +499,21 @@ function exports_reports_settings() {
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row">Export Directory</th>
+					<td>
+						<code><?php echo esc_html( WP_ADMIN_UI_EXPORT_DIR ); ?></code><br />
+						<span class="description">
+							Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.
+							<?php if ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ) : ?>
+								Apache: the plugin's .htaccess denies direct requests.
+							<?php else : ?>
+								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
+							<?php endif; ?>
+							nginx ignores .htaccess; add <code>location ~* /wp-content/exports/ { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+						</span>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><label for="cronjob_token">Cronjob/JSON API Token</label></th>
 					<td>
 						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
@@ -520,7 +538,7 @@ function exports_reports_settings() {
 					<th scope="row"><label for="reset">Reset All Settings</label></th>
 					<td>
 						<input name="reset" type="submit" id="reset" value=" Reset Now " />
-						<span class="description">This will clear all groups / reports and remove all files from your Exports directory too - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?></span>
+						<span class="description">This generates a new token, clears the export log and removes the export files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?>. Groups and reports are kept.</span>
 					</td>
 				</tr>
 				<!--
@@ -952,6 +970,79 @@ function exports_reports_field_defaults( $field = null ) {
 }
 
 /**
+ * An enabled report by id.
+ *
+ * @since 0.9.5
+ *
+ * @param int $report_id The report id.
+ * @return object|null The row of the reports table, or null when there is no enabled report with that id.
+ */
+function exports_reports_get_report( $report_id ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$report = $wpdb->get_row( $wpdb->prepare( $sql, absint( $report_id ) ) );
+
+	return empty( $report ) ? null : $report;
+}
+
+/**
+ * An enabled group by id.
+ *
+ * @since 0.9.5
+ *
+ * @param int $group_id The group id.
+ * @return object|null The row of the groups table, or null when there is no enabled group with that id.
+ */
+function exports_reports_get_group( $group_id ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$group = $wpdb->get_row( $wpdb->prepare( $sql, absint( $group_id ) ) );
+
+	return empty( $group ) ? null : $group;
+}
+
+/**
+ * Whether the current user may view a report: the rule the Reports menu and the report page apply.
+ *
+ * @since 0.9.5
+ *
+ * @param object $report A row of the reports table.
+ * @param object $group  The row of its group.
+ * @return bool
+ */
+function exports_reports_user_can_view_report( $report, $group ) {
+	if ( ! is_user_logged_in() ) {
+		return false;
+	}
+
+	$has_full_access = exports_reports_current_user_can_any( 'exports_reports_full_access' );
+
+	if ( is_super_admin() || ( ! $has_full_access && exports_reports_has_role( 'administrator' ) ) ) {
+		$has_full_access = true;
+	}
+
+	if ( $has_full_access || exports_reports_current_user_can_any( 'exports_reports_view' ) || exports_reports_current_user_can_any( 'exports_reports_view_group_' . $group->id ) || exports_reports_current_user_can_any( 'exports_reports_view_report_' . $report->id ) ) {
+		return true;
+	}
+
+	$roles = array_unique( array_merge( explode( ',', (string) $group->role_access ), explode( ',', (string) $report->role_access ) ) );
+
+	foreach ( $roles as $role ) {
+		if ( '' !== $role && exports_reports_has_role( $role ) ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
  * @param bool      $has_full_access
  * @param bool|null $group_id
  *
@@ -1297,6 +1388,125 @@ add_action( 'wp_admin_ui_post_export', 'exports_reports_log', 10, 2 );
 add_action( 'wp_admin_ui_post_remove_export', 'exports_reports_delete_log', 10, 2 );
 
 /**
+ * Sends a file from the export directory to the browser as an attachment.
+ *
+ * The directory refuses direct requests (Exports_Reports_Admin_UI::protect_export_dir() writes the
+ * rules), so every download comes through here after the caller's nonce or token check. The file
+ * is read in chunks; an export can be larger than the memory limit.
+ *
+ * @since 0.9.5
+ *
+ * @param string $filename The file's name inside the export directory, without a path.
+ * @return bool False when no such export exists; true once the file has been sent.
+ */
+function exports_reports_send_export_file( $filename ) {
+	$types     = exports_reports_export_mime_types();
+	$filename  = basename( (string) $filename );
+	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
+	$directory = realpath( WP_ADMIN_UI_EXPORT_DIR );
+	$path      = realpath( WP_ADMIN_UI_EXPORT_DIR . '/' . $filename );
+
+	if ( ! exports_reports_is_export_file( $filename ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
+		return false;
+	}
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- read in chunks; WP_Filesystem would load the whole export into memory.
+	$handle = fopen( $path, 'rb' );
+
+	if ( false === $handle ) {
+		return false;
+	}
+
+	nocache_headers();
+	header( 'Content-Type: ' . $types[ $extension ] );
+	header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+	header( 'Content-Length: ' . (string) filesize( $path ) );
+	header( 'X-Content-Type-Options: nosniff' );
+
+	fpassthru( $handle );
+
+	// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- paired with the fopen above.
+	fclose( $handle );
+
+	return true;
+}
+
+/**
+ * The daily cleanup event: removes the exports older than a day and their log rows.
+ */
+function exports_reports_cleanup_event() {
+	exports_reports_cleanup();
+}
+
+/**
+ * The content types of the export files, by extension (pipe and custom delimited exports are .txt).
+ *
+ * @return array<string, string>
+ */
+function exports_reports_export_mime_types() {
+	return array(
+		'csv'  => 'text/csv; charset=utf-8',
+		'tsv'  => 'text/tab-separated-values; charset=utf-8',
+		'txt'  => 'text/plain; charset=utf-8',
+		'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'xml'  => 'application/xml; charset=utf-8',
+		'json' => 'application/json; charset=utf-8',
+		'pdf'  => 'application/pdf',
+	);
+}
+
+/**
+ * Whether a file name is one an export writes: an export extension, and not one of the files that keep
+ * the directory from being served. The functions that remove files from the export directory remove
+ * only these, in case the directory is shared.
+ *
+ * @param mixed $filename The file name.
+ *
+ * @return bool
+ */
+function exports_reports_is_export_file( $filename ) {
+	$filename = (string) $filename;
+
+	if ( '' === $filename || in_array( $filename, array( 'index.php', '.htaccess' ), true ) ) {
+		return false;
+	}
+
+	return isset( exports_reports_export_mime_types()[ strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) ) ] );
+}
+
+/**
+ * Whether the current user may download an export file: the file is in the export log, and the user
+ * may view the report it belongs to.
+ *
+ * @param string $filename The file name.
+ *
+ * @return bool
+ */
+function exports_reports_user_can_download_export( $filename ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$filename = basename( (string) $filename );
+
+	if ( ! exports_reports_is_export_file( $filename ) ) {
+		return false;
+	}
+
+	$sql = 'SELECT `report_id` FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1';
+
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	$report_id = $wpdb->get_var( $wpdb->prepare( $sql, $filename ) );
+
+	if ( null === $report_id ) {
+		return false;
+	}
+
+	$report = exports_reports_get_report( (int) $report_id );
+	$group  = $report ? exports_reports_get_group( (int) $report->group ) : null;
+
+	return $report && $group && exports_reports_user_can_view_report( $report, $group );
+}
+
+/**
  * @param $args
  * @param $obj
  */
@@ -1376,6 +1586,26 @@ function exports_reports_schedule_cleanup() {
 }
 
 /**
+ * Puts the daily cleanup event back when it is missing, as after a site has cleared its cron table.
+ *
+ * @since 0.9.5
+ */
+function exports_reports_ensure_cleanup_scheduled() {
+	if ( false === wp_next_scheduled( 'exports_reports_cleanup' ) ) {
+		exports_reports_schedule_cleanup();
+	}
+}
+
+/**
+ * Clears the daily cleanup event on deactivation; it would otherwise fire for a plugin that is not loaded.
+ *
+ * @since 0.9.5
+ */
+function exports_reports_deactivate() {
+	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
+}
+
+/**
  * Delete all files in a directory
  *
  * @param string|null $directory
@@ -1399,21 +1629,11 @@ function exports_reports_delete_dir_files( $directory ) {
 
 	$file_list = $wp_filesystem->dirlist( $directory, false );
 
-	foreach ( $file_list as $file ) {
-		$file_path = $directory . DIRECTORY_SEPARATOR . $file['name'];
-
-		// d = folder, f = file
-		if ( 'd' === $file['type'] ) {
-			// Delete folder
-			$wp_filesystem->rmdir( $file_path, true );
-		} else {
-			// Delete file
-			$wp_filesystem->delete( $file_path );
+	// Export files only: the directory may be shared, and the files that keep it from being served stay.
+	foreach ( (array) $file_list as $file ) {
+		if ( 'f' === $file['type'] && exports_reports_is_export_file( $file['name'] ) ) {
+			$wp_filesystem->delete( $directory . DIRECTORY_SEPARATOR . $file['name'] );
 		}
-	}
-
-	if ( WP_ADMIN_UI_EXPORT_DIR !== $directory ) {
-		$wp_filesystem->rmdir( $directory, true );
 	}
 }
 
