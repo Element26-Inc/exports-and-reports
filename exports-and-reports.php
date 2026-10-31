@@ -26,6 +26,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
+
 define( 'EXPORTS_REPORTS_TBL', 'exportsreports_' );
 define( 'EXPORTS_REPORTS_VERSION', '095' );
 define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
@@ -140,7 +142,7 @@ function exports_reports_sql_install( $upgrade = false ) {
 				continue;
 			}
 
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a statement of the plugin's own schema file.
 			$wpdb->query( $query );
 
 			continue;
@@ -200,7 +202,7 @@ function exports_reports_convert_tables_charset() {
 			continue;
 		}
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table; character set and collation are wpdb's, not request data.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table; character set and collation are wpdb's, not request data.
 		$wpdb->query( "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$wpdb->charset} COLLATE {$wpdb->collate}" );
 
 		if ( '' === $wpdb->last_error ) {
@@ -1044,7 +1046,7 @@ function exports_reports_get_report( $report_id ) {
 
 	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
 	$report = $wpdb->get_row( $wpdb->prepare( $sql, absint( $report_id ) ) );
 
 	return empty( $report ) ? null : $report;
@@ -1063,7 +1065,7 @@ function exports_reports_get_group( $group_id ) {
 
 	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
 	$group = $wpdb->get_row( $wpdb->prepare( $sql, absint( $group_id ) ) );
 
 	return empty( $group ) ? null : $group;
@@ -1281,7 +1283,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$sql = $wpdb->prepare( $sql, array( $group_id ) );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
 		$group = $wpdb->get_row( $sql );
 
 		if ( empty( $group ) ) {
@@ -1299,7 +1301,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 			ORDER BY `weight`, `name`
 		';
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
 		$groups = $wpdb->get_results( $sql );
 
 		if ( ! empty( $groups ) ) {
@@ -1314,7 +1316,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$sql = $wpdb->prepare( $sql, array( $group->id ) );
 
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
 				$reports = $wpdb->get_results( $sql );
 
 				if ( ! empty( $reports ) ) {
@@ -1561,7 +1563,7 @@ function exports_reports_user_can_download_export( $filename ) {
 
 	$sql = 'SELECT `report_id` FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
 	$report_id = $wpdb->get_var( $wpdb->prepare( $sql, $filename ) );
 
 	if ( null === $report_id ) {
@@ -1618,7 +1620,7 @@ function exports_reports_delete_log( $args, $obj ) {
 		';
 
 		$sql = $wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the report's own query, written by an administrator.
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
 			$sql,
 			array(
 				$obj[0]->report_id,
@@ -1626,7 +1628,7 @@ function exports_reports_delete_log( $args, $obj ) {
 			)
 		);
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
 		$wpdb->query( $sql );
 	}
 }
@@ -1720,7 +1722,7 @@ function exports_reports_cleanup( $full = false ) {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$sql = $wpdb->prepare( $sql, array( $purge_age ) );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
 		$cleanup = $wpdb->get_results( $sql );
 
 		if ( ! empty( $cleanup ) ) {
@@ -1745,7 +1747,7 @@ function exports_reports_cleanup( $full = false ) {
 				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$sql = $wpdb->prepare( $sql, array( $export->id ) );
 
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
 				$wpdb->query( $sql );
 			}
 

@@ -17,6 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
+
 add_action( 'rest_api_init', 'exports_reports_rest_routes' );
 add_filter( 'rest_pre_serve_request', 'exports_reports_rest_serve_file', 10, 3 );
 
@@ -235,6 +237,7 @@ function exports_reports_rest_export( $request ) {
 	require_once dirname( __DIR__ ) . '/wp-admin-ui/class-exports-reports-admin-ui.php';
 
 	// A large export outlives the request's defaults, and a cronjob that disconnects still gets its file.
+	// phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- a large export may need longer than max_execution_time.
 	set_time_limit( 6000 );
 	ignore_user_abort( true );
 	$wpdb->query( 'SET SESSION wait_timeout = 800' );
@@ -281,7 +284,7 @@ function exports_reports_rest_download( $request ) {
 
 	$sql = 'SELECT COUNT(*) FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `report_id` = %d AND `filename` = %s';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own export log.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own export log.
 	$logged = (int) $wpdb->get_var( $wpdb->prepare( $sql, (int) $request['id'], $file ) );
 
 	if ( 0 === $logged || ! is_file( WP_ADMIN_UI_EXPORT_DIR . '/' . $file ) ) {

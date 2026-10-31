@@ -36,6 +36,7 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 	public static function create( Exports_Reports_Admin_UI $admin, $orientation = 'P' ) {
 		// TCPDF 6.11 raises a deprecation notice per process otherwise; the plugin chose this engine for PHP below 8.2.
 		if ( ! defined( 'TCPDF_SILENCE_DEPRECATION' ) ) {
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound -- TCPDF's own switch for its deprecation notice.
 			define( 'TCPDF_SILENCE_DEPRECATION', true );
 		}
 

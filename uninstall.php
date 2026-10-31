@@ -11,6 +11,8 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin's own tables, removed on uninstall.
+
 if ( defined( 'EXPORTS_REPORTS_UNINSTALL_KEEP_DATA' ) && EXPORTS_REPORTS_UNINSTALL_KEEP_DATA ) {
 	return;
 }
@@ -22,7 +24,7 @@ function exports_reports_uninstall_site() {
 	/** @var wpdb $wpdb */ global $wpdb;
 
 	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table, removed on uninstall.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, removed on uninstall; the suffix is one of three literals.
 		$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}exportsreports_{$suffix}`" );
 	}
 
