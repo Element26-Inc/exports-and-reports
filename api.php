@@ -11,7 +11,7 @@ global $wpdb;
 
 if ( ! is_object( $wpdb ) ) {
 	ob_start();
-	require_once '../../../wp-load.php';
+	require_once dirname( __DIR__, 3 ) . '/wp-load.php';
 	ob_end_clean();
 }
 

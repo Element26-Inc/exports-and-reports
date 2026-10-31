@@ -1,5 +1,3 @@
-includes:
-  - phpstan-baseline.neon
 parameters:
   level: 5
   # The PDF export class is written for PHP 8.2 (named arguments, the library's floor); the rest of the
@@ -15,9 +13,6 @@ parameters:
   scanDirectories:
     - wp-admin-ui
     - vendor/vendor-prefixed
-  # The baseline is written for the whole tree; the workflow analyses only the changed files of a
-  # pull request, so entries for the other files are expected to go unmatched.
-  reportUnmatchedIgnoredErrors: false
   ignoreErrors:
     # TCPDF is deprecated by its author; it stays, on purpose, as the PDF engine below PHP 8.2.
     - identifiers:
