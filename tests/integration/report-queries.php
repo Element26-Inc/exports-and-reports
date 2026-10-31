@@ -745,7 +745,7 @@ er_report(
 	strlen( $er_settings_html ) . ' bytes'
 );
 
-// --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; hidden fields carry them unslashed ---
+// --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed ---
 $_GET          = array(
 	'search_query' => "O\\'Brien <b>x</b>",
 	'pg'           => '3',
@@ -761,7 +761,7 @@ $er_filter_var  = $er_req_admin->get_var( 'filter_name' );
 $_GET           = array();
 er_report(
 	'request values are unslashed and sanitised on the way in',
-	"O'Brien x" === $er_req_admin->search_query && 3 === $er_req_admin->page && 'ASC' === $er_req_admin->order_dir && 'view' === $er_req_admin->action && array( "a'b" ) === $er_filter_var && false !== strpos( $er_hidden_html, 'value="O&#039;Brien x"' ) && false === strpos( $er_hidden_html, '\\' ),
+	"O'Brien x" === $er_req_admin->search_query && 3 === $er_req_admin->page && 'DESC' === $er_req_admin->order_dir && 'view' === $er_req_admin->action && array( "a'b" ) === $er_filter_var && false !== strpos( $er_hidden_html, 'value="O&#039;Brien x"' ) && false === strpos( $er_hidden_html, '\\' ),
 	'search ' . var_export( $er_req_admin->search_query, true ) . ', page ' . var_export( $er_req_admin->page, true ) . ', order_dir ' . var_export( $er_req_admin->order_dir, true ) . ', hidden ' . strlen( $er_hidden_html ) . ' bytes'
 );
 
