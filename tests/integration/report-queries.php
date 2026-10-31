@@ -470,6 +470,179 @@ foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
 	er_report( strtoupper( $er_type ) . ' export writes the labels and the rows', $er_writer_ok, '' === $er_writer_file ? 'no file' : $er_writer_file . ', ' . strlen( $er_writer_out ) . ' bytes' );
 }
 
+// --- REST API: data and exports for a report, with the token or as a user who may view it ---
+$er_now = current_time( 'mysql' );
+$wpdb->insert(
+	$wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups',
+	array(
+		'name'        => 'API test',
+		'disabled'    => 0,
+		'role_access' => '',
+		'weight'      => 0,
+		'created'     => $er_now,
+		'updated'     => $er_now,
+	)
+);
+$er_group_id = (int) $wpdb->insert_id;
+$wpdb->insert(
+	$wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports',
+	array(
+		'name'             => 'API report',
+		'group'            => $er_group_id,
+		'disabled'         => 0,
+		'disable_export'   => 0,
+		'default_none'     => 0,
+		'role_access'      => '',
+		'sql_query'        => "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id LIMIT %%LIMIT%%",
+		'sql_query_count'  => '',
+		'page_orientation' => 'P',
+		'field_data'       => '',
+		'weight'           => 0,
+		'created'          => $er_now,
+		'updated'          => $er_now,
+	)
+);
+$er_report_id = (int) $wpdb->insert_id;
+update_option( 'exports_reports_token', 'er-test-token' );
+
+/**
+ * Dispatch a REST request.
+ *
+ * @param string $method  GET or POST.
+ * @param string $route   The route.
+ * @param array  $params  Request parameters.
+ * @param array  $headers Request headers.
+ * @return WP_REST_Response
+ */
+function er_rest( $method, $route, $params = array(), $headers = array() ) {
+	$request = new WP_REST_Request( $method, $route );
+	foreach ( $params as $key => $value ) {
+		$request->set_param( $key, $value );
+	}
+	foreach ( $headers as $key => $value ) {
+		$request->set_header( $key, $value );
+	}
+	ob_start();
+	$response = rest_do_request( $request );
+	ob_end_clean();
+	return $response;
+}
+
+$er_route = sprintf( '/exports-reports/v1/reports/%d', $er_report_id );
+wp_set_current_user( 0 );
+
+$er_anon  = er_rest( 'GET', $er_route . '/data' );
+$er_wrong = er_rest( 'GET', $er_route . '/data', array( 'token' => 'nope' ) );
+$er_anon_missing  = er_rest( 'GET', '/exports-reports/v1/reports/999999/data' );
+$er_token_missing = er_rest( 'GET', '/exports-reports/v1/reports/999999/data', array( 'token' => 'er-test-token' ) );
+er_report(
+	'REST refuses the report without the token or a user',
+	401 === $er_anon->get_status() && 401 === $er_wrong->get_status() && 401 === $er_anon_missing->get_status() && 404 === $er_token_missing->get_status(),
+	'status ' . $er_anon->get_status() . ' / ' . $er_wrong->get_status() . '; unknown id without credential ' . $er_anon_missing->get_status() . ', with token ' . $er_token_missing->get_status()
+);
+
+$er_full = er_rest(
+	'GET',
+	$er_route . '/data',
+	array(
+		'token' => 'er-test-token',
+		'full'  => 1,
+	)
+);
+$er_body = $er_full->get_data();
+er_report(
+	'REST full data with the token parameter',
+	200 === $er_full->get_status() && isset( $er_body['rows'] ) && count( $er_body['rows'] ) === $er_rows && $er_body['total'] === $er_rows,
+	'status ' . $er_full->get_status() . ', ' . ( isset( $er_body['rows'] ) ? count( $er_body['rows'] ) . ' rows' : wp_json_encode( $er_body ) )
+);
+
+$er_page = er_rest(
+	'GET',
+	$er_route . '/data',
+	array(
+		'pg'    => 2,
+		'limit' => 25,
+	),
+	array( 'Authorization' => 'Bearer er-test-token' )
+);
+$er_body = $er_page->get_data();
+er_report(
+	'REST paged data with the bearer token',
+	200 === $er_page->get_status() && isset( $er_body['rows'][0]['id'] ) && 25 === count( $er_body['rows'] ) && 26 === (int) $er_body['rows'][0]['id'] && $er_body['total'] === $er_rows && 2 === $er_body['page'],
+	'status ' . $er_page->get_status() . ', ' . ( isset( $er_body['rows'][0]['id'] ) ? count( $er_body['rows'] ) . ' rows from id ' . $er_body['rows'][0]['id'] . ' of ' . $er_body['total'] : wp_json_encode( $er_body ) )
+);
+
+$er_subscriber = wp_insert_user(
+	array(
+		'user_login' => 'er_subscriber',
+		'user_pass'  => wp_generate_password(),
+		'role'       => 'subscriber',
+	)
+);
+wp_set_current_user( (int) $er_subscriber );
+$er_as_subscriber = er_rest( 'GET', $er_route . '/data' );
+wp_set_current_user( 1 );
+$er_as_admin = er_rest( 'GET', $er_route . '/data', array( 'full' => 1 ) );
+wp_set_current_user( 0 );
+er_report(
+	'REST follows the report access rules for users',
+	403 === $er_as_subscriber->get_status() && 200 === $er_as_admin->get_status(),
+	'subscriber ' . $er_as_subscriber->get_status() . ', administrator ' . $er_as_admin->get_status()
+);
+
+$er_export = er_rest( 'POST', $er_route . '/export', array( 'type' => 'csv' ), array( 'Authorization' => 'Bearer er-test-token' ) );
+$er_body   = $er_export->get_data();
+$er_file   = isset( $er_body['file'] ) ? (string) $er_body['file'] : '';
+$er_logged = '' === $er_file ? 0 : (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE report_id = %d AND filename = %s', $er_report_id, $er_file ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+er_report(
+	'REST export writes the file, logs it and names its download URL',
+	200 === $er_export->get_status() && '' !== $er_file && '.csv' === substr( $er_file, -4 ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ) && 1 === $er_logged && isset( $er_body['url'] ) && false !== strpos( $er_body['url'], $er_route . '/exports/' ),
+	'status ' . $er_export->get_status() . ', ' . ( '' !== $er_file ? $er_file . ', logged ' . $er_logged : wp_json_encode( $er_body ) )
+);
+
+// The serving filter streams the file itself after closing every output buffer, so the test checks its
+// decision on the two kinds of response and reads the file through the function it calls.
+$er_download = er_rest( 'GET', $er_route . '/exports/' . $er_file, array( 'token' => 'er-test-token' ) );
+$er_body     = $er_download->get_data();
+$er_request  = new WP_REST_Request( 'GET', $er_route . '/data' );
+$er_passed   = exports_reports_rest_serve_file( false, $er_full, $er_request );
+$er_other    = er_rest( 'GET', $er_route . '/exports/other_report.csv', array( 'token' => 'er-test-token' ) );
+ob_start();
+$er_sent_ok = exports_reports_send_export_file( $er_file );
+$er_sent    = ob_get_clean();
+$er_on_disk = '' === $er_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+er_report(
+	'REST download names the logged export for serving and refuses other names',
+	200 === $er_download->get_status() && isset( $er_body['download'], $er_body['file'] ) && true === $er_body['download'] && $er_file === $er_body['file'] && false === $er_passed && true === $er_sent_ok && '' !== $er_sent && $er_sent === $er_on_disk && 404 === $er_other->get_status(),
+	'status ' . $er_download->get_status() . ', download ' . wp_json_encode( isset( $er_body['download'] ) ? $er_body['download'] : null ) . ', data response left alone ' . var_export( false === $er_passed, true ) . ', ' . strlen( $er_sent ) . ' bytes, other ' . $er_other->get_status()
+);
+
+// The admin-ajax download (export.php) serves a logged file to a user who may view its report.
+wp_set_current_user( (int) $er_subscriber );
+$er_dl_subscriber = exports_reports_user_can_download_export( $er_file );
+$er_full_access_meta = isset( get_userdata( 1 )->caps['exports_reports_full_access'] );
+wp_set_current_user( 1 );
+$er_dl_admin   = exports_reports_user_can_download_export( $er_file );
+$er_dl_unknown = exports_reports_user_can_download_export( 'other_report.csv' );
+$er_dl_foreign = exports_reports_user_can_download_export( 'index.php' );
+wp_set_current_user( 0 );
+$er_dl_anon = exports_reports_user_can_download_export( $er_file );
+er_report(
+	'download authorisation follows the log row and the report access rules',
+	false === $er_dl_subscriber && true === $er_dl_admin && false === $er_dl_unknown && false === $er_dl_foreign && false === $er_dl_anon,
+	'subscriber ' . var_export( $er_dl_subscriber, true ) . ', administrator ' . var_export( $er_dl_admin, true ) . ', unknown ' . var_export( $er_dl_unknown, true ) . ', anonymous ' . var_export( $er_dl_anon, true )
+);
+er_report(
+	'administrators hold exports_reports_full_access through the capability filter, not user meta',
+	user_can( 1, 'exports_reports_full_access' ) && ! user_can( (int) $er_subscriber, 'exports_reports_full_access' ) && ! $er_full_access_meta,
+	'administrator ' . var_export( user_can( 1, 'exports_reports_full_access' ), true ) . ', subscriber ' . var_export( user_can( (int) $er_subscriber, 'exports_reports_full_access' ), true ) . ', in meta ' . var_export( $er_full_access_meta, true )
+);
+
+$wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 1 ), array( 'id' => $er_report_id ) );
+$er_disabled = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-token' ) );
+er_report( 'REST hides a disabled report', 404 === $er_disabled->get_status(), 'status ' . $er_disabled->get_status() );
+wp_delete_user( (int) $er_subscriber );
+
 // --- the report form's field editor renders the saved fields and saves what it posts ---
 $er_form_row      = new stdClass();
 $er_form_row->row = array(
@@ -541,6 +714,25 @@ er_report(
 );
 
 
+// --- saving the token empty turns token access off; it comes back for the tests that follow ---
+wp_set_current_user( 1 );
+$_POST    = array( 'cronjob_token' => '' );
+$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'exports-reports-settings' ) );
+ob_start();
+exports_reports_settings();
+ob_end_clean();
+$er_token_cleared = get_option( 'exports_reports_token' );
+$_POST            = array();
+$_REQUEST         = array();
+wp_set_current_user( 0 );
+$er_no_token = er_rest( 'GET', $er_route . '/data', array( 'token' => 'er-test-token' ) );
+update_option( 'exports_reports_token', 'er-test-token' );
+er_report(
+	'an empty token saved from the settings page turns token access off',
+	'' === $er_token_cleared && 401 === $er_no_token->get_status(),
+	'option ' . var_export( $er_token_cleared, true ) . ', REST with the old token ' . $er_no_token->get_status()
+);
+
 // --- the pipe and custom exports are .txt files and are served; the cleanup event has its handler ---
 wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR );
 file_put_contents( WP_ADMIN_UI_EXPORT_DIR . '/served.txt', "a|b\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -572,6 +764,59 @@ exports_reports_cleanup( true );
 $er_clear_ok = ! file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
 wp_delete_file( WP_ADMIN_UI_EXPORT_DIR . '/notes.md' );
 er_report( 'clearing the export directory removes export files only', $er_clear_ok, 'old.csv ' . ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/old.csv' ) ? 'present' : 'gone' ) . ', notes.md kept ' . var_export( $er_clear_ok, true ) );
+
+// --- the pre-0.9.5 api.php answers through the REST routes with its old response shape ---
+$er_api_capture = static function ( array $query ) use ( $er_report_id ) {
+	$_GET = array_merge(
+		array(
+			'report' => (string) $er_report_id,
+			'token'  => (string) get_option( 'exports_reports_token' ),
+		),
+		$query
+	);
+	add_filter( 'wp_doing_ajax', '__return_true' );
+	add_filter( 'deprecated_file_trigger_error', '__return_false' );
+	$er_thrower = static function () {
+		return static function () {
+			throw new RuntimeException( 'api.php finished' );
+		};
+	};
+	add_filter( 'wp_die_ajax_handler', $er_thrower );
+	$ended = false;
+	ob_start();
+	try {
+		include EXPORTS_REPORTS_DIR . 'api.php';
+	} catch ( RuntimeException $e ) {
+		$ended = true; // wp_send_json() ended the response.
+	}
+	$out = (string) ob_get_clean();
+	remove_filter( 'wp_die_ajax_handler', $er_thrower );
+	remove_filter( 'wp_doing_ajax', '__return_true' );
+	remove_filter( 'deprecated_file_trigger_error', '__return_false' );
+	$_GET = array();
+	return $ended ? json_decode( $out, true ) : null;
+};
+$wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 0 ), array( 'id' => $er_report_id ) );
+$er_api_rows   = $er_api_capture(
+	array(
+		'action' => 'json',
+		'full'   => '1',
+	)
+);
+$er_api_export = $er_api_capture( array( 'export_type' => 'csv' ) );
+$er_api_bad    = $er_api_capture(
+	array(
+		'action' => 'json',
+		'token'  => 'wrong',
+	)
+);
+er_report(
+	'api.php (deprecated) returns rows, an export file and the old error shape through the REST routes',
+	is_array( $er_api_rows ) && true === $er_api_rows['success'] && is_array( $er_api_rows['data'] ) && count( $er_api_rows['data'] ) === $er_rows
+		&& is_array( $er_api_export ) && true === $er_api_export['success'] && 'Report exported' === $er_api_export['data']['message'] && file_exists( $er_api_export['data']['export_file'] )
+		&& is_array( $er_api_bad ) && false === $er_api_bad['success'],
+	'rows ' . ( is_array( $er_api_rows ) && isset( $er_api_rows['data'] ) ? count( (array) $er_api_rows['data'] ) : 'n/a' ) . ', export ' . ( is_array( $er_api_export ) ? wp_json_encode( $er_api_export['data'] ) : 'n/a' ) . ', wrong token ' . wp_json_encode( $er_api_bad )
+);
 
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 

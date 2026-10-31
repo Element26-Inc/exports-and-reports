@@ -4,6 +4,7 @@ parameters:
   level: 5
   paths:
     - wp-admin-ui
+    - includes
     - api.php
     - exports-and-reports.php
   excludePaths:

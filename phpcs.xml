@@ -6,6 +6,7 @@
     <file>./exports-and-reports.php</file>
     <file>./api.php</file>
     <file>./uninstall.php</file>
+    <file>./includes</file>
     <file>./wp-admin-ui</file>
 
     <!-- Scan only PHP files -->
