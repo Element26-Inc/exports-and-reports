@@ -198,6 +198,86 @@ if ( $er_mariadb ) {
 list( , $rows, $er_error ) = er_run( "SELECT id, title\n\tFROM `{$er_table}`\n\tORDER BY id\n\tLIMIT %%LIMIT%%", 'Tabs' );
 er_report( 'tab-indented LIMIT %%LIMIT%%', '' === $er_error && count( $rows ) === $er_rows, '' !== $er_error ? $er_error : count( $rows ) . ' rows' );
 
+// --- several statements, run through the wp_admin_ui_get_data_sql filter by site code ---
+// The plugin runs one statement; a site that needs variables or temporary tables splits the report
+// itself and runs the preparation on wpdb's connection, which this callback does for the test.
+add_filter(
+	'wp_admin_ui_get_data_sql',
+	static function ( $args ) {
+		global $wpdb;
+		$sql = isset( $args[1] ) ? (string) $args[1] : '';
+		// Split on ";" followed by whitespace, outside single-quoted strings.
+		$statements = preg_split( "/;\\s+(?=(?:[^']*'[^']*')*[^']*$)/", $sql, -1, PREG_SPLIT_NO_EMPTY );
+		if ( count( $statements ) < 2 ) {
+			return $args;
+		}
+		$last = trim( array_pop( $statements ) );
+		if ( mysqli_multi_query( $wpdb->dbh, implode( '; ', $statements ) ) ) { // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_multi_query
+			do {
+				$result = mysqli_store_result( $wpdb->dbh ); // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_store_result
+				if ( $result instanceof mysqli_result ) {
+					mysqli_free_result( $result ); // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_free_result
+				}
+				if ( ! mysqli_more_results( $wpdb->dbh ) ) { // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_more_results
+					break;
+				}
+			} while ( mysqli_next_result( $wpdb->dbh ) ); // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_next_result
+		}
+		if ( '' !== mysqli_error( $wpdb->dbh ) ) { // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
+			$wpdb->last_error = 'Preparation statement failed: ' . mysqli_error( $wpdb->dbh ); // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
+			$args[1]          = false;
+			return $args;
+		}
+		$args[1] = $last;
+		return $args;
+	}
+);
+list( , $rows, $er_error ) = er_run( "SET @cutoff = 50;\nCREATE TEMPORARY TABLE er_test_top AS SELECT * FROM `{$er_table}` WHERE revenue > @cutoff;\nSELECT id, title, revenue FROM er_test_top ORDER BY revenue DESC", 'Prepared' );
+er_report( 'variables and a temporary table through the filter', '' === $er_error && count( $rows ) === $er_over_fifty, '' !== $er_error ? $er_error : count( $rows ) . ' rows' );
+$wpdb->query( 'DROP TEMPORARY TABLE IF EXISTS er_test_top' );
+
+// --- the count query through its filter (the view path runs it for the totals row) ---
+$er_count_seen = '';
+$er_count_cb   = static function ( $args ) use ( &$er_count_seen ) {
+	$er_count_seen = isset( $args[1] ) ? (string) $args[1] : '';
+	$args[1]       = 'SELECT 42 AS revenue';
+	return $args;
+};
+add_filter( 'wp_admin_ui_get_data_sql_count', $er_count_cb );
+$er_admin = er_admin( "SELECT id, revenue FROM `{$er_table}` ORDER BY id", 'Count', array( 'sql_count' => "SELECT SUM(revenue) AS revenue FROM `{$er_table}`" ) );
+ob_start();
+$er_admin->get_data( false );
+ob_end_clean();
+remove_filter( 'wp_admin_ui_get_data_sql_count', $er_count_cb );
+er_report(
+	'count query through the filter',
+	false !== strpos( $er_count_seen, 'SUM(revenue)' ) && isset( $er_admin->sum_data[0]['revenue'] ) && 42 === (int) $er_admin->sum_data[0]['revenue'],
+	'' !== $er_count_seen ? 'sum_data ' . wp_json_encode( $er_admin->sum_data ) : 'filter not called'
+);
+
+// --- a declined query: the callback returns false once it has reported why ---
+$er_decline = static function ( $args ) {
+	global $wpdb;
+	$wpdb->last_error = 'declined by the test';
+	$args[1]          = false;
+	return $args;
+};
+add_filter( 'wp_admin_ui_get_data_sql', $er_decline );
+$er_admin              = er_admin( "SELECT id FROM `{$er_table}`", 'Declined' );
+$er_admin->export_type = 'csv';
+$er_files              = (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' );
+ob_start();
+$er_data   = $er_admin->get_data( true );
+$er_export = $er_admin->export();
+ob_end_clean();
+remove_filter( 'wp_admin_ui_get_data_sql', $er_decline );
+$er_new = array_diff( (array) glob( WP_ADMIN_UI_EXPORT_DIR . '/*' ), $er_files );
+er_report(
+	'declined query runs nothing and writes no export',
+	false === $er_data && false === $er_export && empty( $er_new ) && empty( $er_admin->full_data ),
+	'get_data ' . var_export( $er_data, true ) . ', export ' . var_export( $er_export, true ) . ', ' . count( $er_new ) . ' new files'
+);
+
 // --- the XLSX, XML and JSON writers: a file of each, with the labels and rows the report shows ---
 foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
 	list( $er_writer ) = er_run( "SELECT id, channel, title FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Writers' );
