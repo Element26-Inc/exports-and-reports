@@ -2,10 +2,10 @@
 Contributors: sc0ttkclark
 Donate link: https://github.com/sponsors/sc0ttkclark
 Tags: exporting, reporting, csv, pdf, xml
-Requires at least: 4.9
-Tested up to: 6.6
-Requires PHP: 8.0
-Stable tag: 0.9.4
+Requires at least: 6.0
+Tested up to: 7.1
+Requires PHP: 7.2
+Stable tag: 0.9.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,7 +15,9 @@ Define custom exports / reports for users, based off of any custom MySQL SELECT 
 
 Define custom exports / reports for users, based off of any MySQL SELECT query you create. This plugin interacts with your SELECT query and does all the hard work for you: exporting, pagination, ordering, searching/filtering, and display formatting for you.
 
-All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XML, JSON, and custom delimiter separated formats.
+All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XLSX, XML, JSON, PDF and custom delimiter separated formats, from the admin screens or through the REST API with a token, for cronjobs.
+
+Requires PHP 7.2 and WordPress 6.0 or later. PDF exports render with tc-lib-pdf on PHP 8.2 and later and with TCPDF below that.
 
 Please submit bug reports or contribute your own enhancements/fixes on [GitHub](https://github.com/sc0ttkclark/exports-and-reports).
 
@@ -33,14 +35,22 @@ A Report is defined by a Custom MySQL query and can be configured to display how
 
 As an admin, add &debug=1 to the end of the report URL to see the query that this plugin uses, take that query and use it in your own MySQL client or PHPMyAdmin to see if there are any errors in your own query.
 
+= Where do the export files go, and who can download them? =
+
+In wp-content/exports by default. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
+
+`location ~* /wp-content/exports/ { deny all; }`
+
+or define WP_ADMIN_UI_EXPORT_DIR in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
+
 == Installation ==
 
-1. Unpack the entire contents of this plugin zip file into your `wp-content/plugins/` folder locally
-1. Upload to your site
-1. Navigate to `wp-admin/plugins.php` on your site (your WP plugin page)
+1. Download the plugin zip from the [GitHub releases](https://github.com/sc0ttkclark/exports-and-reports/releases) (the plugin is not listed on wordpress.org at the moment)
+1. Upload it through Plugins >> Add New >> Upload Plugin, or unpack it into your `wp-content/plugins/` folder
 1. Activate this plugin
+1. Create your Groups and Reports under Reports Admin; the Settings page shows the export directory and the API URLs
 
-OR you can just install it with WordPress by going to Plugins >> Add New >> and type this plugin's name
+The plugin's bundled libraries (`vendor/`) are part of the zip and of the repository, so a checkout works without Composer.
 
 == Features ==
 
@@ -50,6 +60,8 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 * Limit which User Roles have access to a Group or Report
 * Ability to clear entire export directory (based on logged export files)
 * Daily Export Cleanup via wp_cron
+* The export directory is not served by the web server; downloads go through the plugin after an access check
+* Deletes its tables, options and export files on uninstall
 * WP Admin UI - A class for plugins to manage data using the WordPress UI appearance
 
 = Reporting =
@@ -65,12 +77,14 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 * XLSX - Excel format, using [PHP_XLSXWriter](https://github.com/mk-j/PHP_XLSXWriter)
 * XML - XML 1.0 UTF-8 data
 * JSON - JSON format
-* PDF - PDF printer friendly views, using [TCPDF](https://tcpdf.org/)
+* PDF - PDF printer friendly views, using [tc-lib-pdf](https://github.com/tecnickcom/tc-lib-pdf) on PHP 8.2 and later and [TCPDF](https://tcpdf.org/) below that
 * Custom - Custom delimiter separated Values (Update the report screen URL parameters to `&action=export&export_type=custom&export_delimiter=#` and change # to whatever delimiter you want)
 
-= Cronjob / JSON API =
-* Run the Export action for a specific report to any supported export type
+= REST API / Cronjob =
+* Run the Export action for a specific report to any supported export type, and download the file
 * Get paginated / full data from a report in JSON format
+* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the Settings page shows the URLs
+* The pre-0.9.5 api.php endpoint still answers for existing cronjobs and goes away in 1.0
 
 == Screenshots ==
 
@@ -84,6 +98,19 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 0.9.5 =
+* Security: the Settings page, the reorder form and the save path verify a nonce; the report field editor sanitises its inputs; the export directory is no longer served by the web server (an .htaccess and an index.php are written, downloads go through the plugin after a nonce or token check).
+* Added a REST API (`exports-reports/v1/reports/{id}/data`, `/export`, `/exports/{file}`): the cronjob token as a bearer token or as the `token` parameter, or the logged-in user's access. `api.php` answers through it and is deprecated.
+* Added the `wp_admin_ui_get_data_sql` and `wp_admin_ui_get_data_sql_count` filters, applied to the report query and its count query right before they run.
+* CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`wp_admin_ui_export_escape_formulas` turns that off).
+* Tabs around the `%%LIMIT%%` placeholder are handled like newlines.
+* PDF exports render with tc-lib-pdf on PHP 8.2 and later (TCPDF, deprecated by its author, stays the engine below 8.2); the `wp_admin_ui_export_pdf_engine` filter can keep TCPDF on a newer PHP.
+* The plugin's tables use the site's character set and collation; existing tables are converted on upgrade.
+* Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
+* The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.
+* The daily cleanup event has its handler, is cleared on deactivation and is put back when it is missing.
+* Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
 
 = 0.9.4 =
 * Fixed PHP compatibility issues.
