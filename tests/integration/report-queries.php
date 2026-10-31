@@ -503,7 +503,7 @@ foreach ( $er_pdf_engines as $er_pdf_engine ) {
 	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 	$er_pdf_pages = preg_match_all( '#/Type\s*/Page[^s]#', $er_pdf );
 	// The producer string (UTF-16BE) names the library: TCPDF 6 is the TCPDF engine, "TCPDF 8" is tc-lib-pdf.
-	$er_pdf_major = preg_match( "/T\x00C\x00P\x00D\x00F\x00 \x00(\d)/", $er_pdf, $er_pdf_producer ) ? (int) $er_pdf_producer[1] : 0;
+	$er_pdf_major = preg_match( '/T\x00C\x00P\x00D\x00F\x00 \x00(\d)/', $er_pdf, $er_pdf_producer ) ? (int) $er_pdf_producer[1] : 0; // PCRE escapes: a NUL byte in the pattern itself is refused below PHP 8.2.
 	$er_pdf_want  = 'tcpdf' === $er_pdf_engine ? 6 : 8;
 	$er_pdf_ok    = '.pdf' === substr( $er_pdf_file, -4 ) && '%PDF-' === substr( $er_pdf, 0, 5 ) && false !== strpos( $er_pdf, '%%EOF' ) && 2 <= $er_pdf_pages && $er_pdf_want === $er_pdf_major;
 	er_report(
