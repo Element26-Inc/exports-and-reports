@@ -136,10 +136,11 @@ class Exports_Reports_Admin_UI {
 		$this->base_url   = plugins_url( 'class-exports-reports-admin-ui.php', __FILE__ );
 		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=wp_admin_ui_export&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( 'wp-admin-ui-export' ) . '&exports_and_reports_export=';
 		$this->assets_url = str_replace( '/class-exports-reports-admin-ui.php', '', $this->base_url ) . '/assets';
-		if ( false !== $this->get_var( 'id' ) ) {
-			$this->id = sanitize_text_field( $_GET['id'] );
+		$id = $this->get_var( 'id' );
+		if ( false !== $id ) {
+			$this->id = $id;
 		}
-		if ( false !== $this->get_var(
+		$action = $this->get_var(
 			'action',
 			false,
 			array(
@@ -152,50 +153,58 @@ class Exports_Reports_Admin_UI {
 				'reorder',
 				'export',
 			)
-		) ) {
-			$this->action = sanitize_text_field( $_GET['action'] );
+		);
+		if ( false !== $action ) {
+			$this->action = $action;
 		}
-		if ( false !== $this->get_var( 'do', false, array( 'save', 'create' ) ) ) {
-			$this->do = sanitize_text_field( $_GET['do'] );
+		$do = $this->get_var( 'do', false, array( 'save', 'create' ) );
+		if ( false !== $do ) {
+			$this->do = $do;
 		}
-		if ( false !== $this->get_var( 'search_query' ) ) {
-			$this->search_query = sanitize_text_field( $_GET['search_query'] );
+		$search_query = $this->get_var( 'search_query' );
+		if ( false !== $search_query ) {
+			$this->search_query = $search_query;
 		}
 		if ( false !== $this->get_var( 'pg' ) ) {
-			$this->page = absint( $_GET['pg'] );
+			$this->page = absint( $this->get_var( 'pg' ) );
 		}
 		if ( false !== $this->get_var( 'limit' ) ) {
-			$this->limit = absint( $_GET['limit'] );
+			$this->limit = absint( $this->get_var( 'limit' ) );
 		}
-		if ( false !== $this->get_var( 'order' ) ) {
-			$order = sanitize_text_field( $_GET['order'] );
+		$order = $this->get_var( 'order' );
+		if ( is_string( $order ) && '' !== $order ) {
 			$order = preg_replace( '/([- ])/', '_', trim( $order ) );
 			$order = preg_replace( '/([^0-9a-z_])/', '', strtolower( $order ) );
 			$order = preg_replace( '/(_){2,}/', '_', $order );
 
 			$this->order = $order;
 		}
-		if ( false !== $this->get_var( 'order_dir', false, array( 'ASC', 'DESC' ) ) ) {
-			$this->order_dir = ( 'ASC' === strtoupper( trim( $_GET['order_dir'] ) ) ? 'ASC' : 'DESC' );
+		$order_dir = $this->get_var( 'order_dir', false, array( 'ASC', 'DESC' ) );
+		if ( false !== $order_dir ) {
+			$this->order_dir = $order_dir;
 		}
-		if ( false !== $this->get_var( 'action', false, 'export' ) && false !== $this->get_var(
-			'export_type',
-			false,
-			array(
-				'csv',
-				'tsv',
-				'pipe',
-				'xlsx',
-				'custom',
-				'xml',
-				'json',
-				'pdf',
-			)
-		) ) {
-			$this->export_type = sanitize_text_field( $_GET['export_type'] );
-		}
-		if ( false !== $this->get_var( 'action', false, 'export' ) && 'custom' === $this->export_type && false !== $this->get_var( 'export_delimiter' ) ) {
-			$this->export_delimiter = sanitize_text_field( $_GET['export_delimiter'] );
+		if ( 'export' === $this->action ) {
+			$export_type = $this->get_var(
+				'export_type',
+				false,
+				array(
+					'csv',
+					'tsv',
+					'pipe',
+					'xlsx',
+					'custom',
+					'xml',
+					'json',
+					'pdf',
+				)
+			);
+			if ( false !== $export_type ) {
+				$this->export_type = $export_type;
+			}
+			$export_delimiter = $this->get_var( 'export_delimiter' );
+			if ( 'custom' === $this->export_type && false !== $export_delimiter ) {
+				$this->export_delimiter = $export_delimiter;
+			}
 		}
 
 		if ( false !== $options && ! empty( $options ) ) {
@@ -226,31 +235,71 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * @param            $index
-	 * @param bool       $default
-	 * @param bool|array $allowed
-	 * @param bool       $array
+	 * A request value, unslashed and sanitised (see clean_input()), or $default when it is absent or not among $allowed.
 	 *
-	 * @return bool
+	 * @param string            $index   The request key.
+	 * @param mixed             $default What to return when the key is absent or not allowed.
+	 * @param bool|string|array $allowed The accepted values, or false for any.
+	 * @param bool|string|array $array   The array to read: 'post' for $_POST, an array of your own, or $_GET.
+	 *
+	 * @return mixed The value, as filtered by wp_admin_ui_get_var.
 	 */
 	public function get_var( $index, $default = false, $allowed = false, $array = false ) {
 		if ( ! is_array( $array ) ) {
-			if ( 'post' === $array ) {
-				// phpcs:ignore WordPress.Security.NonceVerification.Missing -- a read accessor; save(), reorder() and the delete action verify their nonces before anything is written.
-				$array = $_POST;
-			} else {
-				$array = $_GET;
-			}
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- a read accessor; save(), reorder() and the delete action verify their nonces before anything is written.
+			$array = ( 'post' === $array ) ? $_POST : $_GET;
 		}
 		if ( false !== $allowed && ! is_array( $allowed ) ) {
 			$allowed = array( $allowed );
 		}
 		$value = $default;
-		if ( isset( $array[ $index ] ) && ( false === $allowed || in_array( $array[ $index ], $allowed ) ) ) {
-			$value = $array[ $index ];
+		if ( isset( $array[ $index ] ) ) {
+			$candidate = $this->clean_input( $array[ $index ] );
+			if ( false === $allowed || in_array( $candidate, $allowed, true ) ) {
+				$value = $candidate;
+			}
 		}
 
 		return $this->do_hook( 'get_var', $value, $index, $default, $allowed, $array );
+	}
+
+	/**
+	 * Unslashes and sanitises a request value: text through sanitize_text_field(), arrays recursively, keys included.
+	 *
+	 * @param mixed $value A request value.
+	 *
+	 * @return string|array
+	 */
+	public function clean_input( $value ) {
+		if ( is_array( $value ) ) {
+			$clean = array();
+			foreach ( $value as $key => $item ) {
+				$clean[ sanitize_text_field( (string) $key ) ] = $this->clean_input( $item );
+			}
+
+			return $clean;
+		}
+
+		return sanitize_text_field( wp_unslash( (string) $value ) );
+	}
+
+	/**
+	 * The query string, unslashed and sanitised: the state that links and hidden fields carry forward.
+	 *
+	 * @return array
+	 */
+	public function query_vars() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- navigation state; nothing is written from it.
+		return $this->clean_input( $_GET );
+	}
+
+	/**
+	 * The request URI, unslashed and escaped for use in a URL; empty on the command line.
+	 *
+	 * @return string
+	 */
+	public function request_uri() {
+		return isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 	}
 
 	/**
@@ -264,8 +313,8 @@ class Exports_Reports_Admin_UI {
 		if ( ! is_array( $exclude ) ) {
 			$exclude = explode( ',', $exclude );
 		}
-		foreach ( $_GET as $k => $v ) {
-			if ( in_array( $k, $exclude ) ) {
+		foreach ( $this->query_vars() as $k => $v ) {
+			if ( ! is_scalar( $v ) || in_array( $k, $exclude, true ) ) {
 				continue;
 			}
 			?>
@@ -332,11 +381,7 @@ class Exports_Reports_Admin_UI {
 		if ( false === $allowed ) {
 			$allowed = array();
 		}
-		if ( ! isset( $_GET ) ) {
-			$get = array();
-		} else {
-			$get = $_GET;
-		}
+		$get = $this->query_vars();
 		if ( is_array( $array ) ) {
 			if ( false === $exclusive ) {
 				foreach ( $excluded as $exclusion ) {
@@ -358,7 +403,7 @@ class Exports_Reports_Admin_UI {
 		if ( false === $url ) {
 			$url = '';
 		} else {
-			$url = explode( '?', $_SERVER['REQUEST_URI'] );
+			$url = explode( '?', $this->request_uri() );
 			$url = explode( '#', $url[0] );
 			$url = $url[0];
 		}
@@ -682,9 +727,6 @@ class Exports_Reports_Admin_UI {
 
 	public function go() {
 		$this->do_hook( 'go' );
-		$_GET  = $this->unsanitize( $_GET );
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- strips the slashes WordPress adds to request data; every write path below verifies its nonce first.
-		$_POST = $this->unsanitize( $_POST );
 
 		if ( false !== $this->css ) {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css );
@@ -693,7 +735,7 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );
 		} elseif ( 'add' === $this->action && $this->add ) {
-			if ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( $_POST['_wpnonce'], 'wp-admin-ui-form-' . $this->do ) ) {
+			if ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
 				$this->save( 1 );
 				if ( false === $this->api ) {
 					$this->manage();
@@ -702,11 +744,11 @@ class Exports_Reports_Admin_UI {
 				$this->add();
 			}
 		} elseif ( ( 'edit' === $this->action && $this->edit ) || ( 'duplicate' === $this->action && $this->duplicate ) ) {
-			if ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( $_POST['_wpnonce'], 'wp-admin-ui-form-' . $this->do ) ) {
+			if ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
 				$this->save();
 			}
 			$this->edit( ( 'duplicate' === $this->action && $this->duplicate ? 1 : 0 ) );
-		} elseif ( 'delete' === $this->action && $this->delete && ! empty( $_GET['_wpnonce'] ) && false !== wp_verify_nonce( $_GET['_wpnonce'], 'wp-admin-ui-' . $this->action ) ) {
+		} elseif ( 'delete' === $this->action && $this->delete && ! empty( $_GET['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wp-admin-ui-' . $this->action ) ) {
 			$this->delete();
 			if ( false === $this->api ) {
 				$this->manage();
@@ -724,12 +766,12 @@ class Exports_Reports_Admin_UI {
 			if ( false === $this->api ) {
 				$this->manage( 1 );
 			}
-		} elseif ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( $_POST['_wpnonce'], 'wp-admin-ui-form-' . $this->do ) ) {
+		} elseif ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
 			$this->save();
 			if ( false === $this->api ) {
 				$this->manage();
 			}
-		} elseif ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( $_POST['_wpnonce'], 'wp-admin-ui-form-' . $this->do ) ) {
+		} elseif ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
 			$this->save( 1 );
 			if ( false === $this->api ) {
 				$this->manage();
@@ -1137,6 +1179,8 @@ class Exports_Reports_Admin_UI {
 		if ( 1 === $create ) {
 			$action = 'created';
 		}
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each column is sanitised below by its type.
+		$posted     = wp_unslash( $_POST );
 		$column_sql = array();
 		$values     = array();
 		$data       = array();
@@ -1165,32 +1209,33 @@ class Exports_Reports_Admin_UI {
 				if ( false !== $attributes['date_touch'] || ( false !== $attributes['date_touch_on_create'] && 1 === $create && $this->id < 1 ) ) {
 					$value = date_i18n( $format );
 				} else {
-					$value = date_i18n( $format, strtotime( ( 'time' === $attributes['type'] ? date_i18n( 'Y-m-d ' ) : '' ) . $_POST[ $column ] ) );
+					$posted_date = isset( $posted[ $column ] ) ? sanitize_text_field( (string) $posted[ $column ] ) : '';
+					$value       = date_i18n( $format, strtotime( ( 'time' === $attributes['type'] ? date_i18n( 'Y-m-d ' ) : '' ) . $posted_date ) );
 				}
 			} else {
-				if ( ! isset( $_POST[ $column ] ) ) {
-					$_POST[ $column ] = '';
+				if ( ! isset( $posted[ $column ] ) ) {
+					$posted[ $column ] = '';
 				}
 				if ( 'bool' === $attributes['type'] ) {
 					$vartype = '%d';
-					$value   = 0;
-					if ( isset( $_POST[ $column ] ) && 1 === (int) $_POST[ $column ] ) {
-						$value = 1;
-					}
+					$value   = ( 1 === (int) $posted[ $column ] ) ? 1 : 0;
 				} elseif ( 'number' === $attributes['type'] ) {
 					$vartype = '%d';
-					$value   = number_format( $_POST[ $column ], 0, '', '' );
+					$value   = number_format( (float) $posted[ $column ], 0, '', '' );
 				} elseif ( 'decimal' === $attributes['type'] ) {
 					$vartype = '%d';
-					$value   = number_format( $_POST[ $column ], 2, '.', '' );
+					$value   = number_format( (float) $posted[ $column ], 2, '.', '' );
 				} elseif ( 'related' === $attributes['type'] ) {
-					if ( is_array( $_POST[ $column ] ) ) {
-						$value = implode( ',', $_POST[ $column ] );
+					if ( is_array( $posted[ $column ] ) ) {
+						$value = implode( ',', array_map( 'sanitize_text_field', $posted[ $column ] ) );
 					} else {
-						$value = $_POST[ $column ];
+						$value = sanitize_text_field( (string) $posted[ $column ] );
 					}
+				} elseif ( in_array( $attributes['type'], array( 'desc', 'code', 'password' ), true ) ) {
+					// Queries, descriptions and passwords are stored as typed.
+					$value = is_array( $posted[ $column ] ) ? '' : (string) $posted[ $column ];
 				} else {
-					$value = $_POST[ $column ];
+					$value = sanitize_text_field( is_array( $posted[ $column ] ) ? '' : (string) $posted[ $column ] );
 				}
 			}
 			if ( isset( $attributes['custom_save'] ) && false !== $attributes['custom_save'] && function_exists( "{$attributes['custom_save']}" ) ) {
@@ -1236,12 +1281,13 @@ class Exports_Reports_Admin_UI {
 		if ( false === $this->identifier ) {
 			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "identifier" definition.' );
 		}
-		if ( ! empty( $_POST['order'] ) && is_array( $_POST['order'] ) ) {
-			foreach ( $_POST['order'] as $order => $id ) {
+		$order_ids = ( isset( $_POST['order'] ) && is_array( $_POST['order'] ) ) ? array_map( 'absint', wp_unslash( $_POST['order'] ) ) : array();
+		if ( ! empty( $order_ids ) ) {
+			foreach ( $order_ids as $order => $id ) {
 				$updated = $wpdb->update(
 					$this->table,
 					array( $this->reorder => (int) $order ),
-					array( $this->identifier => absint( $id ) ),
+					array( $this->identifier => $id ),
 					array(
 						'%s',
 						'%d',
@@ -1377,7 +1423,7 @@ class Exports_Reports_Admin_UI {
 	public function export() {
 		$this->do_hook( 'pre_export' );
 		require_once ABSPATH . 'wp-admin/includes/file.php';
-		$url = explode( '/', $_SERVER['REQUEST_URI'] );
+		$url = explode( '/', $this->request_uri() );
 		$url = array_reverse( $url );
 		$url = $url[0];
 		$credentials = request_filesystem_credentials( $url, '', false, ABSPATH );
@@ -1431,7 +1477,7 @@ class Exports_Reports_Admin_UI {
 		}
 		$this->protect_export_dir();
 		if ( ! empty( $_GET['remove_export'] ) ) {
-			$remove_export = sanitize_text_field( $_GET['remove_export'] );
+			$remove_export      = sanitize_file_name( wp_unslash( $_GET['remove_export'] ) );
 			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( '/', '', $remove_export );
 
 			$this->do_hook( 'pre_remove_export', $remove_export, $remove_export_path );

@@ -663,16 +663,17 @@ $_POST = array(
 		7 => '0',
 	),
 	'width'             => array( 3 => '20' ),
+	'field_label'       => array( 3 => "O\\'Brien <b>revenue</b>" ),
+	'field_related_sql' => array( 7 => "WHERE name <> 'O\\'Brien'" ),
 );
 $er_saved = json_decode( exports_reports_report_field_save( '', 'field_data', array(), $er_form_row ), true );
 $_POST    = array();
 er_report(
-	'report field editor saves the posted rows in order',
-	is_array( $er_saved ) && 2 === count( $er_saved ) && 'revenue' === $er_saved[0]['name'] && 'decimal' === $er_saved[0]['type'] && 1 === $er_saved[0]['hide_report'] && 1 === $er_saved[0]['search'] && '20' === $er_saved[0]['width'] && 'channel' === $er_saved[1]['name'] && 0 === $er_saved[1]['search'],
+	'report field editor saves the posted rows in order, unslashed and sanitised',
+	is_array( $er_saved ) && 2 === count( $er_saved ) && 'revenue' === $er_saved[0]['name'] && 'decimal' === $er_saved[0]['type'] && 1 === $er_saved[0]['hide_report'] && 1 === $er_saved[0]['search'] && '20' === $er_saved[0]['width'] && "O'Brien revenue" === $er_saved[0]['label'] && 'channel' === $er_saved[1]['name'] && 0 === $er_saved[1]['search'] && "WHERE name <> 'O'Brien'" === $er_saved[1]['related_sql'],
 	is_array( $er_saved ) ? count( $er_saved ) . ' fields: ' . wp_json_encode( array_map( static fn( $f ) => $f['name'] . ':' . $f['type'] . ':' . $f['search'], $er_saved ) ) : 'not an array'
 );
 
-$wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 // --- save() and reorder() refuse a request without their nonce; reorder() with the nonce writes the weights; the settings form carries its nonce ---
 $er_groups_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups';
@@ -733,14 +734,91 @@ er_report(
 	'without nonce: weight A ' . $er_weight_refused . '; with nonce: A ' . $er_weight_a . ', B ' . $er_weight_b
 );
 
+wp_set_current_user( 1 );
 ob_start();
 exports_reports_settings();
 $er_settings_html = (string) ob_get_clean();
+wp_set_current_user( 0 );
 er_report(
 	'the settings form carries its nonce',
 	false !== strpos( $er_settings_html, 'name="_wpnonce"' ) && false !== strpos( $er_settings_html, 'name="cronjob_token"' ),
 	strlen( $er_settings_html ) . ' bytes'
 );
+
+// --- request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; hidden fields carry them unslashed ---
+$_GET          = array(
+	'search_query' => "O\\'Brien <b>x</b>",
+	'pg'           => '3',
+	'order_dir'    => 'asc',
+	'action'       => 'view',
+	'filter_name'  => array( "a\\'b" ),
+);
+$er_req_admin  = er_admin( '', 'Request', array( 'search' => true ) );
+ob_start();
+$er_req_admin->hidden_vars();
+$er_hidden_html = (string) ob_get_clean();
+$er_filter_var  = $er_req_admin->get_var( 'filter_name' );
+$_GET           = array();
+er_report(
+	'request values are unslashed and sanitised on the way in',
+	"O'Brien x" === $er_req_admin->search_query && 3 === $er_req_admin->page && 'ASC' === $er_req_admin->order_dir && 'view' === $er_req_admin->action && array( "a'b" ) === $er_filter_var && false !== strpos( $er_hidden_html, 'value="O&#039;Brien x"' ) && false === strpos( $er_hidden_html, '\\' ),
+	'search ' . var_export( $er_req_admin->search_query, true ) . ', page ' . var_export( $er_req_admin->page, true ) . ', order_dir ' . var_export( $er_req_admin->order_dir, true ) . ', hidden ' . strlen( $er_hidden_html ) . ' bytes'
+);
+
+// --- the pre-0.9.5 api.php answers through the REST routes with its old response shape ---
+$er_api_capture = static function ( array $query ) use ( $er_report_id ) {
+	$_GET = array_merge(
+		array(
+			'report' => (string) $er_report_id,
+			'token'  => (string) get_option( 'exports_reports_token' ),
+		),
+		$query
+	);
+	add_filter( 'wp_doing_ajax', '__return_true' );
+	add_filter( 'deprecated_file_trigger_error', '__return_false' );
+	$er_thrower = static function () {
+		return static function () {
+			throw new RuntimeException( 'api.php finished' );
+		};
+	};
+	add_filter( 'wp_die_ajax_handler', $er_thrower );
+	$ended = false;
+	ob_start();
+	try {
+		include EXPORTS_REPORTS_DIR . 'api.php';
+	} catch ( RuntimeException $e ) {
+		$ended = true; // wp_send_json() ended the response.
+	}
+	$out = (string) ob_get_clean();
+	remove_filter( 'wp_die_ajax_handler', $er_thrower );
+	remove_filter( 'wp_doing_ajax', '__return_true' );
+	remove_filter( 'deprecated_file_trigger_error', '__return_false' );
+	$_GET = array();
+	return $ended ? json_decode( $out, true ) : null;
+};
+$wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 0 ), array( 'id' => $er_report_id ) );
+$er_api_rows   = $er_api_capture(
+	array(
+		'action' => 'json',
+		'full'   => '1',
+	)
+);
+$er_api_export = $er_api_capture( array( 'export_type' => 'csv' ) );
+$er_api_bad    = $er_api_capture(
+	array(
+		'action' => 'json',
+		'token'  => 'wrong',
+	)
+);
+er_report(
+	'api.php (deprecated) returns rows, an export file and the old error shape through the REST routes',
+	is_array( $er_api_rows ) && true === $er_api_rows['success'] && is_array( $er_api_rows['data'] ) && count( $er_api_rows['data'] ) === $er_rows
+		&& is_array( $er_api_export ) && true === $er_api_export['success'] && 'Report exported' === $er_api_export['data']['message'] && file_exists( $er_api_export['data']['export_file'] )
+		&& is_array( $er_api_bad ) && false === $er_api_bad['success'],
+	'rows ' . ( is_array( $er_api_rows ) && isset( $er_api_rows['data'] ) ? count( (array) $er_api_rows['data'] ) : 'n/a' ) . ', export ' . ( is_array( $er_api_export ) ? wp_json_encode( $er_api_export['data'] ) : 'n/a' ) . ', wrong token ' . wp_json_encode( $er_api_bad )
+);
+
+$wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 // --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
 $er_reports_table = $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports';
