@@ -32,7 +32,7 @@ define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
 define( 'EXPORTS_REPORTS_DIR', plugin_dir_path( __FILE__ ) );
 
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_URL', WP_CONTENT_URL . '/exports' );
+	define( 'WP_ADMIN_UI_EXPORT_URL', content_url( 'exports' ) );
 }
 
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
@@ -63,10 +63,38 @@ function exports_reports_wp_admin_ui_export() {
 }
 
 function exports_reports_assets() {
-	wp_register_script( 'exports-reports-admin', plugins_url( 'exports-and-reports/assets/admin.js' ), array( 'jquery' ), EXPORTS_REPORTS_VERSION, array( 'in_footer' => true ) );
-	wp_register_style( 'exports-reports-admin', plugins_url( 'exports-and-reports/assets/admin.css' ), array(), EXPORTS_REPORTS_VERSION );
+	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/admin.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, array( 'in_footer' => true ) );
+	wp_register_style( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/admin.css', array(), EXPORTS_REPORTS_VERSION );
+
+	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only the admin page slug is read.
+	if ( isset( $_GET['page'] ) && 'exports-reports-admin-reports' === $_GET['page'] ) {
+		wp_enqueue_style( 'dashicons' );
+		wp_enqueue_script( 'exports-reports-report-fields', EXPORTS_REPORTS_URL . 'assets/report-fields.js', array( 'jquery', 'jquery-ui-sortable' ), EXPORTS_REPORTS_VERSION, array( 'in_footer' => true ) );
+		exports_reports_sql_editor();
+	}
 }
 add_action( 'admin_enqueue_scripts', 'exports_reports_assets' );
+
+/**
+ * CodeMirror with SQL highlighting on the report form's query fields.
+ *
+ * Nothing is enqueued when the user has turned syntax highlighting off in their profile.
+ */
+function exports_reports_sql_editor() {
+	$settings = wp_enqueue_code_editor( array( 'type' => 'text/x-sql' ) );
+
+	if ( false === $settings ) {
+		return;
+	}
+
+	wp_add_inline_script(
+		'code-editor',
+		sprintf(
+			'jQuery( function() { [ "admin_ui_sql_query", "admin_ui_sql_query_count" ].forEach( function( id ) { var field = document.getElementById( id ); if ( field ) { wp.codeEditor.initialize( field, %s ); } } ); } );',
+			wp_json_encode( $settings )
+		)
+	);
+}
 
 /**
  *
@@ -511,14 +539,6 @@ function exports_reports_groups() {
 function exports_reports_reports() {
 	global $wpdb;
 
-	if ( ! wp_script_is( 'jquery-ui-core', 'queue' ) && ! wp_script_is( 'jquery-ui-core', 'to_do' ) && ! wp_script_is( 'jquery-ui-core', 'done' ) ) {
-		wp_print_scripts( 'jquery-ui-core' );
-	}
-
-	if ( ! wp_script_is( 'jquery-ui-sortable', 'queue' ) && ! wp_script_is( 'jquery-ui-sortable', 'to_do' ) && ! wp_script_is( 'jquery-ui-sortable', 'done' ) ) {
-		wp_print_scripts( 'jquery-ui-sortable' );
-	}
-
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
 
 	$columns = array(
@@ -629,369 +649,123 @@ function exports_reports_reports() {
 }
 
 /**
- * @param $column
- * @param $attributes
- * @param $obj
+ * The field editor of the report form: one card per field, the advanced options folded away, new
+ * rows from a template, the order by drag and drop (assets/report-fields.js).
+ *
+ * @param string                   $column     The column name (field_data).
+ * @param array                    $attributes The column attributes.
+ * @param Exports_Reports_Admin_UI $obj        The admin UI.
  */
 function exports_reports_report_field( $column, $attributes, $obj ) {
-	$field_data = @json_decode( $obj->row[ $column ], true );
+	$field_data = json_decode( isset( $obj->row[ $column ] ) ? (string) $obj->row[ $column ] : '', true );
+	$fields     = is_array( $field_data ) ? array_values( $field_data ) : array();
+	$types      = exports_reports_field_types();
 	?>
-	<style type="text/css">
-		.field_data {
-			overflow: visible;
-		}
-
-		.field_data .sortable td div {
-			min-width: 160px;
-		}
-
-		.field_data .sortable td div.dragme {
-			background:   url(<?php echo esc_attr( EXPORTS_REPORTS_URL ); ?>assets/icons/move.png) !important;
-			width:        16px;
-			min-width:    16px;
-			height:       16px;
-			margin-right: 8px;
-			cursor:       pointer;
-			margin:       auto auto;
-		}
-
-		.field_data tbody.field_show,
-		.field_data tbody tr.field_hide_link {
-			background-color: #EEE;
-		}
-
-		.field_data tbody.field_advanced {
-			display: none;
-		}
-	</style>
-	<div class="field_data">
-		<p><input type="button" class="button" value=" Add Field " onclick="field_add_row(0);" /></p>
-		<table class="widefat" id="field_data">
-			<tbody class="sortable">
+	<div class="er-fields" data-next-index="<?php echo esc_attr( (string) count( $fields ) ); ?>">
+		<p class="description">Leave this empty to show every column the query returns. Drag a field by its handle to change the order.</p>
+		<div class="er-fields__list">
 			<?php
-			$field_types = array(
-				'text'     => __( 'Text', 'exports-and-reports' ),
-				'bool'     => __( 'Boolean (Checkbox)', 'exports-and-reports' ),
-				'date'     => __( 'Date', 'exports-and-reports' ),
-				'time'     => __( 'Time', 'exports-and-reports' ),
-				'datetime' => __( 'Date + Time', 'exports-and-reports' ),
-				'number'   => __( 'Number (no decimal)', 'exports-and-reports' ),
-				'decimal'  => __( 'Decimal (two places)', 'exports-and-reports' ),
-				'related'  => __( 'Related', 'exports-and-reports' ),
-			);
-
-			ob_start();
-			?>
-			<tr class="field_row">
-				<td>
-					<div class="dragme"></div>
-				</td>
-				<td>
-					<table class="widefat">
-						<tr>
-							<td>
-								<div>Field Name</div>
-								<input type="text" name="field_name[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Data Type</div>
-								<select name="field_type[0]">
-									<?php
-									foreach ( $field_types as $field_type => $field_label ) {
-										?>
-										<option value="<?php echo esc_attr( $field_type ); ?>"><?php echo esc_html( $field_label ); ?></option>
-										<?php
-									}
-									?>
-								</select>
-							</td>
-							<td>
-								<div>Label (optional)</div>
-								<input type="text" name="field_label[0]" value="" class="medium-text" /></td>
-						</tr>
-						<tbody id="field_show_0" class="field_show">
-						<tr>
-							<td colspan="3">
-								<a href="#advanced" onclick="jQuery('#field_show_0').hide();jQuery('#field_advanced_0').show();exports_reports_reset_alt();return false;">+&nbsp;&nbsp;Show Advanced Field Options</a>
-							</td>
-						</tr>
-						</tbody>
-						<tbody id="field_advanced_0" class="field_advanced">
-						<tr class="field_hide_link">
-							<td colspan="3">
-								<a href="#advanced" onclick="jQuery('#field_show_0').show();jQuery('#field_advanced_0').hide();exports_reports_reset_alt();return false;">-&nbsp;&nbsp;Hide Advanced Field Options</a>
-							</td>
-						</tr>
-						<tr>
-							<td>
-								<div>Real Field (optional if using Alias)</div>
-								<input type="text" name="field_real_name[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Hide from Report</div>
-								Yes
-								<input type="radio" name="field_hide_report[0]" value="1" class="medium-text" />&nbsp;&nbsp; No<input type="radio" name="field_hide_report[0]" value="0" class="medium-text" CHECKED />
-							</td>
-							<td>
-								<div>Searchable</div>
-								Yes
-								<input type="radio" name="field_search[0]" value="0" class="medium-text" CHECKED />&nbsp;&nbsp; No<input type="radio" name="field_search[0]" value="1" class="medium-text" />
-							</td>
-						</tr>
-						<tr>
-							<td>
-								<div>Display Function (optional)</div>
-								<input type="text" name="field_custom_display[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Hide from Export</div>
-								Yes
-								<input type="radio" name="field_hide_export[0]" value="1" class="medium-text" />&nbsp;&nbsp; No<input type="radio" name="field_hide_export[0]" value="0" class="medium-text" CHECKED />
-							</td>
-							<td>
-								<div>Filterable (optional)</div>
-								Yes
-								<input type="radio" name="field_filter[0]" value="1" class="medium-text" />&nbsp;&nbsp; No<input type="radio" name="field_filter[0]" value="0" class="medium-text" CHECKED />
-							</td>
-						</tr>
-						<tr>
-							<td>
-								<div>Filter Label (optional)</div>
-								<input type="text" name="field_filter_label[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Filter using HAVING</div>
-								Yes
-								<input type="radio" name="field_group_related[0]" value="1" class="medium-text" />&nbsp;&nbsp; No<input type="radio" name="field_group_related[0]" value="0" class="medium-text" CHECKED />
-							</td>
-							<td>
-								<div>Default Filter Value (optional)</div>
-								<input type="text" name="field_filter_default[0]" value="" class="medium-text" /></td>
-						</tr>
-						<tr>
-							<td>
-								<div>Ongoing Date Field (optional)</div>
-								<input type="text" name="field_filter_ongoing[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Ongoing Default Filter Value (optional)</div>
-								<input type="text" name="field_filter_ongoing_default[0]" value="" class="medium-text" />
-							</td>
-							<td><!--<div>Total Field?</div> Yes <input type="radio" name="field_total_field[0]" value="1" class="medium-text" />&nbsp;&nbsp; No<input type="radio" name="field_total_field[0]" value="0" class="medium-text" CHECKED />--></td>
-						</tr>
-						<tr>
-							<td>
-								<div>Related Table (if related type)</div>
-								<input type="text" name="field_related[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Related Field (if related type)</div>
-								<input type="text" name="field_related_field[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Related WHERE/ORDER BY SQL (if related type)</div>
-								<input type="text" name="field_related_sql[0]" value="" class="medium-text" /></td>
-						</tr>
-						<tr>
-							<td>
-								<div>Width</div>
-								<input type="text" name="width[0]" value="" class="medium-text" /></td>
-							<td>
-								<div>Related ID Field (if related type)</div>
-								<input type="text" name="field_related_id[0]" value="" class="medium-text" /></td>
-							<td></td>
-						</tr>
-						</tbody>
-					</table>
-				</td>
-				<td>[<a href="#" onclick="return field_remove_row(this);">remove</a>]</td>
-			</tr>
-			<?php
-			$field_html = ob_get_clean();
-			if ( is_array( $field_data ) && ! empty( $field_data ) ) {
-				$count = 0;
-				foreach ( $field_data as $field ) {
-					$field = exports_reports_field_defaults( $field );
-					?>
-					<tr class="field_row">
-						<td>
-							<div class="dragme"></div>
-						</td>
-						<td>
-							<table class="widefat">
-								<tr>
-									<td>
-										<div>Field Name</div>
-										<input type="text" name="field_name[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['name'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Data Type</div>
-										<select name="field_type[<?php echo esc_attr( $count ); ?>]">
-											<?php
-											foreach ( $field_types as $field_type => $field_label ) {
-												?>
-												<option value="<?php echo esc_attr( $field_type ); ?>"<?php selected( $field['type'], $field_type ); ?>><?php echo esc_html( $field_label ); ?></option>
-												<?php
-											}
-											?>
-										</select>
-									</td>
-									<td>
-										<div>Label (optional)</div>
-										<input type="text" name="field_label[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['label'] ); ?>" class="medium-text" />
-									</td>
-								</tr>
-								<tbody id="field_show_<?php echo esc_attr( $count ); ?>" class="field_show">
-								<tr>
-									<td colspan="3">
-										<a href="#advanced" onclick="jQuery('#field_show_<?php echo esc_attr( $count ); ?>').hide();jQuery('#field_advanced_<?php echo esc_attr( $count ); ?>').show();exports_reports_reset_alt();return false;">+&nbsp;&nbsp;Show Advanced Field Options</a>
-									</td>
-								</tr>
-								</tbody>
-								<tbody id="field_advanced_<?php echo esc_attr( $count ); ?>" class="field_advanced">
-								<tr class="field_hide_link">
-									<td colspan="3">
-										<a href="#advanced" onclick="jQuery('#field_show_<?php echo esc_attr( $count ); ?>').show();jQuery('#field_advanced_<?php echo esc_attr( $count ); ?>').hide();exports_reports_reset_alt();return false;">-&nbsp;&nbsp;Hide Advanced Field Options</a>
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<div>Real Field (optional if using Alias)</div>
-										<input type="text" name="field_real_name[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['real_name'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Hide from Report</div>
-										Yes
-										<input type="radio" name="field_hide_report[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['hide_report'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_hide_report[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['hide_report'] ? ' CHECKED' : '' ); ?> />
-									</td>
-									<td>
-										<div>Searchable</div>
-										Yes
-										<input type="radio" name="field_search[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['search'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_search[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['search'] ? ' CHECKED' : '' ); ?> />
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<div>Display Function (optional)</div>
-										<input type="text" name="field_custom_display[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['custom_display'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Hide from Export</div>
-										Yes
-										<input type="radio" name="field_hide_export[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['hide_export'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_hide_export[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['hide_export'] ? ' CHECKED' : '' ); ?> />
-									</td>
-									<td>
-										<div>Filterable (optional)</div>
-										Yes
-										<input type="radio" name="field_filter[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['filter'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_filter[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['filter'] ? ' CHECKED' : '' ); ?> />
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<div>Filter Label (optional)</div>
-										<input type="text" name="field_filter_label[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['filter_label'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Filter using HAVING</div>
-										Yes
-										<input type="radio" name="field_group_related[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['group_related'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_group_related[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['group_related'] ? ' CHECKED' : '' ); ?> />
-									</td>
-									<td>
-										<div>Default Filter Value (optional)</div>
-										<input type="text" name="field_filter_default[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['filter_default'] ); ?>" class="medium-text" />
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<div>Ongoing Date Field (optional)</div>
-										<input type="text" name="field_filter_ongoing[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['filter_ongoing'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Ongoing Default Filter Value (optional)</div>
-										<input type="text" name="field_filter_ongoing_default[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['filter_ongoing_default'] ); ?>" class="medium-text" />
-									</td>
-									<td><!--<div>Total Field?</div> Yes <input type="radio" name="field_total_field[<?php echo esc_attr( $count ); ?>]" value="1" class="medium-text"<?php echo( 1 == $field['total_field'] ? ' CHECKED' : '' ); ?> />&nbsp;&nbsp; No<input type="radio" name="field_total_field[<?php echo esc_attr( $count ); ?>]" value="0" class="medium-text"<?php echo( 1 !== $field['total_field'] ? ' CHECKED' : '' ); ?> />--></td>
-								</tr>
-								<tr>
-									<td>
-										<div>Related Table (if related type)</div>
-										<input type="text" name="field_related[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['related'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Related Field (if related type)</div>
-										<input type="text" name="field_related_field[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['related_field'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Related WHERE/ORDER BY SQL (if related type)</div>
-										<input type="text" name="field_related_sql[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['related_sql'] ); ?>" class="medium-text" />
-									</td>
-								</tr>
-								<tr>
-									<td>
-										<div>Width</div>
-										<input type="text" name="width[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['width'] ); ?>" class="medium-text" />
-									</td>
-									<td>
-										<div>Related ID Field (if related type)</div>
-										<input type="text" name="field_related_id[<?php echo esc_attr( $count ); ?>]" value="<?php echo esc_attr( $field['related_id'] ); ?>" class="medium-text" />
-									</td>
-									<td></td>
-								</tr>
-								</tbody>
-							</table>
-						</td>
-						<td>[<a href="#" onclick="return field_remove_row(this);">remove</a>]</td>
-					</tr>
-					<?php
-					$count++;
-				}
-			} else {
-				// phpcs:ignore
-				echo $field_html;
+			foreach ( $fields as $index => $field ) {
+				exports_reports_report_field_row( (string) $index, exports_reports_field_defaults( $field ), $types );
 			}
-			$field_html = str_replace( array( '  ', "\n", "\r", "'" ), array( ' ', ' ', ' ', "\'" ), $field_html );
 			?>
-			</tbody>
-		</table>
-		<p><input type="button" class="button" value=" Add Field " onclick="field_add_row(1);" /></p>
+		</div>
+		<p><button type="button" class="button er-fields__add">Add Field</button></p>
+		<template class="er-fields__template"><?php exports_reports_report_field_row( '__i__', exports_reports_field_defaults(), $types ); ?></template>
 	</div>
 	<input type="hidden" name="<?php echo esc_attr( $column ); ?>" value="" />
-	<script type="text/javascript">
-		function field_remove_row( it ) {
-			var conf = confirm( 'Are you sure you want to delete it?' );
-			if ( conf ) {
-				jQuery( it ).parent().parent().remove();
-			}
-			return false;
-		}
+	<?php
+}
 
-		function field_add_row( append ) {
-			var field_count = jQuery( '.field_data tbody.sortable tr.field_row' ).length + 1;
-			var row = '
+/**
+ * The data types a field can have.
+ *
+ * @return array<string, string>
+ */
+function exports_reports_field_types() {
+	return array(
+		'text'     => __( 'Text', 'exports-and-reports' ),
+		'bool'     => __( 'Boolean (Checkbox)', 'exports-and-reports' ),
+		'date'     => __( 'Date', 'exports-and-reports' ),
+		'time'     => __( 'Time', 'exports-and-reports' ),
+		'datetime' => __( 'Date + Time', 'exports-and-reports' ),
+		'number'   => __( 'Number (no decimal)', 'exports-and-reports' ),
+		'decimal'  => __( 'Decimal (two places)', 'exports-and-reports' ),
+		'related'  => __( 'Related', 'exports-and-reports' ),
+	);
+}
+
+/**
+ * One field of the editor. The input names are the ones exports_reports_report_field_save() reads;
+ * a flag posts its "off" value from a hidden input and its "on" value from the checkbox after it.
+ *
+ * @param string $index The row index, or the placeholder the template carries.
+ * @param array  $field The field with every key (exports_reports_field_defaults()).
+ * @param array  $types The data types.
+ */
+function exports_reports_report_field_row( $index, $field, $types ) {
+	$text = static function ( $key, $label, $hint = '' ) use ( $index, $field ) {
+		?>
+		<label>
+			<span><?php echo esc_html( $label ); ?></span>
+			<input type="text" name="<?php echo esc_attr( $key . '[' . $index . ']' ); ?>" value="<?php echo esc_attr( (string) $field[ str_replace( array( 'field_', 'width' ), array( '', 'width' ), $key ) ] ); ?>" class="regular-text"<?php echo '' !== $hint ? ' placeholder="' . esc_attr( $hint ) . '"' : ''; ?> />
+		</label>
+		<?php
+	};
+	$flag = static function ( $key, $label, $checked, $on = '1', $off = '0' ) use ( $index ) {
+		$name = $key . '[' . $index . ']';
+		?>
+		<label class="er-field__flag">
+			<input type="hidden" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $off ); ?>" />
+			<input type="checkbox" name="<?php echo esc_attr( $name ); ?>" value="<?php echo esc_attr( $on ); ?>"<?php checked( $checked ); ?> />
+			<?php echo esc_html( $label ); ?>
+		</label>
+		<?php
+	};
+	?>
+	<div class="er-field">
+		<div class="er-field__bar">
+			<span class="er-field__handle dashicons dashicons-move" title="Drag to reorder"></span>
+			<?php $text( 'field_name', 'Field name (column or alias)' ); ?>
+			<label>
+				<span>Data type</span>
+				<select name="<?php echo esc_attr( 'field_type[' . $index . ']' ); ?>">
+					<?php foreach ( $types as $type => $type_label ) { ?>
+						<option value="<?php echo esc_attr( $type ); ?>"<?php selected( $field['type'], $type ); ?>><?php echo esc_html( $type_label ); ?></option>
+					<?php } ?>
+				</select>
+			</label>
+			<?php $text( 'field_label', 'Label', 'defaults to the field name' ); ?>
+			<button type="button" class="button-link button-link-delete er-field__remove">Remove</button>
+		</div>
+		<div class="er-field__flags">
 			<?php
-				// phpcs:ignore
-				echo str_replace( "_0\'", "_'+field_count+'\'", str_replace( '_0"', "_'+field_count+'\"", str_replace( '[0]', "['+field_count+']", $field_html ) ) );
+			$flag( 'field_hide_report', 'Hide from report', 1 === (int) $field['hide_report'] );
+			$flag( 'field_hide_export', 'Hide from export', 1 === (int) $field['hide_export'] );
+			$flag( 'field_search', 'Searchable', 1 !== (int) $field['search'], '0', '1' );
+			$flag( 'field_filter', 'Filterable', 1 === (int) $field['filter'] );
+			$flag( 'field_group_related', 'Filter with HAVING', 1 === (int) $field['group_related'] );
 			?>
-				';
-			if ( append == 1 ) {
-				jQuery( '.field_data table#field_data tbody.sortable' ).append( row );
-			}
-			else {
-				jQuery( '.field_data table#field_data tbody.sortable' ).prepend( row );
-			}
-		}
-
-		function exports_reports_reset_alt() {
-			jQuery( 'table.widefat tbody tr' ).removeClass( 'alternate' );
-			jQuery( 'table.widefat tbody tr:even' ).addClass( 'alternate' );
-			jQuery( 'table.widefat tbody tbody tr' ).removeClass( 'alternate' );
-			jQuery( 'table.widefat tbody tbody tr:even' ).addClass( 'alternate' );
-		}
-
-		jQuery( function () {
-			exports_reports_reset_alt();
-			jQuery( ".sortable" ).sortable( {
-				axis                 : "y",
-				handle               : ".dragme",
-				forcePlaceholderSize : true,
-				forceHelperSize      : true,
-				placeholder          : 'ui-state-highlight'
-			} );
-		} );
-	</script>
+		</div>
+		<details class="er-field__advanced">
+			<summary>Advanced options</summary>
+			<div class="er-field__grid">
+				<?php
+				$text( 'field_real_name', 'Real field', 'when the name is an alias' );
+				$text( 'field_custom_display', 'Display function', 'a function a plugin or theme defines' );
+				$text( 'width', 'Width', 'relative, for the PDF export' );
+				$text( 'field_filter_label', 'Filter label' );
+				$text( 'field_filter_default', 'Default filter value' );
+				$text( 'field_filter_ongoing', 'Ongoing date field', 'for a date range filter' );
+				$text( 'field_filter_ongoing_default', 'Ongoing default filter value' );
+				$text( 'field_related', 'Related table', 'related type only' );
+				$text( 'field_related_field', 'Related field' );
+				$text( 'field_related_id', 'Related ID field' );
+				$text( 'field_related_sql', 'Related WHERE / ORDER BY' );
+				?>
+			</div>
+		</details>
+	</div>
 	<?php
 }
 
@@ -1004,51 +778,64 @@ function exports_reports_report_field( $column, $attributes, $obj ) {
  * @return string
  */
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
+	// Exports_Reports_Admin_UI::save() verifies the form nonce before it calls this custom_save callback, and has unslashed the request.
+	// phpcs:disable WordPress.Security.NonceVerification.Missing
 	$value = array();
 
-	$defaults = exports_reports_field_defaults();
-
-	if ( isset( $_POST['field_name'] ) ) {
-		foreach ( $_POST['field_name'] as $key => $field ) {
-			if ( empty( $field ) ) {
-				continue;
-			}
-
-			foreach ( $defaults as $default ) {
-				if ( ! isset( $_POST[ $default ] ) ) {
-					$_POST[ $default ] = array();
-				}
-
-				if ( ! isset( $_POST[ $default ][ $key ] ) ) {
-					$_POST[ $default ][ $key ] = '';
-				}
-			}
-
-			$value[] = array(
-				'name'                   => $field,
-				'real_name'              => $_POST['field_real_name'][ $key ],
-				'label'                  => $_POST['field_label'][ $key ],
-				'filter_label'           => $_POST['field_filter_label'][ $key ],
-				'hide_report'            => absint( $_POST['field_hide_report'][ $key ] ),
-				'hide_export'            => absint( $_POST['field_hide_export'][ $key ] ),
-				'group_related'          => $_POST['field_group_related'][ $key ],
-				'custom_display'         => $_POST['field_custom_display'][ $key ],
-				'type'                   => $_POST['field_type'][ $key ],
-				'width'                  => $_POST['width'][ $key ],
-				'search'                 => absint( $_POST['field_search'][ $key ] ),
-				'filter'                 => absint( $_POST['field_filter'][ $key ] ),
-				'filter_default'         => $_POST['field_filter_default'][ $key ],
-				'filter_ongoing'         => $_POST['field_filter_ongoing'][ $key ],
-				'filter_ongoing_default' => $_POST['field_filter_ongoing_default'][ $key ],
-				'total_field'            => '',
-				// 'total_field'            => absint( $_POST['field_total_field'][ $key ] ),
-				'related'                => $_POST['field_related'][ $key ],
-				'related_field'          => $_POST['field_related_field'][ $key ],
-				'related_sql'            => $_POST['field_related_sql'][ $key ],
-				'related_id'             => $_POST['field_related_id'][ $key ],
-			);
-		}
+	if ( empty( $_POST['field_name'] ) || ! is_array( $_POST['field_name'] ) ) {
+		return wp_json_encode( $value );
 	}
+
+	$names = array_map( 'sanitize_text_field', wp_unslash( $_POST['field_name'] ) );
+
+	$types = array_keys( exports_reports_field_types() );
+	$texts = array(
+		'real_name'              => 'field_real_name',
+		'label'                  => 'field_label',
+		'filter_label'           => 'field_filter_label',
+		'group_related'          => 'field_group_related',
+		'custom_display'         => 'field_custom_display',
+		'width'                  => 'width',
+		'filter_default'         => 'field_filter_default',
+		'filter_ongoing'         => 'field_filter_ongoing',
+		'filter_ongoing_default' => 'field_filter_ongoing_default',
+		'related'                => 'field_related',
+		'related_field'          => 'field_related_field',
+		'related_id'             => 'field_related_id',
+	);
+	$flags = array(
+		'hide_report' => 'field_hide_report',
+		'hide_export' => 'field_hide_export',
+		'search'      => 'field_search',
+		'filter'      => 'field_filter',
+	);
+
+	foreach ( $names as $key => $name ) {
+		if ( '' === $name ) {
+			continue;
+		}
+
+		$field = array( 'name' => $name );
+
+		foreach ( $texts as $option => $input ) {
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? sanitize_text_field( wp_unslash( $_POST[ $input ][ $key ] ) ) : '';
+		}
+
+		foreach ( $flags as $option => $input ) {
+			$field[ $option ] = isset( $_POST[ $input ][ $key ] ) ? absint( wp_unslash( $_POST[ $input ][ $key ] ) ) : 0;
+		}
+
+		$type = isset( $_POST['field_type'][ $key ] ) ? sanitize_key( wp_unslash( $_POST['field_type'][ $key ] ) ) : 'text';
+
+		$field['type']        = in_array( $type, $types, true ) ? $type : 'text';
+		$field['total_field'] = '';
+		// A query fragment written by the administrator; stored as typed, like the report's own queries.
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$field['related_sql'] = isset( $_POST['field_related_sql'][ $key ] ) ? trim( (string) wp_unslash( $_POST['field_related_sql'][ $key ] ) ) : '';
+
+		$value[] = $field;
+	}
+	// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 	return wp_json_encode( $value );
 }
