@@ -17,24 +17,24 @@ use ExportsReports\Prefixed\Com\Tecnick\Pdf\Tcpdf;
  */
 class Exports_Reports_Admin_UI_Export_PDF {
 
-	const MARGIN       = 10.0;  // mm, every side.
-	const TITLE_SIZE   = 12.0;  // pt.
-	const FILTER_SIZE  = 8.0;
-	const BODY_SIZE    = 8.0;
-	const FOOTER_SIZE  = 7.0;
-	const LINE_H       = 4.5;   // mm, title and filter lines.
-	const HEADER_H     = 6.5;   // mm, the column heading row.
-	const ROW_H        = 5.5;   // mm, a data row with one line.
-	const LINE_STEP    = 3.6;   // mm, each further line of a wrapped cell.
-	const MAX_LINES    = 6;     // lines a cell may take; the last one ends in an ellipsis.
-	const FOOTER_H     = 8.0;   // mm, reserved at the bottom.
-	const PADDING      = 1.0;   // mm, inside a cell on each side.
-	const LINE_WIDTH   = 0.2;
-	const HEADER_FILL  = 'rgb(230,230,230)';
-	const ZEBRA_FILL   = 'rgb(246,246,246)';
-	const FONT         = 'helvetica';
-	const MIN_COL_W    = 12.0;  // mm, no column narrower than this while the page allows.
-	const SAMPLE_ROWS  = 500;   // rows measured to size the columns without a width.
+	const MARGIN      = 10.0;  // mm, every side.
+	const TITLE_SIZE  = 12.0;  // pt.
+	const FILTER_SIZE = 8.0;
+	const BODY_SIZE   = 8.0;
+	const FOOTER_SIZE = 7.0;
+	const LINE_H      = 4.5;   // mm, title and filter lines.
+	const HEADER_H    = 6.5;   // mm, the column heading row.
+	const ROW_H       = 5.5;   // mm, a data row with one line.
+	const LINE_STEP   = 3.6;   // mm, each further line of a wrapped cell.
+	const MAX_LINES   = 6;     // lines a cell may take; the last one ends in an ellipsis.
+	const FOOTER_H    = 8.0;   // mm, reserved at the bottom.
+	const PADDING     = 1.0;   // mm, inside a cell on each side.
+	const LINE_WIDTH  = 0.2;
+	const HEADER_FILL = 'rgb(230,230,230)';
+	const ZEBRA_FILL  = 'rgb(246,246,246)';
+	const FONT        = 'helvetica';
+	const MIN_COL_W   = 12.0;  // mm, no column narrower than this while the page allows.
+	const SAMPLE_ROWS = 500;   // rows measured to size the columns without a width.
 
 	/**
 	 * The body size and the heights derived from it for the document being rendered: 8 pt as a rule,
@@ -618,7 +618,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 			return array( ' ' );
 		}
 
-		$width = static fn( $string ) => $pdf->font->getOrdArrWidth( $pdf->uniconv->strToOrdArr( $string ) );
+		$width = static fn( $text ) => $pdf->font->getOrdArrWidth( $pdf->uniconv->strToOrdArr( $text ) );
 		$lines = array();
 		$line  = '';
 

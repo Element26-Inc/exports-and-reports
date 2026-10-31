@@ -16,7 +16,7 @@
     <arg value="-colors"/>
 
     <!-- Show sniff codes in all reports -->
-    <arg value="ns"/>
+    <arg value="s"/>
 
     <!-- Include the WordPress-Extra standard. -->
     <rule ref="WordPress-Extra">
@@ -29,6 +29,17 @@
 
     <!-- Every request read is unslashed and sanitised (part of the full WordPress standard, not of WordPress-Extra). -->
     <rule ref="WordPress.Security.ValidatedSanitizedInput"/>
+
+    <!-- The plugin's own capabilities. -->
+    <rule ref="WordPress.WP.Capabilities">
+        <properties>
+            <property name="custom_capabilities" type="array">
+                <element value="exports_reports_full_access"/>
+                <element value="exports_reports_settings"/>
+                <element value="exports_reports_view"/>
+            </property>
+        </properties>
+    </rule>
 
     <!-- Add in some extra rules from other standards. -->
     <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter"/>
