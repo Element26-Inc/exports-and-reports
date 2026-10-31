@@ -57,12 +57,13 @@ require_once EXPORTS_REPORTS_DIR . 'vendor/vendor-prefixed/autoload.php';
 require_once EXPORTS_REPORTS_DIR . 'includes/rest-api.php';
 
 /**
- *
+ * The admin-ajax action wp_admin_ui_export: wp-admin-ui/export.php sends the file and exits, so a
+ * request that names no export ends here.
  */
 function exports_reports_wp_admin_ui_export() {
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/export.php';
 
-	die( 'Invalid request' ); // AJAX dies
+	die( 'Invalid request' );
 }
 
 function exports_reports_assets() {
@@ -100,16 +101,18 @@ function exports_reports_sql_editor() {
 }
 
 /**
+ * Creates the plugin's tables from assets/dump.sql, or brings them up to date through dbDelta() on an
+ * upgrade; records the version, generates the API token on a first install and schedules the daily
+ * cleanup.
  *
+ * @param bool $upgrade Whether the tables exist already.
  */
 function exports_reports_sql_install( $upgrade = false ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 
-	/**
-	 * @var $wp_filesystem WP_Filesystem_Base
-	 */ global $wp_filesystem;
+	/** @var WP_Filesystem_Base|null $wp_filesystem */ global $wp_filesystem;
 
 	WP_Filesystem();
 
@@ -191,14 +194,13 @@ function exports_reports_convert_tables_charset() {
 	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
 		$table = $wpdb->prefix . EXPORTS_REPORTS_TBL . $suffix;
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- schema lookup at upgrade time.
 		$current = $wpdb->get_var( $wpdb->prepare( 'SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s', $table ) );
 
 		if ( empty( $current ) || $current === $wpdb->collate ) {
 			continue;
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table; character set and collation are wpdb's, not request data.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table; character set and collation are wpdb's, not request data.
 		$wpdb->query( "ALTER TABLE `{$table}` CONVERT TO CHARACTER SET {$wpdb->charset} COLLATE {$wpdb->collate}" );
 
 		if ( '' === $wpdb->last_error ) {
@@ -241,7 +243,7 @@ add_action( 'admin_notices', 'exports_reports_charset_errors_notice' );
 
 /**
  * Grants exports_reports_full_access to administrators while the plugin is active, without writing it
- * to their user meta. The exports_reports_full_access filter decides who gets it, as before.
+ * to their user meta. The exports_reports_full_access filter decides who gets it.
  * Sites with the Members plugin manage the capabilities through its roles instead.
  *
  * @param array   $allcaps The user's capabilities.
@@ -273,12 +275,11 @@ function exports_reports_user_has_cap( $allcaps, $caps, $args, $user ) {
 }
 
 /**
- *
+ * On activation: installs the tables when the plugin has never run here, upgrades them otherwise.
  */
 function exports_reports_install_upgrade() {
 	/** @var \wpdb $wpdb */ global $wpdb;
 
-	// check version
 	$version = (int) get_option( 'exports_reports_version' );
 
 	if ( empty( $version ) ) {
@@ -289,12 +290,12 @@ function exports_reports_install_upgrade() {
 }
 
 /**
- *
+ * Brings the tables and the stored version up to date when the plugin's version has changed; an
+ * install from before 0.6 gets a new API token as well.
  */
 function exports_reports_upgrade() {
 	/** @var \wpdb $wpdb */ global $wpdb;
 
-	// check version
 	$version = (int) get_option( 'exports_reports_version' );
 
 	if ( ! empty( $version ) && (int) EXPORTS_REPORTS_VERSION !== $version ) {
@@ -310,7 +311,11 @@ function exports_reports_upgrade() {
 }
 
 /**
- *
+ * On admin_init: upgrades when needed and sorts out the capabilities. With the Members plugin active,
+ * the plugin's capabilities are registered with it (the way Gravity Forms does), an administrator
+ * without any of them gets them all on the administrator role, and a copy of
+ * exports_reports_full_access on the user itself is removed. Without Members,
+ * exports_reports_user_has_cap() grants administrators full access at run time.
  */
 function exports_reports_init() {
 	exports_reports_upgrade();
@@ -319,7 +324,6 @@ function exports_reports_init() {
 
 	add_filter( 'members_get_capabilities', 'exports_reports_get_capabilities' );
 
-	// thx gravity forms, great way of integration with members!
 	if ( ! is_user_logged_in() ) {
 		return;
 	}
@@ -345,8 +349,9 @@ function exports_reports_init() {
 			}
 		}
 	} else {
-		// exports_reports_user_has_cap() grants full access while the plugin is active; a copy an earlier
-		// version wrote to the user's meta would outlive the plugin, so it is removed.
+		// exports_reports_user_has_cap() grants administrators full access while the plugin is active.
+		// Versions before 0.9.5 wrote the capability into the user's meta instead, where it would outlive
+		// the plugin; a copy found there is removed.
 		$user = get_userdata( get_current_user_id() );
 
 		if ( $user && isset( $user->caps['exports_reports_full_access'] ) ) {
@@ -356,7 +361,8 @@ function exports_reports_init() {
 }
 
 /**
- *
+ * The Reports Admin menu: Manage Groups, Manage Reports and Settings, for users with the settings
+ * capability or full access (super admins and administrators count as full access).
  */
 function exports_reports_admin_menu() {
 	if ( defined( 'EXPORTS_REPORTS_DISABLE_MENU' ) ) {
@@ -384,7 +390,7 @@ function exports_reports_admin_menu() {
 }
 
 /**
- *
+ * The Reports menu: the enabled groups the current user may view, by role access or full access.
  */
 function exports_reports_menu() {
 	/** @var wpdb $wpdb */ global $wpdb;
@@ -608,7 +614,7 @@ function exports_reports_settings() {
 }
 
 /**
- *
+ * The Manage Groups page: an Exports_Reports_Admin_UI on the groups table.
  */
 function exports_reports_groups() {
 	global $wpdb;
@@ -674,7 +680,8 @@ function exports_reports_groups() {
 }
 
 /**
- *
+ * The Manage Reports page: an Exports_Reports_Admin_UI on the reports table, with the field editor on
+ * the field_data column.
  */
 function exports_reports_reports() {
 	global $wpdb;
@@ -910,12 +917,15 @@ function exports_reports_report_field_row( $index, $field, $types ) {
 }
 
 /**
- * @param $value
- * @param $column
- * @param $attributes
- * @param $obj
+ * The custom_save callback of the field_data column: reads the rows the field editor posted and
+ * returns them as JSON, in order, each with the keys exports_reports_field_defaults() names.
  *
- * @return string
+ * @param mixed                    $value      The column's value in the request; the rows are read from the field inputs instead.
+ * @param string                   $column     The column name (field_data).
+ * @param array                    $attributes The column attributes.
+ * @param Exports_Reports_Admin_UI $obj        The admin UI.
+ *
+ * @return string JSON: the list of fields, empty when none was posted.
  */
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
 	// Exports_Reports_Admin_UI::save() verifies the form nonce before it calls this custom_save callback, and has unslashed the request.
@@ -981,9 +991,11 @@ function exports_reports_report_field_save( $value, $column, $attributes, $obj )
 }
 
 /**
- * @param null $field
+ * A field definition with every key set, empty strings for the ones not given.
  *
- * @return array|null
+ * @param array|null $field A field definition, possibly partial.
+ *
+ * @return array
  */
 function exports_reports_field_defaults( $field = null ) {
 	if ( ! is_array( $field ) ) {
@@ -1031,7 +1043,7 @@ function exports_reports_get_report( $report_id ) {
 
 	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
 	$report = $wpdb->get_row( $wpdb->prepare( $sql, absint( $report_id ) ) );
 
 	return empty( $report ) ? null : $report;
@@ -1050,7 +1062,7 @@ function exports_reports_get_group( $group_id ) {
 
 	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
 	$group = $wpdb->get_row( $wpdb->prepare( $sql, absint( $group_id ) ) );
 
 	return empty( $group ) ? null : $group;
@@ -1105,8 +1117,6 @@ function exports_reports_report_options( $report ) {
 
 	$options['css']      = EXPORTS_REPORTS_URL . 'assets/admin.css';
 	$options['readonly'] = true;
-
-	// $options['identifier']   = true;
 
 	$options['export']       = ( 0 === (int) $report->disable_export );
 	$options['search']       = ( strlen( (string) $report->field_data ) > 0 ? true : false );
@@ -1226,10 +1236,13 @@ function exports_reports_report_options( $report ) {
 }
 
 /**
- * @param bool      $has_full_access
- * @param bool|null $group_id
+ * The report page of a group: the reports the user may view, and the chosen one through
+ * Exports_Reports_Admin_UI.
  *
- * @return bool
+ * @param int|false $group_id        The group, or false to read it from the page slug.
+ * @param bool|null $has_full_access Whether the user has full access; null to work it out.
+ *
+ * @return bool False when there is nothing to show.
  */
 function exports_reports_view( $group_id = false, $has_full_access = null ) {
 	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the admin page slug and the chosen report; nothing is written from them.
@@ -1547,7 +1560,7 @@ function exports_reports_user_can_download_export( $filename ) {
 
 	$sql = 'SELECT `report_id` FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own table.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
 	$report_id = $wpdb->get_var( $wpdb->prepare( $sql, $filename ) );
 
 	if ( null === $report_id ) {
@@ -1561,8 +1574,10 @@ function exports_reports_user_can_download_export( $filename ) {
 }
 
 /**
- * @param $args
- * @param $obj
+ * Logs a written export file against its report (the wp_admin_ui_post_export action).
+ *
+ * @param array $args The arguments do_hook() passes, from index 1: the file name first.
+ * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
  */
 function exports_reports_log( $args, $obj ) {
 	/** @var wpdb $wpdb */ global $wpdb;
@@ -1585,8 +1600,10 @@ function exports_reports_log( $args, $obj ) {
 }
 
 /**
- * @param $args
- * @param $obj
+ * Removes the log row of a deleted export file (the wp_admin_ui_post_remove_export action).
+ *
+ * @param array $args The arguments do_hook() passes, from index 1: the file name, then whether it was removed.
+ * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
  */
 function exports_reports_delete_log( $args, $obj ) {
 	/** @var wpdb $wpdb */ global $wpdb;
@@ -1614,7 +1631,9 @@ function exports_reports_delete_log( $args, $obj ) {
 }
 
 /**
- * @return mixed
+ * Schedules the daily cleanup event, replacing the one already there.
+ *
+ * @return bool What wp_schedule_event() returns.
  */
 function exports_reports_schedule_cleanup() {
 	$schedules = _get_cron_array();
@@ -1667,9 +1686,7 @@ function exports_reports_deactivate() {
 function exports_reports_delete_dir_files( $directory ) {
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 
-	/**
-	 * @var $wp_filesystem WP_Filesystem_Base
-	 */ global $wp_filesystem;
+	/** @var WP_Filesystem_Base|null $wp_filesystem */ global $wp_filesystem;
 
 	WP_Filesystem();
 
@@ -1692,9 +1709,12 @@ function exports_reports_delete_dir_files( $directory ) {
 }
 
 /**
- * @param bool $full
+ * The daily cleanup: removes the export files older than a day and their log rows. With $full every
+ * export file and the whole log go (the Clear Now button).
  *
- * @return bool
+ * @param bool $full Whether to remove everything.
+ *
+ * @return bool Whether anything was removed; always false for a full clear.
  */
 function exports_reports_cleanup( $full = false ) {
 	/** @var wpdb $wpdb */ global $wpdb;
@@ -1722,9 +1742,7 @@ function exports_reports_cleanup( $full = false ) {
 		if ( false !== $cleanup && ! empty( $cleanup ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 
-			/**
-			 * @var $wp_filesystem WP_Filesystem_Base
-			 */ global $wp_filesystem;
+			/** @var WP_Filesystem_Base|null $wp_filesystem */ global $wp_filesystem;
 
 			WP_Filesystem();
 
@@ -1755,9 +1773,11 @@ function exports_reports_cleanup( $full = false ) {
 }
 
 /**
- * @param $caps
+ * Adds the plugin's capabilities to the list the Members plugin manages (members_get_capabilities).
  *
- * @return array
+ * @param string[] $caps The capabilities Members knows.
+ *
+ * @return string[]
  */
 function exports_reports_get_capabilities( $caps ) {
 	$caps = array_merge( $caps, exports_reports_capabilities() );
@@ -1766,7 +1786,9 @@ function exports_reports_get_capabilities( $caps ) {
 }
 
 /**
- * @return array
+ * The capabilities the plugin registers, filtered.
+ *
+ * @return string[]
  */
 function exports_reports_capabilities() {
 	$caps = array(
@@ -1788,7 +1810,9 @@ function exports_reports_capabilities() {
 }
 
 /**
- * @param $caps
+ * Whether the current user has any of the capabilities, or full access.
+ *
+ * @param string|string[] $caps One capability or several.
  *
  * @return bool
  */
@@ -1813,9 +1837,11 @@ function exports_reports_current_user_can_any( $caps ) {
 }
 
 /**
- * @param $caps
+ * The first of the capabilities the current user has.
  *
- * @return bool
+ * @param string[] $caps The capabilities, in order of preference.
+ *
+ * @return string|false The capability, or false when the user has none of them.
  */
 function exports_reports_current_user_can_which( $caps ) {
 	if ( ! is_user_logged_in() ) {
@@ -1834,14 +1860,18 @@ function exports_reports_current_user_can_which( $caps ) {
 }
 
 /**
- * @return mixed
+ * The site's roles.
+ *
+ * @return string[] Role names by slug.
  */
 function exports_reports_get_roles() {
 	return wp_roles()->get_names();
 }
 
 /**
- * @param $role
+ * Whether the current user has a role.
+ *
+ * @param string $role The role slug.
  *
  * @return bool
  */

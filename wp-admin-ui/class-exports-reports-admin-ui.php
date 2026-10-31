@@ -1,21 +1,12 @@
 <?php
 /**
- * Admin UI class for WordPress plugins
- *
- * NOTE: If you are including this class code in a plugin,
- * consider renaming the class to avoid conflicts with other plugins.
- * This is not required, but some developers may include the class
- * the wrong way which could cause an issue with your including the
- * class file.
- *
- * @param mixed $options
+ * The admin UI of Exports and Reports: the manage, edit and reorder screens of the groups and the
+ * reports, the report page with its filters and pagination, and the exports. Grown from the Admin UI
+ * class for WordPress plugins (1.11.7) by Scott Kingsley Clark.
  *
  * @link    https://www.scottkclark.com/
- *
  * @author  Scott Kingsley Clark
- * @package Admin UI for Plugins
- *
- * @version 1.11.7
+ * @package Exports_And_Reports
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -36,9 +27,8 @@ if ( ! is_object( $wpdb ) ) {
 /**
  * Class Exports_Reports_Admin_UI
  *
- * Creates a UI for any plugin screens within WordPress
- *
- * @param mixed $options
+ * One instance per screen: the options name the table, the columns and what the screen allows, and the
+ * instance renders the list, the form and the exports for it.
  */
 class Exports_Reports_Admin_UI {
 
@@ -248,7 +238,7 @@ class Exports_Reports_Admin_UI {
 	 */
 	public function get_var( $index, $default = false, $allowed = false, $array = false ) {
 		if ( ! is_array( $array ) ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- a read accessor; save(), reorder() and the delete action verify their nonces before anything is written.
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- a read accessor; save(), reorder() and the delete action verify their nonces before anything is written.
 			$array = ( 'post' === $array ) ? $_POST : $_GET;
 		}
 		if ( false !== $allowed && ! is_array( $allowed ) ) {
@@ -325,20 +315,12 @@ class Exports_Reports_Admin_UI {
 		}
 	}
 
-	/*
-	// Example code for use with $this->do_hook
-	function my_filter_function ($args,$obj)
-	{
-		$obj[0]->item = 'Post';
-		$obj[0]->add = true;
-		// args are an array (0=>$arg1,1=>$arg2)
-		// may have more than one arg, dependant on filter
-		return $args;
-	}
-	add_filter('wp_admin_ui_post_init','my_filter_function',10,2);
-	// OR
-	add_action('wp_admin_ui_post_init','my_filter_function',10,2);
-	*/
+	/**
+	 * Runs the wp_admin_ui_<name> filter: do_hook( 'name', ...$args ). The callbacks receive the
+	 * arguments as an array (from index 1) and, second, an array of this instance and the hook name.
+	 *
+	 * @return mixed The first argument as the callbacks left it, or false when there is none.
+	 */
 	public function do_hook() {
 		$args = func_get_args();
 		if ( empty( $args ) ) {
@@ -467,7 +449,6 @@ class Exports_Reports_Admin_UI {
 	 * @return bool
 	 */
 	public function verify_export_request() {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- this is the verification.
 		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
 		return '' !== $nonce && false !== wp_verify_nonce( $nonce, 'wp-admin-ui-export-request' );
@@ -673,7 +654,7 @@ class Exports_Reports_Admin_UI {
 		// type = number (data validation as int float)
 		// type = decimal (data validation as decimal)
 		// type = password (single line password box)
-		// type = bool (single line password box)
+		// type = bool (checkbox)
 		// type = related (select box)
 		// related = table to relate to (if type=related) OR custom array of (key=>label or comma separated values) items
 		// related_field = field name on table to show (if type=related) - default "name"
@@ -1192,7 +1173,7 @@ class Exports_Reports_Admin_UI {
 					<td>
 					<?php
 					if ( false !== $attributes['custom_view'] && is_callable( $attributes['custom_view'] ) ) {
-						// phpcs:ignore
+						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a custom_view callback returns its own HTML.
 						echo call_user_func_array(
 							$attributes['custom_view'],
 							array(
@@ -1304,7 +1285,7 @@ class Exports_Reports_Admin_UI {
 		if ( 1 === $create ) {
 			$action = 'created';
 		}
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- each column is sanitised below by its type.
+		// Each column is sanitised below by its type.
 		$posted     = wp_unslash( $_POST );
 		$column_sql = array();
 		$values     = array();
@@ -1375,9 +1356,9 @@ class Exports_Reports_Admin_UI {
 			$this->insert_id = $this->id;
 			$values[]        = $this->id;
 			// phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column_sql is sanitized column names with placeholders; the values go through prepare().
-			$check           = $wpdb->query( $wpdb->prepare( "UPDATE $this->table SET $column_sql WHERE id=%d", $values ) );
+			$check = $wpdb->query( $wpdb->prepare( "UPDATE $this->table SET $column_sql WHERE id=%d", $values ) );
 		} else {
-			// phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $column_sql is sanitized column names with placeholders; the values go through prepare().
+			// phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $column_sql is sanitized column names with placeholders; the values go through prepare().
 			$check = $wpdb->query( $wpdb->prepare( "INSERT INTO $this->table SET $column_sql", $values ) );
 		}
 		if ( $check ) {
@@ -1570,7 +1551,7 @@ class Exports_Reports_Admin_UI {
 			return false;
 		}
 		if ( ! WP_Filesystem( $credentials, ABSPATH ) ) {
-			request_filesystem_credentials( $url, '', true, ABSPATH ); // Failed to connect, Error and request again
+			request_filesystem_credentials( $url, '', true, ABSPATH ); // The connection failed: ask for the credentials again.
 			$this->error( '<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site.' );
 
 			return false;
@@ -1594,7 +1575,7 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['export'], $this );
 		}
 		if ( empty( $this->full_data ) ) {
-			// Delimited exports read their rows in export_sv(); the other formats load the result as before.
+			// Delimited exports read their rows in export_sv(); the other formats load the whole result here.
 			$this->stream_sql    = '';
 			$this->stream_export = in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) && $this->can_stream_export();
 			$data                = $this->get_data( true );
@@ -1695,8 +1676,7 @@ class Exports_Reports_Admin_UI {
 					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
-			// phpcs:ignore
-			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
+			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . urlencode( $export_file ) ) . '");</script>';
 		} elseif ( 'xlsx' === $this->export_type ) {
 			$writer = new ExportsReports__Prefixed__XLSXWriter();
 
@@ -1765,8 +1745,7 @@ class Exports_Reports_Admin_UI {
 					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
-			// phpcs:ignore
-			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
+			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . urlencode( $export_file ) ) . '");</script>';
 		} elseif ( 'json' === $this->export_type ) {
 			$export_file          = $this->export_file_name( $this->export_type );
 			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
@@ -1808,8 +1787,7 @@ class Exports_Reports_Admin_UI {
 					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
-			// phpcs:ignore
-			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
+			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . urlencode( $export_file ) ) . '");</script>';
 		} elseif ( 'pdf' === $this->export_type ) {
 			if ( 'tcpdf' === self::pdf_engine() ) {
 				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf-legacy.php';
@@ -1830,8 +1808,7 @@ class Exports_Reports_Admin_UI {
 					$this->export_link( array( 'remove_export' => $export_file ) )
 				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 			);
-			// phpcs:ignore
-			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
+			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . urlencode( $export_file ) ) . '");</script>';
 		} else {
 			$this->error( '<strong>Error:</strong> Invalid export type.' );
 
@@ -1966,9 +1943,9 @@ class Exports_Reports_Admin_UI {
 		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		$fp                   = fopen( $export_file_location, 'a+' );
-		$head                 = array();
-		$stream               = null;
+		$fp     = fopen( $export_file_location, 'a+' );
+		$head   = array();
+		$stream = null;
 
 		/**
 		 * Filters whether values a spreadsheet would evaluate as formulas are written as text.
@@ -1980,7 +1957,7 @@ class Exports_Reports_Admin_UI {
 		if ( '' !== $this->stream_sql ) {
 			// Unbuffered, on wpdb's connection: the statement may read temporary tables and session variables
 			// a filter callback created there. One row is in memory at a time.
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query, WordPress.DB.PreparedSQL.NotPrepared
+			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query -- an unbuffered result on wpdb's connection; the statement is the report's own query.
 			$stream = mysqli_query( $wpdb->dbh, $this->stream_sql, MYSQLI_USE_RESULT );
 
 			if ( ! $stream instanceof mysqli_result ) {
@@ -2025,8 +2002,7 @@ class Exports_Reports_Admin_UI {
 		}
 
 		// A UTF-8 byte order mark so spreadsheet applications read the encoding right. With the first label
-		// quoted it also keeps Excel from taking a file that starts with "ID" for SYLK, which the space the
-		// first label used to carry guarded against.
+		// quoted it also keeps Excel from taking a file that starts with "ID" for SYLK.
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
 		fwrite( $fp, "\xEF\xBB\xBF" );
 		$this->write_sv_line( $fp, $head, $export_delimiter );
@@ -2094,8 +2070,7 @@ class Exports_Reports_Admin_UI {
 				$this->export_link( array( 'remove_export' => $export_file ) )
 			) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
 		);
-		// phpcs:ignore
-		echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
+		echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . urlencode( $export_file ) ) . '");</script>';
 
 		return $export_file;
 	}
@@ -2653,7 +2628,7 @@ class Exports_Reports_Admin_UI {
 
 			if ( 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 				if ( is_array( $filter_column['related'] ) ) {
-					// already setup in key/value pairs
+					// A related array is already key => label.
 					$related_lookup = $filter_column['related'];
 				} else {
 					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -2687,8 +2662,8 @@ class Exports_Reports_Admin_UI {
 					?>
 					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
-			<?php // phpcs:ignore ?>
-			<h2><?php echo( $reorder === 0 || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
+			<?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the headings are the screen's own option strings. ?>
+			<h2><?php echo( 0 === $reorder || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
 				<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
 					<small>(<a href="
 					<?php
@@ -2704,7 +2679,7 @@ class Exports_Reports_Admin_UI {
 										">&laquo; Back to Manage</a>)</small><?php } ?></h2>
 			<?php
 			if ( isset( $this->custom['header'] ) && function_exists( "{$this->custom['header']}" ) ) {
-				// phpcs:ignore
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the custom header callback returns its own HTML.
 				echo call_user_func( $this->custom['header'], $this );
 			}
 			if ( empty( $this->data ) ) {
@@ -3176,8 +3151,7 @@ class Exports_Reports_Admin_UI {
 										<td class="post-title page-title column-title<?php echo( 1 === $reorder && $this->reorder ? ' dragme' : '' ); ?>">
 										<strong>
 											<?php
-											// This value is already cleaned up prior to this. Custom display will always allow for custom output.
-											// phpcs:ignore
+											// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_kses_post() above, or the HTML a custom_display callback returns.
 											echo $row[ $column ];
 											?>
 										</strong>
@@ -3256,12 +3230,10 @@ class Exports_Reports_Admin_UI {
 										<div class="row-actions">
 											<?php
 											if ( isset( $this->custom['actions_start'] ) && function_exists( "{$this->custom['actions_start']}" ) ) {
-												// phpcs:ignore
 												call_user_func( $this->custom['actions_start'], $this, $row );
 											}
 											echo wp_kses_post( implode( ' | ', $actions ) );
 											if ( isset( $this->custom['actions_end'] ) && function_exists( "{$this->custom['actions_end']}" ) ) {
-												// phpcs:ignore
 												call_user_func( $this->custom['actions_end'], $this, $row );
 											}
 											?>
@@ -3321,7 +3293,7 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 				?>
-				<?php if ( 0 < count( $this->sum_data ) && ceil( $this->total / $this->limit ) === $this->page ) { // Sum row if one given and we're on the last page ?>
+				<?php if ( 0 < count( $this->sum_data ) && ceil( $this->total / $this->limit ) === $this->page ) { // The sum row, on the last page only. ?>
 					<tr id="exports-and-reports-sums" class="iedit">
 						<?php foreach ( $columns as $column => $attributes ) { ?>
 							<td class="exports-and-reports-sum-<?php echo esc_attr( $column ); ?>">
@@ -3388,7 +3360,7 @@ class Exports_Reports_Admin_UI {
 			$singular_label = strtolower( $this->item );
 			$plural_label   = strtolower( $this->items );
 
-			// phpcs:ignore
+			// phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralSingle, WordPress.WP.I18n.NonSingularStringLiteralPlural -- the item names are the screen's own options.
 			$label_n = _n( $singular_label, $plural_label, $total_rows, 'exports-and-reports' );
 			?>
 			<span class="displaying-num"><?php echo esc_html( number_format_i18n( $total_rows ) . ' ' . $label_n ); ?></span>
@@ -3481,7 +3453,7 @@ class Exports_Reports_Admin_UI {
 			$helper = trim( $helper );
 		}
 		$value = $this->row[ $name ];
-		// Use helper if necessary.
+		// A helper named after the comma ({@field,helper}) formats the value.
 		if ( '' !== $helper && $this->is_allowed_callback( $helper ) ) {
 			$value = $helper( $value, $name, $this->row );
 		}

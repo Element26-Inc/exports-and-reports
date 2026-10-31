@@ -237,7 +237,6 @@ function exports_reports_rest_export( $request ) {
 	// A large export outlives the request's defaults, and a cronjob that disconnects still gets its file.
 	set_time_limit( 6000 );
 	ignore_user_abort( true );
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- session setting for the export's connection.
 	$wpdb->query( 'SET SESSION wait_timeout = 800' );
 
 	$admin              = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
@@ -282,7 +281,7 @@ function exports_reports_rest_download( $request ) {
 
 	$sql = 'SELECT COUNT(*) FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `report_id` = %d AND `filename` = %s';
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the plugin's own export log.
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own export log.
 	$logged = (int) $wpdb->get_var( $wpdb->prepare( $sql, (int) $request['id'], $file ) );
 
 	if ( 0 === $logged || ! is_file( WP_ADMIN_UI_EXPORT_DIR . '/' . $file ) ) {

@@ -22,7 +22,7 @@ function exports_reports_uninstall_site() {
 	/** @var wpdb $wpdb */ global $wpdb;
 
 	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table, removed on uninstall.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the plugin's own table, removed on uninstall.
 		$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}exportsreports_{$suffix}`" );
 	}
 
