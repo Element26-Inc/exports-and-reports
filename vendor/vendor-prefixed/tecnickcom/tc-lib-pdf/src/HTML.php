@@ -23426,7 +23426,7 @@ abstract class HTML extends \ExportsReports\Prefixed\Com\Tecnick\Pdf\JavaScript
     }
 
     /**
-     * Parse serialized TCPDF tag data payload.
+     * Parse serialized ExportsReports__Prefixed__TCPDF tag data payload.
      *
      * Supported format: <hlen>+<hash>+<urlencoded-json>
      * where JSON decodes to: {'m': string, 'p': array}
@@ -23470,7 +23470,7 @@ abstract class HTML extends \ExportsReports\Prefixed\Com\Tecnick\Pdf\JavaScript
     }
 
     /**
-     * Check if a TCPDF HTML callback method is allowed.
+     * Check if a ExportsReports__Prefixed__TCPDF HTML callback method is allowed.
      */
     protected function isAllowedHTMLTcpdfMethod(string $method): bool
     {

@@ -33,6 +33,19 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	const HEADER_FILL  = 'rgb(230,230,230)';
 	const ZEBRA_FILL   = 'rgb(246,246,246)';
 	const FONT         = 'helvetica';
+	const MIN_COL_W    = 12.0;  // mm, no column narrower than this while the page allows.
+	const SAMPLE_ROWS  = 500;   // rows measured to size the columns without a width.
+
+	/**
+	 * The body size and the heights derived from it for the document being rendered: 8 pt as a rule,
+	 * smaller when the columns would be narrow (set at the top of render()).
+	 *
+	 * @var float
+	 */
+	protected static $body_size = self::BODY_SIZE;
+	protected static $row_h     = self::ROW_H;
+	protected static $line_step = self::LINE_STEP;
+	protected static $header_h  = self::HEADER_H;
 
 	/**
 	 * Writes the PDF of the admin UI's current report into the export directory.
@@ -86,7 +99,8 @@ class Exports_Reports_Admin_UI_Export_PDF {
 		$x0     = self::MARGIN;
 		$width  = $page['width'] - 2 * self::MARGIN;
 		$bottom = $page['height'] - self::MARGIN - self::FOOTER_H;
-		$widths = self::column_widths( $columns, $width );
+		$widths = self::column_widths( $columns, $width, $rows );
+		self::size_for( $width / max( 1, count( $columns ) ) );
 
 		// The title block (first page) and the lines a legacy content filter supplied.
 		$y = self::MARGIN;
@@ -103,12 +117,21 @@ class Exports_Reports_Admin_UI_Export_PDF {
 		}
 		$y += 2;
 
+		// The heading labels wrap onto a second line when a column is narrow; the row is as tall as it needs.
+		self::select( $pdf, 'B', self::$body_size );
+		$heading_lines = 1;
+		foreach ( $columns as $key => $column ) {
+			$columns[ $key ]['lines'] = self::wrap( $pdf, $column['label'], $widths[ $key ], 2 );
+			$heading_lines            = max( $heading_lines, count( $columns[ $key ]['lines'] ) );
+		}
+		self::$header_h = self::HEADER_H * self::$body_size / self::BODY_SIZE + ( $heading_lines - 1 ) * self::$line_step;
+
 		// Every cell is wrapped and measured in the body font first, so the page count is known before the
 		// first footer.
-		self::select( $pdf, '', self::BODY_SIZE );
+		self::select( $pdf, '', self::$body_size );
 		$heights    = array();
-		$first_page = $bottom - $y - self::HEADER_H;
-		$other_page = $bottom - self::MARGIN - self::HEADER_H;
+		$first_page = $bottom - $y - self::$header_h;
+		$other_page = $bottom - self::MARGIN - self::$header_h;
 
 		foreach ( $rows as $index => $row ) {
 			$lines = 1;
@@ -118,7 +141,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 				$lines                           = max( $lines, count( $rows[ $index ]['lines'][ $key ] ) );
 			}
 
-			$heights[ $index ] = self::ROW_H + ( $lines - 1 ) * self::LINE_STEP;
+			$heights[ $index ] = self::$row_h + ( $lines - 1 ) * self::$line_step;
 		}
 
 		$pages = 1;
@@ -137,13 +160,13 @@ class Exports_Reports_Admin_UI_Export_PDF {
 
 		$page_number = 1;
 		$y           = self::heading_row( $pdf, $columns, $widths, $x0, $y );
-		$pdf->page->addContent( self::select( $pdf, '', self::BODY_SIZE ) );
+		$pdf->page->addContent( self::select( $pdf, '', self::$body_size ) );
 		$fill = false;
 
 		foreach ( $rows as $index => $row ) {
 			$height = $heights[ $index ];
 
-			if ( $y + $height > $bottom && $y > self::MARGIN + self::HEADER_H ) {
+			if ( $y + $height > $bottom && $y > self::MARGIN + self::$header_h ) {
 				self::footer( $pdf, $page, $stamp, $page_number, $pages );
 				$page = $pdf->addPage(
 					array(
@@ -153,7 +176,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 				);
 				++$page_number;
 				$y = self::heading_row( $pdf, $columns, $widths, $x0, self::MARGIN );
-				$pdf->page->addContent( self::select( $pdf, '', self::BODY_SIZE ) );
+				$pdf->page->addContent( self::select( $pdf, '', self::$body_size ) );
 				$fill = false;
 			}
 
@@ -220,30 +243,105 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	}
 
 	/**
-	 * Column widths in mm: the definition's widths as relative weights; a column without one takes
-	 * the average weight, and the whole fills the usable width.
+	 * Column widths in mm. A column's width setting is a relative weight; a column without one is sized by
+	 * its content: the longer of its label and the 90th percentile of its values (in characters, over the
+	 * first rows), put on the scale of the columns that do have a weight, or used as the weight itself when
+	 * none has. The weights fill the usable width, and no column is narrower than MIN_COL_W when the page
+	 * allows. The TCPDF engine applies the same rule, so both engines lay a report out the same way.
 	 *
 	 * @param array $columns The columns.
 	 * @param float $width   The usable page width.
+	 * @param array $rows    The rows, for the content measure.
 	 * @return array<string, float>
 	 */
-	protected static function column_widths( $columns, $width ) {
-		$given   = array_filter( array_column( $columns, 'weight' ), static fn( $weight ) => $weight > 0 );
-		$average = array() === $given ? 1.0 : array_sum( $given ) / count( $given );
-		$weights = array();
+	protected static function column_widths( $columns, $width, $rows ) {
+		$need = self::content_needs( $columns, $rows );
 
+		$given = array_filter( array_column( $columns, 'weight' ), static fn( $weight ) => $weight > 0 );
+		$scale = 1.0;
+
+		if ( array() !== $given ) {
+			$given_need = array();
+			foreach ( $columns as $key => $column ) {
+				if ( $column['weight'] > 0 ) {
+					$given_need[] = $need[ $key ];
+				}
+			}
+			$scale = ( array_sum( $given ) / count( $given ) ) / max( 1.0, array_sum( $given_need ) / count( $given_need ) );
+		}
+
+		$weights = array();
 		foreach ( $columns as $key => $column ) {
-			$weights[ $key ] = $column['weight'] > 0 ? $column['weight'] : $average;
+			$weights[ $key ] = $column['weight'] > 0 ? $column['weight'] : $need[ $key ] * $scale;
 		}
 
 		$total  = max( 0.001, array_sum( $weights ) );
 		$widths = array();
-
 		foreach ( $weights as $key => $weight ) {
 			$widths[ $key ] = $width * $weight / $total;
 		}
 
+		// Nothing narrower than the minimum while the page allows: the shortfall comes out of the wider columns.
+		if ( count( $widths ) * self::MIN_COL_W <= $width ) {
+			for ( $pass = 0; $pass < 3; $pass++ ) {
+				$short = 0.0;
+				$wide  = 0.0;
+				foreach ( $widths as $w ) {
+					if ( $w < self::MIN_COL_W ) {
+						$short += self::MIN_COL_W - $w;
+					} else {
+						$wide += $w - self::MIN_COL_W;
+					}
+				}
+				if ( $short <= 0.001 || $wide <= 0.001 ) {
+					break;
+				}
+				foreach ( $widths as $key => $w ) {
+					$widths[ $key ] = $w < self::MIN_COL_W ? self::MIN_COL_W : $w - $short * ( $w - self::MIN_COL_W ) / $wide;
+				}
+			}
+		}
+
 		return $widths;
+	}
+
+	/**
+	 * Characters a column needs: the longer of its label (plus two) and the 90th percentile of its values'
+	 * lengths over the first SAMPLE_ROWS rows, kept between 4 and 48.
+	 *
+	 * @param array $columns The columns.
+	 * @param array $rows    The rows.
+	 * @return array<string, float>
+	 */
+	protected static function content_needs( $columns, $rows ) {
+		$need = array();
+
+		foreach ( $columns as $key => $column ) {
+			$lengths = array();
+			foreach ( array_slice( $rows, 0, self::SAMPLE_ROWS ) as $row ) {
+				$lengths[] = mb_strlen( (string) $row['cells'][ $key ] );
+			}
+			sort( $lengths );
+			$p90          = array() === $lengths ? 0 : $lengths[ (int) floor( 0.9 * ( count( $lengths ) - 1 ) ) ];
+			$need[ $key ] = (float) min( 48, max( 4, mb_strlen( $column['label'] ) + 2, $p90 ) );
+		}
+
+		return $need;
+	}
+
+	/**
+	 * The body size for the average column width: 8 pt as a rule, 7 pt under 22 mm, 6.5 pt under 16 mm; the
+	 * row and line heights follow.
+	 *
+	 * @param float $average_width mm.
+	 */
+	protected static function size_for( $average_width ) {
+		$size = $average_width < 16 ? 6.5 : ( $average_width < 22 ? 7.0 : self::BODY_SIZE );
+
+		self::$body_size = $size;
+		self::$row_h     = self::ROW_H * $size / self::BODY_SIZE;
+		self::$line_step = self::LINE_STEP * $size / self::BODY_SIZE;
+		self::$header_h  = self::HEADER_H * $size / self::BODY_SIZE;
 	}
 
 	/**
@@ -373,15 +471,16 @@ class Exports_Reports_Admin_UI_Export_PDF {
 			),
 		);
 
-		$pdf->page->addContent( self::select( $pdf, 'B', self::BODY_SIZE ) );
+		$pdf->page->addContent( self::select( $pdf, 'B', self::$body_size ) );
 		$x = $x0;
 
 		foreach ( $columns as $key => $column ) {
-			$pdf->page->addContent( self::cell( $pdf, $column['label'], $x, $y, $widths[ $key ], self::HEADER_H, 'C', $style ) );
+			$lines = isset( $column['lines'] ) ? $column['lines'] : self::wrap( $pdf, $column['label'], $widths[ $key ], 2 );
+			$pdf->page->addContent( self::wrapped_cell( $pdf, $lines, $x, $y, $widths[ $key ], self::$header_h, 'C', $style ) );
 			$x += $widths[ $key ];
 		}
 
-		return $y + self::HEADER_H;
+		return $y + self::$header_h;
 	}
 
 	/**
@@ -481,10 +580,13 @@ class Exports_Reports_Admin_UI_Export_PDF {
 			return $out . $pdf->getTextCell( $lines[0], $x, $y, $w, $h, 0, 0, 'C', $halign, null, array(), drawcell: false );
 		}
 
-		$top = $y + ( self::ROW_H - self::LINE_STEP ) / 2;
+		// The lines sit in the middle of the cell: a two-line heading in a taller heading row, wrapped rows from
+		// the first line down.
+		$block = count( $lines ) * self::$line_step;
+		$top   = $y + max( ( self::$row_h - self::$line_step ) / 2, ( $h - $block ) / 2 );
 
 		foreach ( $lines as $index => $line ) {
-			$out .= $pdf->getTextCell( $line, $x, $top + $index * self::LINE_STEP, $w, self::LINE_STEP, 0, 0, 'C', $halign, null, array(), drawcell: false );
+			$out .= $pdf->getTextCell( $line, $x, $top + $index * self::$line_step, $w, self::$line_step, 0, 0, 'C', $halign, null, array(), drawcell: false );
 		}
 
 		return $out;

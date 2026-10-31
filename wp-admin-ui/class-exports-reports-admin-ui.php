@@ -1421,12 +1421,15 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * Whether this PHP can run the PDF export: the PDF library needs 8.2, the rest of the plugin runs on 7.4.
+	 * The PDF engine: tc-lib-pdf on PHP 8.2 and later, TCPDF below that (tc-lib-pdf's floor is 8.2). The
+	 * wp_admin_ui_export_pdf_engine filter may choose 'tcpdf' on a newer PHP; it cannot choose tc-lib-pdf on an older one.
 	 *
-	 * @return bool
+	 * @return string 'tc-lib-pdf' or 'tcpdf'.
 	 */
-	public static function pdf_export_available() {
-		return PHP_VERSION_ID >= 80200;
+	public static function pdf_engine() {
+		$engine = apply_filters( 'wp_admin_ui_export_pdf_engine', PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' );
+
+		return ( 'tcpdf' === $engine || PHP_VERSION_ID < 80200 ) ? 'tcpdf' : 'tc-lib-pdf';
 	}
 
 	public function export() {
@@ -1687,17 +1690,18 @@ class Exports_Reports_Admin_UI {
 			// phpcs:ignore
 			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 		} elseif ( 'pdf' === $this->export_type ) {
-			if ( ! self::pdf_export_available() ) {
-				$this->error( '<strong>Error:</strong> PDF exports need PHP 8.2 or later (this server runs ' . esc_html( PHP_VERSION ) . '); the other export formats work.' );
-
-				return false;
+			if ( 'tcpdf' === self::pdf_engine() ) {
+				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf-legacy.php';
+				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF_Legacy';
+			} else {
+				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
+				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF';
 			}
-			require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
 
 			$export_file = apply_filters( 'wp_admin_ui_export_pdf_report_file', null, $this );
 
 			if ( ! $export_file ) {
-				$export_file = Exports_Reports_Admin_UI_Export_PDF::CreateReport( $this );
+				$export_file = $pdf_class::CreateReport( $this );
 			}
 
 			$this->message(
@@ -2801,9 +2805,6 @@ class Exports_Reports_Admin_UI {
 									)
 								),
 							);
-							if ( ! self::pdf_export_available() ) {
-								unset( $export_format_links['PDF'] );
-							}
 							?>
 							<strong>Export:</strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>

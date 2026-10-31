@@ -1,5 +1,5 @@
-# Analysis below PHP 8.2, down to the plugin's floor of 7.4: the PDF export class and the prefixed PDF
-# library are written for 8.2 and are the only files the plugin loads there, so they are left out.
+# Analysis below PHP 8.2, down to the plugin's floor of 7.4: the tc-lib-pdf export class and that library
+# are written for 8.2 and are never loaded there (TCPDF serves instead), so they are left out.
 includes:
 	- phpstan.neon
 parameters:
@@ -7,5 +7,6 @@ parameters:
 	scanDirectories!:
 		- wp-admin-ui
 		- vendor/vendor-prefixed/mk-j
+		- vendor/vendor-prefixed/tecnickcom/tcpdf
 	excludePaths:
 		- wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php

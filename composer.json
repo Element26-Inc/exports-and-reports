@@ -3,28 +3,20 @@
   "type": "wordpress-plugin",
   "description": "Define custom exports / reports for users, based off of any custom MySQL SELECT query you define.",
   "license": "GPL-2.0-or-later",
-  "repositories": [
-    {
-      "name": "the-events-calendar/coding-standards",
-      "type": "github",
-      "url": "https://github.com/the-events-calendar/coding-standards",
-      "no-api": true
-    }
-  ],
   "require": {
-    "composer/installers": "2.2.*",
+    "composer/installers": "^2.2",
     "mk-j/php_xlsxwriter": "^0.39",
     "php": ">=7.4",
-    "tecnickcom/tc-lib-pdf": "^8.82"
+    "tecnickcom/tc-lib-pdf": "^8.82",
+    "tecnickcom/tcpdf": "^6.11.4"
   },
   "require-dev": {
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0.0",
-    "phpcompatibility/phpcompatibility-wp": "*",
+    "phpcompatibility/phpcompatibility-wp": "^2.1",
     "phpstan/extension-installer": "^1.4",
     "phpstan/phpstan": "^2.0",
     "phpstan/phpstan-deprecation-rules": "^2.0",
     "szepeviktor/phpstan-wordpress": "^2.0",
-    "the-events-calendar/coding-standards": "dev-main",
     "wp-cli/wp-cli": "2.*",
     "wp-coding-standards/wpcs": "^3.0.1"
   },
@@ -56,10 +48,15 @@
       "function_prefix": "exportreports_prefixed_",
       "packages": [
         "mk-j/php_xlsxwriter",
-        "tecnickcom/tc-lib-pdf"
+        "tecnickcom/tc-lib-pdf",
+        "tecnickcom/tcpdf"
       ],
       "exclude_from_prefix": {
-        "file_patterns": []
+        "file_patterns": [
+          "/tcpdf\\/include\\/barcodes\\//",
+          "/tcpdf\\/tcpdf_autoconfig\\.php$/",
+          "/tcpdf\\/config\\//"
+        ]
       },
       "exclude_from_copy": {
         "file_patterns": [
@@ -68,7 +65,10 @@
           "/example(-cli)?\\.php$/",
           "/README\\.md$/",
           "/composer\\.(json|lock)$/",
-          "/\\.gitignore$/"
+          "/\\.gitignore$/",
+          "/tcpdf\\/fonts\\/(?!(?:helvetica|courier|times|symbol|zapfdingbats)[a-z]*\\.php$)/",
+          "/tcpdf\\/tools\\//",
+          "/tcpdf\\/include\\/barcodes\\//"
         ]
       },
       "delete_vendor_files": true
@@ -84,6 +84,9 @@
     "platform": {
       "php": "8.2"
     },
-    "platform-check": false
+    "platform-check": false,
+    "github-protocols": [
+      "https"
+    ]
   }
 }

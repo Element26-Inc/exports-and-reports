@@ -715,7 +715,7 @@ use ExportsReports\Prefixed\Com\Tecnick\Unicode\Convert as ObjUniConvert;
 abstract class Base
 {
     /**
-     * TCPDF version.
+     * ExportsReports__Prefixed__TCPDF version.
      */
     protected string $version = '8.82.2';
 
