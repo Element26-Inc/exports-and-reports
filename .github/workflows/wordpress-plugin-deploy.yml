@@ -5,6 +5,8 @@ on:
 jobs:
   tag:
     name: New tag
+    # wordpress.org receives the plugin from its own repository only; a fork sets the WPORG_DEPLOY variable to opt in.
+    if: github.repository == 'sc0ttkclark/exports-and-reports' || vars.WPORG_DEPLOY == 'true'
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout the code
