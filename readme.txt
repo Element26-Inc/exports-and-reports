@@ -15,7 +15,9 @@ Define custom exports / reports for users, based off of any custom MySQL SELECT 
 
 Define custom exports / reports for users, based off of any MySQL SELECT query you create. This plugin interacts with your SELECT query and does all the hard work for you: exporting, pagination, ordering, searching/filtering, and display formatting for you.
 
-All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XML, JSON, and custom delimiter separated formats.
+All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XLSX, XML, JSON, PDF and custom delimiter separated formats, from the admin screens or through the REST API with a token, for cronjobs.
+
+Requires PHP 8.2 (the PDF library's floor) and WordPress 6.0 or later.
 
 Please submit bug reports or contribute your own enhancements/fixes on [GitHub](https://github.com/sc0ttkclark/exports-and-reports).
 
@@ -43,12 +45,12 @@ or define WP_ADMIN_UI_EXPORT_DIR in wp-config.php with a writable directory outs
 
 == Installation ==
 
-1. Unpack the entire contents of this plugin zip file into your `wp-content/plugins/` folder locally
-1. Upload to your site
-1. Navigate to `wp-admin/plugins.php` on your site (your WP plugin page)
+1. Download the plugin zip from the [GitHub releases](https://github.com/sc0ttkclark/exports-and-reports/releases) (the plugin is not listed on wordpress.org at the moment)
+1. Upload it through Plugins >> Add New >> Upload Plugin, or unpack it into your `wp-content/plugins/` folder
 1. Activate this plugin
+1. Create your Groups and Reports under Reports Admin; the Settings page shows the export directory and the API URLs
 
-OR you can just install it with WordPress by going to Plugins >> Add New >> and type this plugin's name
+The plugin's bundled libraries (`vendor/`) are part of the zip and of the repository, so a checkout works without Composer.
 
 == Features ==
 
@@ -58,6 +60,8 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 * Limit which User Roles have access to a Group or Report
 * Ability to clear entire export directory (based on logged export files)
 * Daily Export Cleanup via wp_cron
+* The export directory is not served by the web server; downloads go through the plugin after an access check
+* Deletes its tables, options and export files on uninstall
 * WP Admin UI - A class for plugins to manage data using the WordPress UI appearance
 
 = Reporting =
@@ -73,7 +77,7 @@ OR you can just install it with WordPress by going to Plugins >> Add New >> and 
 * XLSX - Excel format, using [PHP_XLSXWriter](https://github.com/mk-j/PHP_XLSXWriter)
 * XML - XML 1.0 UTF-8 data
 * JSON - JSON format
-* PDF - PDF printer friendly views, using [TCPDF](https://tcpdf.org/)
+* PDF - PDF printer friendly views, using [tc-lib-pdf](https://github.com/tecnickcom/tc-lib-pdf)
 * Custom - Custom delimiter separated Values (Update the report screen URL parameters to `&action=export&export_type=custom&export_delimiter=#` and change # to whatever delimiter you want)
 
 = REST API / Cronjob =
