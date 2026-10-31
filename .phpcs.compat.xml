@@ -2,6 +2,8 @@
 <ruleset name="PHP Compatibility">
 	<config name="testVersion" value="7.2-"/>
 
+	<!-- The PDF export class runs on PHP 8.2 and later only (the library's floor); .phpcs.compat-pdf.xml checks it. -->
+	<exclude-pattern>*/includes/class-exports-reports-admin-ui-export-pdf\.php$</exclude-pattern>
 	<exclude-pattern>*/\.github/*</exclude-pattern>
 	<exclude-pattern>*/\.wordpress-org/*</exclude-pattern>
 	<exclude-pattern>*/tests/*</exclude-pattern>

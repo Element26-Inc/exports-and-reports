@@ -1412,6 +1412,18 @@ class Exports_Reports_Admin_UI {
 		return $value;
 	}
 
+	/**
+	 * The PDF engine: tc-lib-pdf on PHP 8.2 and later, TCPDF below that (tc-lib-pdf's floor is 8.2). The
+	 * wp_admin_ui_export_pdf_engine filter may choose 'tcpdf' on a newer PHP; it cannot choose tc-lib-pdf on an older one.
+	 *
+	 * @return string 'tc-lib-pdf' or 'tcpdf'.
+	 */
+	public static function pdf_engine() {
+		$engine = apply_filters( 'wp_admin_ui_export_pdf_engine', PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' );
+
+		return ( 'tcpdf' === $engine || PHP_VERSION_ID < 80200 ) ? 'tcpdf' : 'tc-lib-pdf';
+	}
+
 	public function export() {
 		$this->do_hook( 'pre_export' );
 		require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -1676,12 +1688,18 @@ class Exports_Reports_Admin_UI {
 			// phpcs:ignore
 			echo '<script type="text/javascript">window.open("' . $this->export_url . urlencode( $export_file ) . '");</script>';
 		} elseif ( 'pdf' === $this->export_type ) {
-			require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
+			if ( 'tcpdf' === self::pdf_engine() ) {
+				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf-legacy.php';
+				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF_Legacy';
+			} else {
+				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
+				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF';
+			}
 
 			$export_file = apply_filters( 'wp_admin_ui_export_pdf_report_file', null, $this );
 
 			if ( ! $export_file ) {
-				$export_file = Exports_Reports_Admin_UI_Export_PDF::CreateReport( $this );
+				$export_file = $pdf_class::CreateReport( $this );
 			}
 
 			$this->message(

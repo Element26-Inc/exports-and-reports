@@ -391,6 +391,39 @@ er_report(
 	var_export( $er_utf_file, true ) . ', nothing left: ' . $er_blank_admin->export_file_name( 'csv' )
 );
 
+// --- PDF export: a file the viewer can open, with the pages the rows need; both engines where the PHP allows ---
+$er_pdf_engines = PHP_VERSION_ID >= 80200 ? array( 'tc-lib-pdf', 'tcpdf' ) : array( 'tcpdf' );
+foreach ( $er_pdf_engines as $er_pdf_engine ) {
+	$er_force_engine = static function () use ( $er_pdf_engine ) {
+		return $er_pdf_engine;
+	};
+	add_filter( 'wp_admin_ui_export_pdf_engine', $er_force_engine );
+	$er_pdf_admin              = er_admin( "SELECT id, channel, title, revenue FROM `{$er_table}` ORDER BY id", 'PDF export' );
+	$er_pdf_admin->action      = 'export';
+	$er_pdf_admin->export_type = 'pdf';
+	ob_start();
+	$er_pdf_admin->export();
+	ob_end_clean();
+	remove_filter( 'wp_admin_ui_export_pdf_engine', $er_force_engine );
+	$er_pdf_file  = (string) $er_pdf_admin->exported_file;
+	$er_pdf       = '' === $er_pdf_file ? '' : (string) file_get_contents( WP_ADMIN_UI_EXPORT_DIR . '/' . $er_pdf_file ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	$er_pdf_pages = preg_match_all( '#/Type\s*/Page[^s]#', $er_pdf );
+	// The producer string (UTF-16BE) names the library: TCPDF 6 is the TCPDF engine, "TCPDF 8" is tc-lib-pdf.
+	$er_pdf_major = preg_match( '/T\x00C\x00P\x00D\x00F\x00 \x00(\d)/', $er_pdf, $er_pdf_producer ) ? (int) $er_pdf_producer[1] : 0; // PCRE escapes: a NUL byte in the pattern itself is refused below PHP 8.2.
+	$er_pdf_want  = 'tcpdf' === $er_pdf_engine ? 6 : 8;
+	$er_pdf_ok    = '.pdf' === substr( $er_pdf_file, -4 ) && '%PDF-' === substr( $er_pdf, 0, 5 ) && false !== strpos( $er_pdf, '%%EOF' ) && 2 <= $er_pdf_pages && $er_pdf_want === $er_pdf_major;
+	er_report(
+		'PDF export (' . $er_pdf_engine . ')',
+		$er_pdf_ok,
+		'' === $er_pdf_file ? 'no file' : $er_pdf_file . ', ' . strlen( $er_pdf ) . ' bytes, ' . $er_pdf_pages . ' pages, producer major ' . $er_pdf_major
+	);
+}
+er_report(
+	'the default PDF engine follows the PHP version',
+	( PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' ) === Exports_Reports_Admin_UI::pdf_engine(),
+	Exports_Reports_Admin_UI::pdf_engine() . ' on PHP ' . PHP_VERSION
+);
+
 // --- the export directory refuses direct requests, and the download function serves only exports ---
 $er_guards = file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) && file_exists( WP_ADMIN_UI_EXPORT_DIR . '/index.php' );
 er_report( 'export directory carries .htaccess and index.php after an export', $er_guards, $er_guards ? 'both present' : 'missing' );

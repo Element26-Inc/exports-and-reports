@@ -2,6 +2,9 @@ includes:
   - phpstan-baseline.neon
 parameters:
   level: 5
+  # The PDF export class is written for PHP 8.2 (named arguments, the library's floor); the rest of the
+  # plugin runs on 7.2, which phpstan-legacy.neon analyses with the class left out.
+  phpVersion: 80200
   paths:
     - wp-admin-ui
     - includes
@@ -15,3 +18,10 @@ parameters:
   # The baseline is written for the whole tree; the workflow analyses only the changed files of a
   # pull request, so entries for the other files are expected to go unmatched.
   reportUnmatchedIgnoredErrors: false
+  ignoreErrors:
+    # TCPDF is deprecated by its author; it stays, on purpose, as the PDF engine below PHP 8.2.
+    - identifiers:
+        - class.extendsDeprecatedClass
+        - method.deprecatedClass
+        - property.deprecatedClass
+      path: wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf-legacy.php
