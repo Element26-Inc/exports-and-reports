@@ -3157,6 +3157,105 @@ namespace ExportsReports\Prefixed {
     array (
     ),
   ),
+  'TCPDF_COLORS' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_COLORS',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_COLORS',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF_FILTERS' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_FILTERS',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_FILTERS',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF_FONT_DATA' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_FONT_DATA',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_FONT_DATA',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF_FONTS' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_FONTS',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_FONTS',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF_IMAGES' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_IMAGES',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_IMAGES',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF_STATIC' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF_STATIC',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF_STATIC',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDFBarcode' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDFBarcode',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDFBarcode',
+    'implements' => 
+    array (
+    ),
+  ),
+  'TCPDF2DBarcode' => 
+  array (
+    'type' => 'class',
+    'classname' => 'TCPDF2DBarcode',
+    'isabstract' => false,
+    'namespace' => '\\',
+    'extends' => 'ExportsReports__Prefixed__TCPDF2DBarcode',
+    'implements' => 
+    array (
+    ),
+  ),
   'Com\\Tecnick\\Barcode\\Type\\HibcPayload' => 
   array (
     'type' => 'trait',

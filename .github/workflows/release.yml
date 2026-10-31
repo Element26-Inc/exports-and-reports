@@ -73,13 +73,13 @@ jobs:
           if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file does not parse on PHP $(php -r 'echo PHP_VERSION;')"; exit 1; fi
           grep -q "^ \* Version:[[:space:]]*${{ steps.version.outputs.version }}$" exports-and-reports.php || { echo "::error::the packaged header does not declare ${{ steps.version.outputs.version }}"; exit 1; }
           grep -q "^ \* Requires PHP:[[:space:]]*7\.4$" exports-and-reports.php || { echo "::error::the packaged header does not declare Requires PHP 7.4"; exit 1; }
-          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Tcpdf" ) && class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the bundled libraries"; exit 1; }
+          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Tcpdf" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) && class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the bundled libraries"; exit 1; }
           echo "packaged tree ok: $(find . -type f | wc -l) files"
 
       # ------------------------------------------------------------------------------
       # The same tree on the plugin's PHP floor: everything parses except what the plugin only loads
-      # on 8.2 (the PDF export class and the PDF library), and the autoloaders load without the
-      # Composer platform check.
+      # on 8.2 (the tc-lib-pdf export class and that library; TCPDF serves there), and the autoloaders
+      # load without the Composer platform check.
       # ------------------------------------------------------------------------------
       - name: Configure PHP 7.4
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
@@ -92,7 +92,7 @@ jobs:
           cd build/exports-and-reports
           lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/*' -not -path './wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
           if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file the plugin loads on 7.4 does not parse there"; exit 1; fi
-          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not load on PHP 7.4"; exit 1; }
+          php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the libraries the plugin uses on PHP 7.4"; exit 1; }
           echo "packaged tree ok on PHP $(php -r 'echo PHP_VERSION;')"
 
       - name: Upload the zip as a workflow artifact
