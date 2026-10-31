@@ -2116,7 +2116,7 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( false === $this->sql ) {
 			$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
-			if ( $full || false !== $this->sql_count ) {
+			if ( $full ) {
 				$calc_found_sql = '';
 			}
 			$totals = array();
@@ -2142,9 +2142,10 @@ class Exports_Reports_Admin_UI {
 			}
 			$this->sql = "SELECT {$calc_found_sql} * FROM $this->table";
 		}
-		$sql            = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $this->sql ) . ' ';
+		$sql = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $this->sql ) . ' ';
+		// The row count of the page view; a totals query (sql_count) feeds the sum row, not the count.
 		$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
-		if ( $full || false !== $this->sql_count ) {
+		if ( $full ) {
 			$calc_found_sql = '';
 		}
 		$totals = array();

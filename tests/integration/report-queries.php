@@ -318,6 +318,20 @@ er_report(
 	'' !== $er_count_seen ? 'sum_data ' . wp_json_encode( $er_admin->sum_data ) : 'filter not called'
 );
 
+// --- the page view of a report with a totals query still counts every row, not only the page ---
+$_GET['limit'] = '2';
+$er_paged      = er_admin( "SELECT id, revenue FROM `{$er_table}` ORDER BY id", 'Paged totals', array( 'sql_count' => "SELECT SUM(revenue) AS revenue FROM `{$er_table}`" ) );
+ob_start();
+$er_paged->get_data( false );
+ob_end_clean();
+unset( $_GET['limit'] );
+$er_rows_in_table = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'paged view with a totals query counts every row',
+	2 < $er_rows_in_table && $er_rows_in_table === (int) $er_paged->total && 2 === count( $er_paged->data ) && isset( $er_paged->sum_data[0]['revenue'] ),
+	'total ' . $er_paged->total . ' of ' . $er_rows_in_table . ' rows, ' . count( $er_paged->data ) . ' on the page, sum_data ' . wp_json_encode( $er_paged->sum_data )
+);
+
 // --- a declined query: the callback returns false once it has reported why ---
 $er_decline = static function ( $args ) {
 	global $wpdb;
