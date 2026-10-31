@@ -194,6 +194,10 @@ if ( $er_mariadb ) {
 	WP_CLI::log( 'skip: EXECUTE IMMEDIATE (not MariaDB)' );
 }
 
+// --- tab-indented SQL: the placeholder removal must not depend on spaces ---
+list( , $rows, $er_error ) = er_run( "SELECT id, title\n\tFROM `{$er_table}`\n\tORDER BY id\n\tLIMIT %%LIMIT%%", 'Tabs' );
+er_report( 'tab-indented LIMIT %%LIMIT%%', '' === $er_error && count( $rows ) === $er_rows, '' !== $er_error ? $er_error : count( $rows ) . ' rows' );
+
 // --- the XLSX, XML and JSON writers: a file of each, with the labels and rows the report shows ---
 foreach ( array( 'xlsx', 'xml', 'json' ) as $er_type ) {
 	list( $er_writer ) = er_run( "SELECT id, channel, title FROM `{$er_table}` WHERE id <= 2 ORDER BY id", 'Writers' );
