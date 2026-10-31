@@ -1921,8 +1921,10 @@ class Exports_Reports_Admin_UI {
 				$column_value = trim( str_replace( array( "\r", "\n" ), ' ', (string) $item[ $key ] ) );
 
 				// A value a spreadsheet would evaluate as a formula is wrapped in a string formula, which shows the
-				// text and stays inert. Numbers are left alone: a negative amount starts with "-".
-				if ( $escape_formulas && ! is_numeric( $column_value ) && preg_match( '/^[=+\-@\t]/', $column_value ) ) {
+				// text and stays inert. The leading characters are the ones spreadsheets act on; the tab and carriage
+				// return of the usual list cannot reach this point, the trim and the line-break replacement above take
+				// them. Numbers are left alone: a negative amount starts with "-".
+				if ( $escape_formulas && '' !== $column_value && ! is_numeric( $column_value ) && false !== strpos( '=+-@', $column_value[0] ) ) {
 					$column_value = '="" & "' . str_replace( '"', '""', $column_value ) . '"';
 				}
 
