@@ -16,9 +16,12 @@
     "phpstan/extension-installer": "^1.4",
     "phpstan/phpstan": "^2.0",
     "phpstan/phpstan-deprecation-rules": "^2.0",
+    "phpunit/phpunit": "^9.6",
     "szepeviktor/phpstan-wordpress": "^2.0",
     "wp-cli/wp-cli": "2.*",
-    "wp-coding-standards/wpcs": "^3.0.1"
+    "wp-coding-standards/wpcs": "^3.0.1",
+    "wp-phpunit/wp-phpunit": "^6.9",
+    "yoast/phpunit-polyfills": "^1.1"
   },
   "minimum-stability": "stable",
   "prefer-stable": true,
@@ -36,7 +39,8 @@
     ],
     "post-update-cmd": [
       "@strauss"
-    ]
+    ],
+    "test": "phpunit"
   },
   "extra": {
     "installer-name": "exports-and-reports",

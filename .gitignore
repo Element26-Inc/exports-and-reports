@@ -53,6 +53,7 @@ tests/codeception/_support/_generated
 # Tests - local output files
 tests/codeception/_output
 /coverage/
+.phpunit.result.cache
 
 # Other files
 bin/strauss.phar
