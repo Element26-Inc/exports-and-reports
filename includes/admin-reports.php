@@ -116,7 +116,6 @@ function exports_reports_reports() {
 		'table'         => $wpdb->exports_reports_reports,
 		'columns'       => $columns,
 		'form_columns'  => $form_columns,
-		'icon'          => EXPORTS_REPORTS_URL . 'assets/images/32.png',
 		'duplicate'     => true,
 	);
 

@@ -29,7 +29,7 @@ function exports_reports_admin_menu() {
 	}
 
 	if ( $has_full_access || exports_reports_current_user_can_any( $min_cap ) || exports_reports_current_user_can_any( 'exports_reports_settings' ) ) {
-		add_menu_page( __( 'Reports Admin', 'exports-and-reports' ), __( 'Reports Admin', 'exports-and-reports' ), $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', '', EXPORTS_REPORTS_URL . 'assets/images/16.png' );
+		add_menu_page( __( 'Reports Admin', 'exports-and-reports' ), __( 'Reports Admin', 'exports-and-reports' ), $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', '', 'dashicons-media-spreadsheet' );
 		add_submenu_page( 'exports-reports-admin', __( 'Manage Groups', 'exports-and-reports' ), __( 'Manage Groups', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin', 'exports_reports_groups' );
 		add_submenu_page( 'exports-reports-admin', __( 'Manage Reports', 'exports-and-reports' ), __( 'Manage Reports', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-reports', 'exports_reports_reports' );
 		add_submenu_page( 'exports-reports-admin', __( 'Settings', 'exports-and-reports' ), __( 'Settings', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-settings', 'exports_reports_settings' );
@@ -62,7 +62,7 @@ function exports_reports_menu() {
 						$menu_page = 'exports-reports-group-' . $group->id;
 
 						if ( ! $init ) {
-							add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/images/16.png' );
+							add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', 'dashicons-chart-bar' );
 
 							$init = $menu_page;
 						}
@@ -83,7 +83,7 @@ function exports_reports_menu() {
 							$menu_page = 'exports-reports-group-' . $group->id;
 
 							if ( ! $init ) {
-								add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/images/16.png' );
+								add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', 'dashicons-chart-bar' );
 
 								$init = $menu_page;
 							}
