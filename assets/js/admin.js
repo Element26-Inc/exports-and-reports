@@ -5,36 +5,43 @@ jQuery( function ( $ ) {
 		window.location = this.value;
 	} );
 
-	// Store the original query params to test for changes later
-	const originalQueryParams = {};
-	window.location.search
-		.substr( 1 )
-		.split( '&' )
-		.forEach( function ( item ) {
-			originalQueryParams[ item.split( '=' )[ 0 ] ] =
-				item.split( '=' )[ 1 ];
+	// The query string the page was opened with, to compare the filter form against when it is submitted.
+	const originalQueryParams = new URLSearchParams( window.location.search );
+
+	// A search with changed values starts on page 1: the page field goes when any value of the form
+	// differs from the one the page was opened with, or is new and not empty.
+	$( '#posts-filter' ).on( 'submit', function () {
+		const current = {};
+
+		$( this )
+			.serializeArray()
+			.forEach( function ( field ) {
+				if ( ! current[ field.name ] ) {
+					current[ field.name ] = [];
+				}
+
+				current[ field.name ].push( field.value );
+			} );
+
+		const changed = Object.keys( current ).some( function ( name ) {
+			const original = originalQueryParams.getAll( name );
+
+			if ( 0 === original.length ) {
+				return current[ name ].some( function ( value ) {
+					return '' !== value;
+				} );
+			}
+
+			return (
+				original.length !== current[ name ].length ||
+				original.some( function ( value, index ) {
+					return value !== current[ name ][ index ];
+				} )
+			);
 		} );
 
-	// Reset the pg param on form submit if any filter value change
-	$( '#posts-filter' ).on( 'submit', function () {
-		// Loop through the form values
-		const formParams = $( this ).serializeArray();
-
-		for ( let i = 0; i < formParams.length; i++ ) {
-			const name = formParams[ i ].name;
-			const value = encodeURIComponent( formParams[ i ].value );
-
-			// Was there an original value for this key?
-			if ( originalQueryParams.hasOwnProperty( name ) ) {
-				// Original value has changed?
-				if ( originalQueryParams[ name ] !== value ) {
-					$( '#posts-filter [name=pg]' ).remove();
-				}
-			}
-			// The param wasn't originally on the URL, so any non-empty value now means a change
-			else if ( value !== '' ) {
-				$( '#posts-filter [name=pg]' ).remove();
-			}
+		if ( changed ) {
+			$( this ).find( 'input.current-page' ).remove();
 		}
 	} );
 } );
