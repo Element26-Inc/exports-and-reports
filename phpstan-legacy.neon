@@ -10,3 +10,4 @@ parameters:
 		- vendor/vendor-prefixed/tecnickcom/tcpdf
 	excludePaths:
 		- includes/exporters/class-exports-reports-admin-ui-export-pdf.php
+		- includes/templates (?)
