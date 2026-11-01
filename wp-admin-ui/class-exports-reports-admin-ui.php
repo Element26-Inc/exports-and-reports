@@ -670,22 +670,20 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * $wpdb->prepare() for a statement the plugin assembles: the identifiers come from the report definition or the
-	 * screen's options, quoted by backtick() or sanitize(), and the values take placeholders. The one place the
-	 * plugin prepares a statement it built.
+	 * A value as a SQL string literal, quoted and escaped by $wpdb->prepare(). A literal % in it stands behind
+	 * wpdb's placeholder escape until the statement runs through wpdb, as rows() and execute() do; a statement
+	 * run anywhere else takes $wpdb->remove_placeholder_escape() first.
 	 *
 	 * @since 0.9.5
 	 *
-	 * @param string $sql       The statement, with a placeholder for each value.
-	 * @param mixed  ...$values The values, one per placeholder, or one array of them.
+	 * @param string $value The value.
 	 *
 	 * @return string
 	 */
-	public function prepared( $sql, ...$values ) {
+	public function quote( $value ) {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the identifiers are the report definition's, quoted; the values are the placeholders' arguments.
-		return (string) $wpdb->prepare( $sql, ...$values );
+		return (string) $wpdb->prepare( '%s', $value );
 	}
 
 	/**
@@ -709,18 +707,19 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * Runs a statement that writes to the screen's own table (the form's INSERT, UPDATE and DELETE), prepared().
+	 * Runs a statement that writes to the screen's own table (the form's INSERT, UPDATE and DELETE), its values
+	 * quoted by quote() or cast.
 	 *
 	 * @since 0.9.5
 	 *
-	 * @param string $sql The prepared statement.
+	 * @param string $sql The statement.
 	 *
 	 * @return int|bool Rows affected, or false on error.
 	 */
 	public function execute( $sql ) {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- prepared(); the table is the screen's own.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the screen's own table; the values are quoted or cast by the caller.
 		return $wpdb->query( $sql );
 	}
 
@@ -1456,7 +1455,7 @@ class Exports_Reports_Admin_UI {
 			$id = $this->id;
 		}
 		global $wpdb;
-		$check = $this->execute( $this->prepared( "DELETE FROM $this->table WHERE `id`=%d", array( $id ) ) );
+		$check = $this->execute( "DELETE FROM $this->table WHERE `id` = " . (int) $id );
 		if ( $check ) {
 			$this->message( "<strong>Deleted:</strong> $this->item has been deleted." );
 		} else {
@@ -1481,7 +1480,6 @@ class Exports_Reports_Admin_UI {
 		// Each column is sanitised below by its type.
 		$posted     = wp_unslash( $_POST );
 		$column_sql = array();
-		$values     = array();
 		$data       = array();
 		foreach ( $this->form_columns as $column => $attributes ) {
 			if ( ! is_array( $attributes ) ) {
@@ -1540,17 +1538,22 @@ class Exports_Reports_Admin_UI {
 			if ( isset( $attributes['custom_save'] ) && false !== $attributes['custom_save'] && function_exists( "{$attributes['custom_save']}" ) ) {
 				$value = $attributes['custom_save']( $value, $column, $attributes, $this );
 			}
-			$column_sql[]    = $this->backtick( $column ) . "=$vartype";
-			$values[]        = $value;
+			if ( '%d' === $vartype ) {
+				$literal = $wpdb->prepare( '%d', $value );
+			} elseif ( '%f' === $vartype ) {
+				$literal = $wpdb->prepare( '%f', $value );
+			} else {
+				$literal = $this->quote( (string) $value );
+			}
+			$column_sql[]    = $this->backtick( $column ) . ' = ' . $literal;
 			$data[ $column ] = $value;
 		}
 		$column_sql = implode( ',', $column_sql );
 		if ( 0 === $create && $this->id > 0 ) {
 			$this->insert_id = $this->id;
-			$values[]        = $this->id;
-			$check           = $this->execute( $this->prepared( "UPDATE $this->table SET $column_sql WHERE id=%d", $values ) );
+			$check           = $this->execute( "UPDATE $this->table SET $column_sql WHERE `id` = " . (int) $this->id );
 		} else {
-			$check = $this->execute( $this->prepared( "INSERT INTO $this->table SET $column_sql", $values ) );
+			$check = $this->execute( "INSERT INTO $this->table SET $column_sql" );
 		}
 		if ( $check ) {
 			if ( 0 === $this->insert_id ) {
@@ -1635,7 +1638,7 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 				if ( empty( $column_data ) ) {
-					$limited = $this->prepared( ' WHERE ' . $this->backtick( $attributes['related_id'] ) . ' IN (' . implode( ', ', array_fill( 0, count( $selected_options ), '%s' ) ) . ')', $selected_options );
+					$limited = ' WHERE ' . $this->backtick( $attributes['related_id'] ) . ' IN (' . implode( ', ', array_map( array( $this, 'quote' ), $selected_options ) ) . ')';
 
 					$related = $this->rows( 'SELECT ' . $this->backtick( $attributes['related_id'] ) . ',' . $this->backtick( $attributes['related_field'] ) . ' FROM ' . $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . $attributes['related_sql'] : $limited ) );
 
@@ -1692,9 +1695,9 @@ class Exports_Reports_Admin_UI {
 					$table = $table['table'];
 				}
 			}
-			$sql = 'SELECT ' . implode( ',', array_map( array( $this, 'backtick' ), $what ) ) . ' FROM ' . $this->backtick( $table ) . ' WHERE ' . $this->backtick( $on ) . ' = %s';
+			$sql = 'SELECT ' . implode( ',', array_map( array( $this, 'backtick' ), $what ) ) . ' FROM ' . $this->backtick( $table ) . ' WHERE ' . $this->backtick( $on ) . ' = ' . $this->quote( (string) $is );
 
-			$results = current( $this->rows( $this->prepared( $sql, array( $is ) ), ARRAY_A ) );
+			$results = current( $this->rows( $sql, ARRAY_A ) );
 
 			if ( ! empty( $results ) ) {
 				$val = array();
@@ -2252,7 +2255,7 @@ class Exports_Reports_Admin_UI {
 			$sql = str_ireplace( '%%' . $name . '%%', $clause, $sql );
 		}
 
-		return str_replace( array( '``', '  ' ), array( '`', ' ' ), $sql );
+		return $sql;
 	}
 
 	public function get_row( $id = false ) {
@@ -2270,9 +2273,9 @@ class Exports_Reports_Admin_UI {
 		}
 		global $wpdb;
 
-		$sql = "SELECT * FROM `{$this->table}` WHERE `id` = %d";
+		$sql = "SELECT * FROM `{$this->table}` WHERE `id` = " . (int) $id;
 
-		$row = current( $this->rows( $this->prepared( $sql, array( $id ) ), ARRAY_A ) );
+		$row = current( $this->rows( $sql, ARRAY_A ) );
 
 		$row = $this->do_hook( 'get_row', $row, $id );
 		if ( ! empty( $row ) ) {
@@ -2386,7 +2389,7 @@ class Exports_Reports_Admin_UI {
 					}
 
 					$filter_field_key = str_replace( '`', '', $columnfield );
-					$like             = $this->prepared( "$columnfield LIKE %s", '%' . $wpdb->esc_like( $this->search_query ) . '%' );
+					$like             = $columnfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $this->search_query ) . '%' );
 
 					if ( false !== $attributes['group_related'] ) {
 						$having_sql[ $filter_field_key ] = $like;
@@ -2452,15 +2455,18 @@ class Exports_Reports_Admin_UI {
 					if ( array() !== $end_values ) {
 						$end = date_i18n( 'Y-m-d', strtotime( $end_values[0] ) ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
 					}
+					$from = $this->quote( $start );
+					$to   = $this->quote( $end );
+
 					if ( false !== $filter_column['date_ongoing'] ) {
 						$date_ongoing = $filter_column['date_ongoing'];
 						if ( isset( $selects[ $date_ongoing ] ) ) {
 							$date_ongoing = $selects[ $date_ongoing ];
 						}
 
-						$filter_sql = $this->prepared( "(($filterfield <= %s OR ($filterfield >= %s AND $filterfield <= %s)) AND ($date_ongoing >= %s OR ($date_ongoing >= %s AND $date_ongoing <= %s)))", $start, $start, $end, $start, $start, $end );
+						$filter_sql = "(($filterfield <= $from OR ($filterfield >= $from AND $filterfield <= $to)) AND ($date_ongoing >= $from OR ($date_ongoing >= $from AND $date_ongoing <= $to)))";
 					} else {
-						$filter_sql = $this->prepared( "($filterfield BETWEEN %s AND %s)", $start, $end );
+						$filter_sql = "($filterfield BETWEEN $from AND $to)";
 					}
 				} elseif ( array() !== $filter_values && 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 					if ( ! is_array( $filter_column['related'] ) ) {
@@ -2481,14 +2487,14 @@ class Exports_Reports_Admin_UI {
 					} else {
 						$likes = array();
 						foreach ( $filter_values as $filter_value ) {
-							$likes[] = $this->prepared( "$filterfield LIKE %s", '%' . $wpdb->esc_like( $filter_value ) . '%' );
+							$likes[] = $filterfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $filter_value ) . '%' );
 						}
 						$filter_sql = 1 === count( $likes ) ? $likes[0] : '(' . implode( ' OR ', $likes ) . ')';
 					}
 				} elseif ( 'bool' === $filter_column['type'] && array() !== $filter_values ) {
 					$filter_sql = "$filterfield = " . (int) $filter_values[0];
 				} elseif ( array() !== $filter_values ) {
-					$filter_sql = $this->prepared( "$filterfield LIKE %s", '%' . $wpdb->esc_like( $filter_values[0] ) . '%' );
+					$filter_sql = $filterfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $filter_values[0] ) . '%' );
 				}
 
 				if ( $filter_sql ) {
@@ -2527,13 +2533,28 @@ class Exports_Reports_Admin_UI {
 			$wheresql  = $this->clause_sql( $sql, 'WHERE', $other_sql );
 			$havingsql = $this->clause_sql( $sql, 'HAVING', $having_sql );
 		}
-		if ( $this->order_from_request && ( ! empty( $this->columns ) || $select_known ) && ! in_array( $this->order, array_merge( $this->column_names(), $select_names ), true ) ) {
-			// The request named a column the report does not have: the report's own order applies. A report whose
-			// columns are not known before it runs (no field definitions, a SELECT list that names fewer columns
-			// than its result) takes the name as the identifier it was sanitized to; the database checks it.
-			$this->order              = $this->order_default;
-			$this->order_dir          = $this->order_dir_default;
-			$this->order_from_request = false;
+		if ( $this->order_from_request && ( ! empty( $this->columns ) || $select_known ) ) {
+			// The request's column, lower-cased on the way in, against the report's columns as the report writes
+			// them. A report whose columns are not known before it runs (no field definitions, a SELECT list that
+			// names fewer columns than its result) takes the name as the identifier it was sanitized to; the
+			// database checks it.
+			$sort_column = false;
+
+			foreach ( array_merge( $this->column_names(), $select_names ) as $name ) {
+				if ( strtolower( $name ) === $this->order ) {
+					$sort_column = $name;
+					break;
+				}
+			}
+
+			if ( false === $sort_column ) {
+				// The request named a column the report does not have: the report's own order applies.
+				$this->order              = $this->order_default;
+				$this->order_dir          = $this->order_dir_default;
+				$this->order_from_request = false;
+			} else {
+				$this->order = $sort_column;
+			}
 		}
 		if ( false !== $this->order && ( false === $this->reorder || 'reorder' !== $this->action ) ) {
 			$ordersql = trim( ( $this->order_from_request ? $this->backtick( $this->order ) : $this->order ) . ' ' . $this->order_dir );
@@ -2587,7 +2608,8 @@ class Exports_Reports_Admin_UI {
 		 *
 		 * The callback may rewrite the statement, run preparation statements of its own on wpdb's
 		 * connection first (temporary tables, session variables the statement reads), or return
-		 * false to run nothing once it has reported why.
+		 * false to run nothing once it has reported why. A literal % in a quoted value stands behind
+		 * wpdb's placeholder escape, which wpdb removes when it runs the statement.
 		 *
 		 * @param array $args {
 		 *     @type string|false $1 The statement.
@@ -2606,7 +2628,7 @@ class Exports_Reports_Admin_UI {
 		}
 
 		if ( current_user_can( 'manage_options' ) && 1 === (int) $this->get_var( 'debug', 0 ) ) {
-			echo "<textarea cols='130' rows='30'>" . esc_textarea( $sql ) . '</textarea>';
+			echo "<textarea cols='130' rows='30'>" . esc_textarea( $wpdb->remove_placeholder_escape( $sql ) ) . '</textarea>';
 		}
 		if ( false !== $this->default_none && false === $this->search_query && false === $full && empty( $wheresql ) && empty( $havingsql ) ) {
 			return false;
@@ -2620,7 +2642,7 @@ class Exports_Reports_Admin_UI {
 
 		if ( $this->stream_export ) {
 			// export_sv() reads the result row by row.
-			$this->stream_sql = $sql;
+			$this->stream_sql = $wpdb->remove_placeholder_escape( $sql ); // mysqli runs it without wpdb, which would remove the escape.
 		} else {
 			$results = $this->rows( $sql, ARRAY_A );
 

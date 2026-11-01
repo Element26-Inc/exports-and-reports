@@ -1111,6 +1111,81 @@ er_report(
 	'unknown column: first id ' . ( isset( $er_sort_bad->data[0]['id'] ) ? $er_sort_bad->data[0]['id'] : 'none' ) . ' (report order id DESC); revenue ASC: ' . ( isset( $er_sort_ok->data[0]['revenue'] ) ? $er_sort_ok->data[0]['revenue'] . ', ' . $er_sort_ok->data[1]['revenue'] : 'none' )
 );
 
+// --- a sort column is matched whatever its case, and the ORDER BY writes it as the report does ---
+$_GET['order']     = 'Revenue';
+$_GET['order_dir'] = 'ASC';
+$er_sort_alias     = er_admin( "SELECT id, revenue AS Revenue FROM `{$er_table}`", 'Sort alias' );
+ob_start();
+$er_sort_alias->get_data( false );
+ob_end_clean();
+unset( $_GET['order'], $_GET['order_dir'] );
+er_report(
+	'a sort column is matched whatever its case',
+	isset( $er_sort_alias->data[0]['Revenue'], $er_sort_alias->data[1]['Revenue'] ) && -13.5 === (float) $er_sort_alias->data[0]['Revenue'] && (float) $er_sort_alias->data[0]['Revenue'] <= (float) $er_sort_alias->data[1]['Revenue'],
+	isset( $er_sort_alias->data[0]['Revenue'] ) ? 'Revenue ASC: ' . $er_sort_alias->data[0]['Revenue'] . ', ' . $er_sort_alias->data[1]['Revenue'] : 'no rows'
+);
+
+// --- a streamed export with a search term matches the buffered one; a column expression may contain %d ---
+$er_search_columns = array(
+	'id'    => array( 'label' => 'Id' ),
+	'title' => array(
+		'label'     => 'Title',
+		'real_name' => "CONCAT(title, '%d')",
+		'search'    => true,
+	),
+);
+$er_search_want    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$er_table}` WHERE title LIKE '%Video 1%'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+$er_search_csv     = array();
+foreach ( array(
+	'streamed' => true,
+	'buffered' => false,
+) as $er_mode => $er_stream ) {
+	$_GET                                        = array( 'search_query' => 'Video 1' );
+	list( $er_search_admin, , $er_search_error ) = er_run(
+		"SELECT id, title FROM `{$er_table}` ORDER BY id",
+		'Search export',
+		$er_stream,
+		array(
+			'search'  => true,
+			'columns' => $er_search_columns,
+		)
+	);
+	$_GET                                        = array();
+	$er_search_csv[ $er_mode ]                   = '' === $er_search_error ? er_export_contents( $er_search_admin ) : 'error: ' . $er_search_error;
+}
+$er_search_lines = explode( "\n", rtrim( $er_search_csv['buffered'], "\n" ) );
+er_report(
+	'a streamed export with a search term matches the buffered one, through a column expression with %d',
+	0 < $er_search_want && $er_search_csv['streamed'] === $er_search_csv['buffered'] && count( $er_search_lines ) === $er_search_want + 1,
+	'expected ' . $er_search_want . ' rows, buffered ' . ( count( $er_search_lines ) - 1 ) . ', streamed ' . ( count( explode( "\n", rtrim( $er_search_csv['streamed'], "\n" ) ) ) - 1 ) . ( $er_search_csv['streamed'] === $er_search_csv['buffered'] ? ', identical' : ', different: ' . substr( $er_search_csv['streamed'], 0, 80 ) )
+);
+
+// --- the export files this site logged move from wp-content/exports on upgrade; other files stay ---
+$er_legacy_dir = WP_CONTENT_DIR . '/exports';
+wp_mkdir_p( $er_legacy_dir );
+file_put_contents( $er_legacy_dir . '/legacy_move_test.csv', 'a,b' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+file_put_contents( $er_legacy_dir . '/another_site.csv', 'c,d' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+$wpdb->insert(
+	$wpdb->exports_reports_log,
+	array(
+		'report_id' => 0,
+		'filename'  => 'legacy_move_test.csv',
+		'created'   => date_i18n( 'Y-m-d H:i:s' ),
+	)
+);
+exports_reports_move_legacy_export_dir();
+$er_legacy_moved = file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/legacy_move_test.csv' ) && ! file_exists( $er_legacy_dir . '/legacy_move_test.csv' ) && file_exists( $er_legacy_dir . '/another_site.csv' );
+er_report(
+	'the export files this site logged move from wp-content/exports on upgrade; other files stay',
+	$er_legacy_moved,
+	'moved ' . var_export( file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/legacy_move_test.csv' ), true ) . ', gone from the old directory ' . var_export( ! file_exists( $er_legacy_dir . '/legacy_move_test.csv' ), true ) . ', other file kept ' . var_export( file_exists( $er_legacy_dir . '/another_site.csv' ), true )
+);
+wp_delete_file( EXPORTS_REPORTS_EXPORT_DIR . '/legacy_move_test.csv' );
+wp_delete_file( $er_legacy_dir . '/another_site.csv' );
+$wpdb->delete( $wpdb->exports_reports_log, array( 'filename' => 'legacy_move_test.csv' ) );
+exports_reports_move_legacy_export_dir(); // Nothing left: the old directory goes.
+er_report( 'the old export directory goes once nothing is left in it', ! is_dir( $er_legacy_dir ), is_dir( $er_legacy_dir ) ? 'still there' : 'removed' );
+
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 // --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---
