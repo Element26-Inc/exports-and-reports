@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fails unless every place the plugin declares its version carries the one given (a release tag,
 # with or without its leading v): the plugin header, readme.txt's stable tag, package.json, and the
-# digits-only EXPORTS_REPORTS_VERSION constant the upgrade routine compares.
+# EXPORTS_REPORTS_VERSION constant the upgrade routine compares.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,7 +14,7 @@ fi
 header="$(sed -n 's/^ \* Version:[[:space:]]*//p' exports-and-reports.php | head -n1 | tr -d '[:space:]')"
 stable="$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n1 | tr -d '[:space:]')"
 package="$(jq -r .version package.json)"
-constant="$(sed -n "s/^define( 'EXPORTS_REPORTS_VERSION', '\([0-9]*\)' );.*/\1/p" exports-and-reports.php | head -n1)"
+constant="$(sed -n "s/^define( 'EXPORTS_REPORTS_VERSION', '\([0-9.]*\)' );.*/\1/p" exports-and-reports.php | head -n1)"
 
 status=0
 check() {
@@ -28,5 +28,5 @@ check() {
 check "exports-and-reports.php Version header" "$header" "$expected"
 check "readme.txt Stable tag" "$stable" "$expected"
 check "package.json version" "$package" "$expected"
-check "EXPORTS_REPORTS_VERSION constant" "$constant" "${expected//./}"
+check "EXPORTS_REPORTS_VERSION constant" "$constant" "$expected"
 exit $status

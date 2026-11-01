@@ -1,7 +1,7 @@
 <?php
 /**
- * Removes what the plugin created: its three tables, its options, the cleanup event and the
- * export files. Define EXPORTS_REPORTS_UNINSTALL_KEEP_DATA in wp-config.php to uninstall the
+ * Removes what the plugin created: its three tables, its options, the cleanup event, its
+ * capabilities on the roles and the export files. Define EXPORTS_REPORTS_UNINSTALL_KEEP_DATA in wp-config.php to uninstall the
  * code and keep the data.
  *
  * @package Exports_And_Reports
@@ -18,7 +18,7 @@ if ( defined( 'EXPORTS_REPORTS_UNINSTALL_KEEP_DATA' ) && EXPORTS_REPORTS_UNINSTA
 }
 
 /**
- * Removes the tables, options and scheduled event of the current site.
+ * Removes the tables, options, scheduled event and role capabilities of the current site.
  */
 function exports_reports_uninstall_site() {
 	/** @var wpdb $wpdb */ global $wpdb;
@@ -32,6 +32,16 @@ function exports_reports_uninstall_site() {
 	delete_option( 'exports_reports_charset_errors' );
 
 	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
+
+	// The capabilities the plugin put on the administrator role, and any per-group or per-report
+	// capability a site gave a role.
+	foreach ( wp_roles()->role_objects as $role ) {
+		foreach ( array_keys( $role->capabilities ) as $cap ) {
+			if ( 0 === strpos( $cap, 'exports_reports_' ) ) {
+				$role->remove_cap( $cap );
+			}
+		}
+	}
 }
 
 /**

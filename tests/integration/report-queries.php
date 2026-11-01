@@ -847,9 +847,9 @@ er_report(
 	'subscriber ' . var_export( $er_dl_subscriber, true ) . ', administrator ' . var_export( $er_dl_admin, true ) . ', unknown ' . var_export( $er_dl_unknown, true ) . ', anonymous ' . var_export( $er_dl_anon, true )
 );
 er_report(
-	'administrators hold exports_reports_full_access through the capability filter, not user meta',
-	user_can( 1, 'exports_reports_full_access' ) && ! user_can( (int) $er_subscriber, 'exports_reports_full_access' ) && ! $er_full_access_meta,
-	'administrator ' . var_export( user_can( 1, 'exports_reports_full_access' ), true ) . ', subscriber ' . var_export( user_can( (int) $er_subscriber, 'exports_reports_full_access' ), true ) . ', in meta ' . var_export( $er_full_access_meta, true )
+	'administrators hold exports_reports_full_access through the administrator role, not user meta',
+	user_can( 1, 'exports_reports_full_access' ) && get_role( 'administrator' )->has_cap( 'exports_reports_full_access' ) && ! user_can( (int) $er_subscriber, 'exports_reports_full_access' ) && ! $er_full_access_meta,
+	'administrator ' . var_export( user_can( 1, 'exports_reports_full_access' ), true ) . ', on the role ' . var_export( get_role( 'administrator' )->has_cap( 'exports_reports_full_access' ), true ) . ', subscriber ' . var_export( user_can( (int) $er_subscriber, 'exports_reports_full_access' ), true ) . ', in meta ' . var_export( $er_full_access_meta, true )
 );
 
 $wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 1 ), array( 'id' => $er_report_id ) );
@@ -1189,9 +1189,9 @@ define( 'WP_UNINSTALL_PLUGIN', true );
 require EXPORTS_REPORTS_DIR . 'uninstall.php';
 $er_table_left = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $er_reports_table ) );
 er_report(
-	'uninstall removes tables, options, the cleanup event and export files',
-	null === $er_table_left && false === get_option( 'exports_reports_version' ) && false === get_option( 'exports_reports_token' ) && false === wp_next_scheduled( 'exports_reports_cleanup' ) && ! file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/leftover.csv' ),
-	'table ' . ( null === $er_table_left ? 'gone' : 'present' ) . ', version option ' . var_export( get_option( 'exports_reports_version' ), true ) . ', event ' . var_export( wp_next_scheduled( 'exports_reports_cleanup' ), true ) . ', file ' . ( file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/leftover.csv' ) ? 'present' : 'gone' )
+	'uninstall removes tables, options, the cleanup event, the role capabilities and export files',
+	null === $er_table_left && false === get_option( 'exports_reports_version' ) && false === get_option( 'exports_reports_token' ) && false === wp_next_scheduled( 'exports_reports_cleanup' ) && ! get_role( 'administrator' )->has_cap( 'exports_reports_full_access' ) && ! file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/leftover.csv' ),
+	'table ' . ( null === $er_table_left ? 'gone' : 'present' ) . ', version option ' . var_export( get_option( 'exports_reports_version' ), true ) . ', event ' . var_export( wp_next_scheduled( 'exports_reports_cleanup' ), true ) . ', role capability ' . var_export( get_role( 'administrator' )->has_cap( 'exports_reports_full_access' ), true ) . ', file ' . ( file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/leftover.csv' ) ? 'present' : 'gone' )
 );
 
 if ( $er_failed > 0 ) {
