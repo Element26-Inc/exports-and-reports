@@ -10,36 +10,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Grants exports_reports_full_access to administrators while the plugin is active, without writing it
- * to their user meta. The exports_reports_full_access filter decides who gets it.
- * Sites with the Members plugin manage the capabilities through its roles instead.
+ * Gives the administrator role the plugin's capabilities: on activation, on the upgrade to 1.0 and on a
+ * site the activation did not reach, each site of a network on its own. The role keeps them from then
+ * on, so a site may take them away again (with a roles plugin such as Members) and the plugin will not
+ * put them back until it is activated again. The current user's capabilities are refreshed so the
+ * menus show on the same request.
  *
- * @param array   $allcaps The user's capabilities.
- * @param array   $caps    The capabilities asked for.
- * @param array   $args    The arguments of the check.
- * @param WP_User $user    The user.
- *
- * @return array
+ * @since 1.0.0 Replaces the user_has_cap filter that granted administrators full access on every request.
  */
-function exports_reports_user_has_cap( $allcaps, $caps, $args, $user ) {
-	static $inside = false;
+function exports_reports_add_role_capabilities() {
+	$role = get_role( 'administrator' );
 
-	if ( $inside || function_exists( 'members_get_capabilities' ) ) {
-		return $allcaps;
+	if ( ! $role ) {
+		return;
 	}
 
-	$inside = true;
-
-	$full_access = in_array( 'administrator', (array) $user->roles, true ) ? 'exports_reports_full_access' : '';
-	$full_access = apply_filters( 'exports_reports_full_access', $full_access );
-
-	$inside = false;
-
-	if ( ! empty( $full_access ) && is_string( $full_access ) ) {
-		$allcaps[ $full_access ] = true;
+	foreach ( exports_reports_capabilities() as $cap ) {
+		if ( empty( $role->capabilities[ $cap ] ) ) {
+			$role->add_cap( $cap );
+		}
 	}
 
-	return $allcaps;
+	if ( is_user_logged_in() ) {
+		wp_get_current_user()->get_role_caps();
+	}
 }
 
 /**
@@ -175,11 +169,7 @@ function exports_reports_user_can_view_report( $report, $group ) {
 		return false;
 	}
 
-	$has_full_access = exports_reports_current_user_can_any( 'exports_reports_full_access' );
-
-	if ( is_super_admin() || ( ! $has_full_access && exports_reports_has_role( 'administrator' ) ) ) {
-		$has_full_access = true;
-	}
+	$has_full_access = is_super_admin() || exports_reports_current_user_can_any( 'exports_reports_full_access' );
 
 	if ( $has_full_access || exports_reports_current_user_can_any( 'exports_reports_view' ) || exports_reports_current_user_can_any( 'exports_reports_view_group_' . $group->id ) || exports_reports_current_user_can_any( 'exports_reports_view_report_' . $report->id ) ) {
 		return true;

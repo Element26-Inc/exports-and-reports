@@ -152,52 +152,106 @@ function exports_reports_charset_errors_notice() {
 }
 
 /**
- * On activation: installs the tables when the plugin has never run here, upgrades them otherwise.
+ * On activation: installs each site the activation covers (every site of the network when it is
+ * activated for the network) when the plugin has never run there, upgrades it otherwise.
+ *
+ * @since 1.0.0 A network activation reaches every site.
+ *
+ * @param bool $network_wide Whether the plugin is being activated for the whole network.
+ */
+function exports_reports_activate( $network_wide = false ) {
+	if ( ! $network_wide || ! is_multisite() ) {
+		exports_reports_install_upgrade();
+
+		return;
+	}
+
+	$site_ids = get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	);
+
+	foreach ( $site_ids as $site_id ) {
+		switch_to_blog( $site_id );
+		exports_reports_install_upgrade();
+		restore_current_blog();
+	}
+}
+
+/**
+ * Installs the tables when the plugin has never run on this site, upgrades them otherwise; a fresh
+ * install gives the administrator role the plugin's capabilities.
  */
 function exports_reports_install_upgrade() {
-	/** @var \wpdb $wpdb */ global $wpdb;
-
-	$version = (int) get_option( 'exports_reports_version' );
-
-	if ( empty( $version ) ) {
+	if ( '' === exports_reports_installed_version() ) {
 		exports_reports_sql_install();
-	} else {
-		exports_reports_upgrade();
+		exports_reports_add_role_capabilities();
+
+		return;
 	}
+
+	exports_reports_upgrade();
 }
 
 /**
- * Brings the tables and the stored version up to date when the plugin's version has changed; an
- * install from before 0.6 gets a new API token as well.
+ * The version of the plugin this site last ran, from the exports_reports_version option. Since 1.0.0
+ * the option holds the version itself; the versions before stored digits only (095 for 0.9.5, 60 for
+ * 0.6), which are read as the version they stood for.
+ *
+ * @since 1.0.0
+ *
+ * @return string The version, or '' when the plugin has not run on this site.
+ */
+function exports_reports_installed_version() {
+	$stored = trim( (string) get_option( 'exports_reports_version', '' ) );
+
+	if ( '' === $stored || '0' === $stored ) {
+		return '';
+	}
+
+	if ( false === strpos( $stored, '.' ) ) {
+		$digits = (int) $stored;
+		$stored = sprintf( '%d.%d.%d', (int) floor( $digits / 100 ), (int) floor( $digits / 10 ) % 10, $digits % 10 );
+	}
+
+	return $stored;
+}
+
+/**
+ * Brings the tables and the stored version up to date when the plugin's version has changed. An
+ * install from before 0.6 gets a new API token; one from before 1.0 gets the capabilities on the
+ * administrator role, which the user_has_cap filter of the earlier versions granted on each request.
  */
 function exports_reports_upgrade() {
-	/** @var \wpdb $wpdb */ global $wpdb;
+	$installed = exports_reports_installed_version();
 
-	$version = (int) get_option( 'exports_reports_version' );
+	if ( '' === $installed || 0 === version_compare( $installed, EXPORTS_REPORTS_VERSION ) ) {
+		return;
+	}
 
-	if ( ! empty( $version ) && (int) EXPORTS_REPORTS_VERSION !== $version ) {
-		$version = absint( $version );
+	if ( version_compare( $installed, '0.6.0', '<' ) ) {
+		$token = md5( microtime() . wp_generate_password( 20, true ) );
+		update_option( 'exports_reports_token', $token );
+	}
 
-		if ( $version < 60 ) {
-			$token = md5( microtime() . wp_generate_password( 20, true ) );
-			update_option( 'exports_reports_token', $token );
-		}
+	exports_reports_sql_install( true );
 
-		exports_reports_sql_install( true );
+	if ( version_compare( $installed, '1.0.0', '<' ) ) {
+		exports_reports_add_role_capabilities();
 	}
 }
 
 /**
- * On admin_init: upgrades when needed and sorts out the capabilities. With the Members plugin active,
- * the plugin's capabilities are registered with it (the way Gravity Forms does), an administrator
- * without any of them gets them all on the administrator role, and a copy of
- * exports_reports_full_access on the user itself is removed. Without Members,
- * exports_reports_user_has_cap() grants administrators full access at run time.
+ * On admin_init: installs the tables on a site the activation did not reach (a site added to a
+ * network, say) and upgrades when the plugin's version has changed. The Members plugin lists the
+ * plugin's capabilities through members_get_capabilities. The copy of exports_reports_full_access
+ * that the versions before 0.9.5 wrote into an administrator's own meta, where it would outlive the
+ * plugin, is removed; the role carries the capability now.
  */
 function exports_reports_init() {
-	exports_reports_upgrade();
-
-	$capabilities = exports_reports_capabilities();
+	exports_reports_install_upgrade();
 
 	add_filter( 'members_get_capabilities', 'exports_reports_get_capabilities' );
 
@@ -205,35 +259,10 @@ function exports_reports_init() {
 		return;
 	}
 
-	if ( function_exists( 'members_get_capabilities' ) ) {
-		if ( exports_reports_current_user_can_any( 'exports_reports_full_access' ) ) {
-			$user = get_userdata( get_current_user_id() );
+	$user = wp_get_current_user();
 
-			if ( $user instanceof WP_User ) {
-				$user->remove_cap( 'exports_reports_full_access' );
-			}
-		}
-
-		$is_admin_with_no_permissions = exports_reports_has_role( 'administrator' ) && ! exports_reports_current_user_can_any( exports_reports_capabilities() );
-
-		if ( $is_admin_with_no_permissions ) {
-			$role = get_role( 'administrator' );
-
-			if ( $role ) {
-				foreach ( $capabilities as $cap ) {
-					$role->add_cap( $cap );
-				}
-			}
-		}
-	} else {
-		// exports_reports_user_has_cap() grants administrators full access while the plugin is active.
-		// Versions before 0.9.5 wrote the capability into the user's meta instead, where it would outlive
-		// the plugin; a copy found there is removed.
-		$user = get_userdata( get_current_user_id() );
-
-		if ( $user && isset( $user->caps['exports_reports_full_access'] ) ) {
-			$user->remove_cap( 'exports_reports_full_access' );
-		}
+	if ( isset( $user->caps['exports_reports_full_access'] ) && in_array( 'administrator', (array) $user->roles, true ) ) {
+		$user->remove_cap( 'exports_reports_full_access' );
 	}
 }
 
