@@ -5,17 +5,21 @@ name: Release zip
 # immutable release takes no asset once it is published. With publish set, the run publishes the draft
 # itself; otherwise the draft waits for a look at https://github.com/Element26-Inc/exports-and-reports/releases.
 #
-#   gh workflow run release.yml --ref main -f tag=v1.0.1                   # build, attach to the draft
-#   gh workflow run release.yml --ref main -f tag=v1.0.1 -f publish=true   # and publish it
-#   gh workflow run release.yml --ref main -f tag=v0.9.5 -f ref=dec0cfc10b2e67a0fb80dda930857408c559cdb8
-#                                                                           # an older commit, by its sha or tag
+#   gh workflow run release.yml --ref main -f tag=1.0.1                   # build, attach to the draft
+#   gh workflow run release.yml --ref main -f tag=1.0.1 -f publish=true   # and publish it
+#   gh workflow run release.yml --ref main -f tag=0.9.5 -f ref=dec0cfc10b2e67a0fb80dda930857408c559cdb8
+#                                                                          # an older commit, by its sha or tag
+#
+# The run creates the tag on the commit it built when there is none. GitHub refuses the workflow's token
+# a tag on a commit whose workflow files differ from the branch the run was started on; such a tag is
+# pushed by hand first (git push origin <sha>:refs/tags/<tag>), and the run uses it.
 #
 # The release notes are the version's section of the readme's changelog, with its upgrade notice.
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'The release tag (v1.0.1); its version must be the one the plugin declares'
+        description: 'The release tag (1.0.1); its version must be the one the plugin declares'
         required: true
         type: string
       ref:
@@ -148,8 +152,11 @@ jobs:
                 echo "::error::$tag already points at $existing, not at the commit that was built ($sha)."
                 exit 1
               fi
-            else
-              git push origin "$sha:refs/tags/$tag"
+            elif ! git push origin "$sha:refs/tags/$tag"; then
+              # GitHub refuses the workflow's token a tag on a commit whose workflow files differ from the
+              # branch the run was started on ("refusing to allow a GitHub App to create or update workflow").
+              echo "::error::The workflow's token could not create the tag $tag on $sha. Push it yourself and run the workflow again with the same inputs:  git push origin $sha:refs/tags/$tag"
+              exit 1
             fi
             gh release create "$tag" --draft --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
           fi
