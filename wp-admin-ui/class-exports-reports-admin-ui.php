@@ -132,7 +132,16 @@ class Exports_Reports_Admin_UI {
 		$this->base_url   = plugins_url( 'class-exports-reports-admin-ui.php', __FILE__ );
 		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=exports_reports_export&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( 'exports-reports-export' ) . '&exports_and_reports_export=';
 		$this->assets_url = str_replace( '/class-exports-reports-admin-ui.php', '', $this->base_url ) . '/assets';
-		$id               = $this->get_var( 'id' );
+		// The options first: what the request names below (the action, the page, the sort column) stands above them.
+		if ( false !== $options && ! empty( $options ) ) {
+			if ( ! is_array( $options ) ) {
+				parse_str( $options, $options );
+			}
+			foreach ( $options as $option => $value ) {
+				$this->{$option} = $value;
+			}
+		}
+		$id = $this->get_var( 'id' );
 		if ( false !== $id ) {
 			$this->id = $id;
 		}
@@ -206,14 +215,6 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 
-		if ( false !== $options && ! empty( $options ) ) {
-			if ( ! is_array( $options ) ) {
-				parse_str( $options, $options );
-			}
-			foreach ( $options as $option => $value ) {
-				$this->{$option} = $value;
-			}
-		}
 		if ( false !== $this->readonly ) {
 			$this->add     = false;
 			$this->edit    = false;
@@ -2444,7 +2445,8 @@ class Exports_Reports_Admin_UI {
 					/**
 					 * Filters the condition a filter value adds to the query.
 					 *
-					 * @param string                   $filter_sql          The condition, values prepared.
+					 * @param string                   $filter_sql          The condition, values prepared: a literal % in a value
+					 *                                                      stands behind wpdb's placeholder escape until the query runs.
 					 * @param string                   $filter              The filter's column.
 					 * @param array                    $filter_column       The column's attributes.
 					 * @param string                   $filterfield         The column as an identifier.
