@@ -39,15 +39,15 @@ As an admin, add &debug=1 to the end of the report URL to see the query that thi
 
 = My report starts with WITH or EXECUTE IMMEDIATE and shows one page. Why? =
 
-The plugin places its paging and its row count into statements that begin with SELECT. For a statement that begins with anything else, write %%LIMIT%% where the page belongs (inside the EXECUTE IMMEDIATE string, for example) and supply the total through the `wp_admin_ui_get_data_total` filter, or add the report's own LIMIT and ORDER BY and treat it as a single page. Exports are not affected: they always write every row.
+The plugin places its paging and its row count into statements that begin with SELECT. For a statement that begins with anything else, write %%LIMIT%% where the page belongs (inside the EXECUTE IMMEDIATE string, for example) and supply the total through the `exports_reports_get_data_total` filter, or add the report's own LIMIT and ORDER BY and treat it as a single page. Exports are not affected: they always write every row.
 
 = Where do the export files go, and who can download them? =
 
-In `wp-content/uploads/exports-and-reports` by default, a folder of the uploads directory; define `WP_ADMIN_UI_EXPORT_DIR` and `WP_ADMIN_UI_EXPORT_URL` in wp-config.php to move it, for example outside the web root. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
+In `wp-content/uploads/exports-and-reports` by default, a folder of the uploads directory; define `EXPORTS_REPORTS_EXPORT_DIR` and `EXPORTS_REPORTS_EXPORT_URL` in wp-config.php to move it, for example outside the web root. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
 
 `location ~* /wp-content/uploads/exports-and-reports/ { deny all; }`
 
-or define WP_ADMIN_UI_EXPORT_DIR in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
+or define `EXPORTS_REPORTS_EXPORT_DIR` in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
 
 == Installation ==
 
@@ -107,17 +107,18 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 = 0.9.5 =
 * Security: search and filter values reach the query through `$wpdb->prepare()` with LIKE wildcards escaped, and identifiers from the report definition are quoted as identifiers; the Settings page, the reorder form and the save path verify a nonce; the report field editor sanitises its inputs; the export directory is no longer served by the web server (an .htaccess and an index.php are written, downloads go through the plugin after a nonce or token check).
 * Added a REST API (`exports-reports/v1/reports/{id}/data`, `/export`, `/exports/{file}`): the cronjob token as a bearer token or as the `token` parameter, or the logged-in user's access. The old `api.php` endpoint is removed; cronjobs use these routes (the Settings page shows the URLs).
-* Added the `wp_admin_ui_get_data_sql` and `wp_admin_ui_get_data_sql_count` filters, applied to the report query and its count query right before they run.
-* CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`wp_admin_ui_export_escape_formulas` turns that off).
+* Added the `exports_reports_get_data_sql` and `exports_reports_get_data_sql_count` filters, applied to the report query and its count query right before they run.
+* CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`exports_reports_export_escape_formulas` turns that off).
 * Tabs around the `%%LIMIT%%` placeholder are handled like newlines.
-* PDF exports render with tc-lib-pdf on PHP 8.2 and later (TCPDF, deprecated by its author, stays the engine below 8.2); the `wp_admin_ui_export_pdf_engine` filter can keep TCPDF on a newer PHP.
+* PDF exports render with tc-lib-pdf on PHP 8.2 and later (TCPDF, deprecated by its author, stays the engine below 8.2); the `exports_reports_export_pdf_engine` filter can keep TCPDF on a newer PHP.
 * The plugin's tables use the site's character set and collation; existing tables are converted on upgrade.
 * Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
 * The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.
 * The daily cleanup event has its handler, is cleared on deactivation and is put back when it is missing.
 * A sort column the request names must be one of the report's columns, or an alias of its SELECT list; otherwise the report's own order applies.
-* Export files live in the uploads directory (`wp-content/uploads/exports-and-reports` by default); files in the old `wp-content/exports` move over on upgrade. `WP_ADMIN_UI_EXPORT_DIR` and `WP_ADMIN_UI_EXPORT_URL` still relocate it.
+* Export files live in the uploads directory (`wp-content/uploads/exports-and-reports` by default); files in the old `wp-content/exports` move over on upgrade. `EXPORTS_REPORTS_EXPORT_DIR` and `EXPORTS_REPORTS_EXPORT_URL` relocate it; the `WP_ADMIN_UI_` names are still read.
 * The page view of a report with a count query (the totals row) counts every row again; it had stopped at the first page.
+* Every hook carries the plugin's prefix: `exports_reports_` replaces `wp_admin_ui_` in the filter and action names (`exports_reports_get_data_sql`, `exports_reports_export_file`, `exports_reports_post_export`, ...), and the download link's admin-ajax action is `exports_reports_export`. The old names still run their callbacks, with a deprecation notice.
 * Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
 
 = 0.9.4 =

@@ -186,16 +186,15 @@ class Exports_Reports_Admin_UI_Export_PDF_Legacy extends ExportsReports__Prefixe
 		$pdf->SetFont( 'helvetica', '', count( self::shown_columns( $admin ) ) > 8 ? 7 : 8 );
 		$pdf->AddPage();
 
-		$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, $pdf ), '0.9.5', 'wp_admin_ui_export_pdf_report_file', 'Supply the finished file instead; this filter is only applied by the TCPDF engine.' );
+		$output = apply_filters_deprecated( 'exports_and_reports_pdf_content', array( '', $admin, $pdf ), '0.9.5', 'exports_reports_export_pdf_report_file', 'Supply the finished file instead; this filter is only applied by the TCPDF engine.' );
 		if ( empty( $output ) ) {
 			$output = self::content( $admin );
 		}
 
 		$pdf->writeHTML( $output );
 
-		$export_file          = $admin->export_file_name( 'pdf' );
-		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, 'pdf', 'pdf', $admin->items, $admin );
-		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
+		$export_file          = $admin->export_file( 'pdf' );
+		$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
 
 		$pdf->Output( $export_file_location, 'F' );
 

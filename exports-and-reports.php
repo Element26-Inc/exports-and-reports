@@ -33,19 +33,14 @@ define( 'EXPORTS_REPORTS_VERSION', '095' );
 define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
 define( 'EXPORTS_REPORTS_DIR', plugin_dir_path( __FILE__ ) );
 
-// The export directory: a folder of the uploads directory, unless wp-config.php defines the constants.
-if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) || ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
-	$exports_reports_uploads = wp_get_upload_dir();
+// The export directory and its URL: a folder of the uploads directory, unless wp-config.php defines the
+// constants. The names before 0.9.5, WP_ADMIN_UI_EXPORT_DIR and WP_ADMIN_UI_EXPORT_URL, are still read.
+if ( ! defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ) {
+	define( 'EXPORTS_REPORTS_EXPORT_DIR', defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ? WP_ADMIN_UI_EXPORT_DIR : wp_get_upload_dir()['basedir'] . '/exports-and-reports' );
+}
 
-	if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
-		define( 'WP_ADMIN_UI_EXPORT_DIR', $exports_reports_uploads['basedir'] . '/exports-and-reports' );
-	}
-
-	if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
-		define( 'WP_ADMIN_UI_EXPORT_URL', $exports_reports_uploads['baseurl'] . '/exports-and-reports' );
-	}
-
-	unset( $exports_reports_uploads );
+if ( ! defined( 'EXPORTS_REPORTS_EXPORT_URL' ) ) {
+	define( 'EXPORTS_REPORTS_EXPORT_URL', defined( 'WP_ADMIN_UI_EXPORT_URL' ) ? WP_ADMIN_UI_EXPORT_URL : wp_get_upload_dir()['baseurl'] . '/exports-and-reports' );
 }
 
 register_activation_hook( __FILE__, 'exports_reports_install_upgrade' );
@@ -57,7 +52,8 @@ add_action( 'admin_init', 'exports_reports_move_legacy_export_dir' );
 add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
-add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_wp_admin_ui_export' );
+add_action( 'wp_ajax_exports_reports_export', 'exports_reports_export_download' );
+add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_export_download' ); // The action name before 0.9.5.
 add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
 add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
 
@@ -67,10 +63,10 @@ require_once EXPORTS_REPORTS_DIR . 'vendor/vendor-prefixed/autoload.php';
 require_once EXPORTS_REPORTS_DIR . 'includes/rest-api.php';
 
 /**
- * The admin-ajax action wp_admin_ui_export: wp-admin-ui/export.php sends the file and exits, so a
+ * The admin-ajax action exports_reports_export: wp-admin-ui/export.php sends the file and exits, so a
  * request that names no export ends here.
  */
-function exports_reports_wp_admin_ui_export() {
+function exports_reports_export_download() {
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/export.php';
 
 	die( 'Invalid request' );
@@ -558,21 +554,21 @@ function exports_reports_settings() {
 					<th scope="row"><label for="clear">Clear Exports Directory</label></th>
 					<td>
 						<input name="clear" type="submit" id="clear" value=" Clear Now " />
-						<span class="description">This will remove all files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?></span>
+						<span class="description">This will remove all files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ); ?></span>
 					</td>
 				</tr>
 				<tr valign="top">
 					<th scope="row">Export Directory</th>
 					<td>
-						<code><?php echo esc_html( WP_ADMIN_UI_EXPORT_DIR ); ?></code><br />
+						<code><?php echo esc_html( EXPORTS_REPORTS_EXPORT_DIR ); ?></code><br />
 						<span class="description">
 							Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.
-							<?php if ( file_exists( WP_ADMIN_UI_EXPORT_DIR . '/.htaccess' ) ) : ?>
+							<?php if ( file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/.htaccess' ) ) : ?>
 								Apache: the plugin's .htaccess denies direct requests.
 							<?php else : ?>
 								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
 							<?php endif; ?>
-							nginx ignores .htaccess; add <code>location ~* <?php echo esc_html( trailingslashit( (string) wp_parse_url( WP_ADMIN_UI_EXPORT_URL, PHP_URL_PATH ) ) ); ?> { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+							nginx ignores .htaccess; add <code>location ~* <?php echo esc_html( trailingslashit( (string) wp_parse_url( EXPORTS_REPORTS_EXPORT_URL, PHP_URL_PATH ) ) ); ?> { deny all; }</code> to the server block, or define <code>EXPORTS_REPORTS_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
 						</span>
 					</td>
 				</tr>
@@ -601,7 +597,7 @@ function exports_reports_settings() {
 					<th scope="row"><label for="reset">Reset All Settings</label></th>
 					<td>
 						<input name="reset" type="submit" id="reset" value=" Reset Now " />
-						<span class="description">This generates a new token, clears the export log and removes the export files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR ) ); ?>. Groups and reports are kept.</span>
+						<span class="description">This generates a new token, clears the export log and removes the export files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ); ?>. Groups and reports are kept.</span>
 					</td>
 				</tr>
 				<!--
@@ -1460,8 +1456,8 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 	return true;
 }
 
-add_action( 'wp_admin_ui_post_export', 'exports_reports_log', 10, 2 );
-add_action( 'wp_admin_ui_post_remove_export', 'exports_reports_delete_log', 10, 2 );
+add_action( 'exports_reports_post_export', 'exports_reports_log', 10, 2 );
+add_action( 'exports_reports_post_remove_export', 'exports_reports_delete_log', 10, 2 );
 
 /**
  * Sends a file from the export directory to the browser as an attachment.
@@ -1479,8 +1475,8 @@ function exports_reports_send_export_file( $filename ) {
 	$types     = exports_reports_export_mime_types();
 	$filename  = basename( (string) $filename );
 	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
-	$directory = realpath( WP_ADMIN_UI_EXPORT_DIR );
-	$path      = realpath( WP_ADMIN_UI_EXPORT_DIR . '/' . $filename );
+	$directory = realpath( EXPORTS_REPORTS_EXPORT_DIR );
+	$path      = realpath( EXPORTS_REPORTS_EXPORT_DIR . '/' . $filename );
 
 	if ( ! exports_reports_is_export_file( $filename ) || false === $directory || false === $path || dirname( $path ) !== $directory || ! is_file( $path ) ) {
 		return false;
@@ -1583,7 +1579,7 @@ function exports_reports_user_can_download_export( $filename ) {
 }
 
 /**
- * Logs a written export file against its report (the wp_admin_ui_post_export action).
+ * Logs a written export file against its report (the exports_reports_post_export action).
  *
  * @param array $args The arguments do_hook() passes, from index 1: the file name first.
  * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
@@ -1609,7 +1605,7 @@ function exports_reports_log( $args, $obj ) {
 }
 
 /**
- * Removes the log row of a deleted export file (the wp_admin_ui_post_remove_export action).
+ * Removes the log row of a deleted export file (the exports_reports_post_remove_export action).
  *
  * @param array $args The arguments do_hook() passes, from index 1: the file name, then whether it was removed.
  * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
@@ -1660,13 +1656,13 @@ function exports_reports_schedule_cleanup() {
 function exports_reports_move_legacy_export_dir() {
 	$legacy = WP_CONTENT_DIR . '/exports';
 
-	if ( WP_ADMIN_UI_EXPORT_DIR === $legacy || ! is_dir( $legacy ) ) {
+	if ( EXPORTS_REPORTS_EXPORT_DIR === $legacy || ! is_dir( $legacy ) ) {
 		return;
 	}
 
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 
-	if ( ! WP_Filesystem() || ! wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR ) ) {
+	if ( ! WP_Filesystem() || ! wp_mkdir_p( EXPORTS_REPORTS_EXPORT_DIR ) ) {
 		return;
 	}
 
@@ -1686,7 +1682,7 @@ function exports_reports_move_legacy_export_dir() {
 		$contents = 'f' === $file['type'] && in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ? (string) $wp_filesystem->get_contents( $path ) : '';
 
 		if ( 'f' === $file['type'] && exports_reports_is_export_file( $file['name'] ) ) {
-			$wp_filesystem->move( $path, WP_ADMIN_UI_EXPORT_DIR . '/' . $file['name'], true );
+			$wp_filesystem->move( $path, EXPORTS_REPORTS_EXPORT_DIR . '/' . $file['name'], true );
 		} elseif ( false !== strpos( $contents, 'Exports and Reports' ) || false !== strpos( $contents, 'Silence is golden' ) ) {
 			// The protection files the plugin wrote there.
 			$wp_filesystem->delete( $path );
@@ -1765,7 +1761,7 @@ function exports_reports_cleanup( $full = false ) {
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$wpdb->query( 'TRUNCATE ' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log' );
 
-		exports_reports_delete_dir_files( WP_ADMIN_UI_EXPORT_DIR );
+		exports_reports_delete_dir_files( EXPORTS_REPORTS_EXPORT_DIR );
 	} else {
 		$purge_age = 1; // day(s) in age to purge
 
@@ -1790,7 +1786,7 @@ function exports_reports_cleanup( $full = false ) {
 
 			foreach ( $cleanup as $export ) {
 				if ( $wp_filesystem ) {
-					$file = WP_ADMIN_UI_EXPORT_DIR . '/' . str_replace( array( '/', '..' ), '', $export->filename );
+					$file = EXPORTS_REPORTS_EXPORT_DIR . '/' . str_replace( array( '/', '..' ), '', $export->filename );
 
 					$wp_filesystem->delete( $file );
 				}
@@ -1943,7 +1939,7 @@ function exports_reports_has_role( $role ) {
  * @return string The robots.txt contents.
  */
 function exports_reports_robots_txt( $robots_txt ) {
-	$exclude_path = trim( (string) wp_parse_url( WP_ADMIN_UI_EXPORT_URL, PHP_URL_PATH ), '/' );
+	$exclude_path = trim( (string) wp_parse_url( EXPORTS_REPORTS_EXPORT_URL, PHP_URL_PATH ), '/' );
 
 	if ( '' === $exclude_path ) {
 		return $robots_txt;

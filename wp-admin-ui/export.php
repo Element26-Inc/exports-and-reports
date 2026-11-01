@@ -1,6 +1,6 @@
 <?php
 /**
- * Serves an export file to the user who asked for it: the admin-ajax action wp_admin_ui_export,
+ * Serves an export file to the user who asked for it: the admin-ajax action exports_reports_export,
  * reached from the link and the window the export page opens.
  *
  * @package Exports_And_Reports
@@ -10,15 +10,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_DIR', wp_get_upload_dir()['basedir'] . '/exports-and-reports' );
-}
-
 if ( ! isset( $_GET['exports_and_reports_download'], $_GET['_wpnonce'], $_GET['exports_and_reports_export'] ) ) {
 	return;
 }
 
-if ( false === wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wp-admin-ui-export' ) ) {
+if ( false === wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'exports-reports-export' ) ) {
 	wp_die( 'Access denied', '', array( 'response' => 403 ) );
 }
 
@@ -29,7 +25,9 @@ if ( ! exports_reports_user_can_download_export( $exports_reports_file ) ) {
 	wp_die( 'Access denied', '', array( 'response' => 403 ) );
 }
 
-do_action( 'wp_admin_ui_export_download' );
+/** Fires before an export file is sent to the user who asked for it. */
+do_action( 'exports_reports_export_download' );
+do_action_deprecated( 'wp_admin_ui_export_download', array(), '0.9.5', 'exports_reports_export_download' );
 
 while ( ob_get_level() > 0 ) {
 	ob_end_clean();
