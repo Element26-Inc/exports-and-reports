@@ -131,6 +131,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ inputs.tag }}"
+          sha="${{ steps.version.outputs.sha }}"
           if state="$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null)"; then
             if [ "$state" != "true" ]; then
               echo "::error::$tag is published already; a published release here is immutable and takes no asset. Release the next version instead."
@@ -139,7 +140,18 @@ jobs:
             gh release upload "$tag" "$ZIP" "$ZIP.sha256" --clobber
             gh release edit "$tag" --title "${{ steps.version.outputs.version }}" --notes-file notes.md
           else
-            gh release create "$tag" --draft --target "${{ steps.version.outputs.sha }}" --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
+            # The tag first, on the commit that was built, and the draft against it: the workflow's token is
+            # refused a release that names a bare older commit as its target.
+            if git fetch --quiet origin "refs/tags/$tag:refs/tags/$tag" 2>/dev/null; then
+              existing="$(git rev-parse "$tag^{commit}")"
+              if [ "$existing" != "$sha" ]; then
+                echo "::error::$tag already points at $existing, not at the commit that was built ($sha)."
+                exit 1
+              fi
+            else
+              git push origin "$sha:refs/tags/$tag"
+            fi
+            gh release create "$tag" --draft --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
           fi
           gh release view "$tag" --json isDraft,assets --jq '"draft: \(.isDraft), assets: \([.assets[].name] | join(", "))"'
 
