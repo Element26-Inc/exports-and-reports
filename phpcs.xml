@@ -44,5 +44,5 @@
     <rule ref="Generic.CodeAnalysis.UnusedFunctionParameter"/>
     <rule ref="Generic.Commenting.Todo"/>
 
-    <config name="minimum_supported_wp_version" value="6.0"/>
+    <config name="minimum_supported_wp_version" value="5.7"/>
 </ruleset>

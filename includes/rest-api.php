@@ -115,21 +115,21 @@ function exports_reports_rest_permission( $request ) {
 
 	// A caller without a credential learns nothing about which ids exist.
 	if ( ! $token_matches && ! is_user_logged_in() ) {
-		return new WP_Error( 'exports_reports_unauthorized', 'Send the token or log in to read reports.', array( 'status' => 401 ) );
+		return new WP_Error( 'exports_reports_unauthorized', __( 'Send the token or log in to read reports.', 'exports-and-reports' ), array( 'status' => 401 ) );
 	}
 
 	$report = exports_reports_get_report( (int) $request['id'] );
 	$group  = $report ? exports_reports_get_group( (int) $report->group ) : null;
 
 	if ( ! $report || ! $group ) {
-		return new WP_Error( 'exports_reports_not_found', 'No report with that id.', array( 'status' => 404 ) );
+		return new WP_Error( 'exports_reports_not_found', __( 'No report with that id.', 'exports-and-reports' ), array( 'status' => 404 ) );
 	}
 
 	if ( $token_matches || exports_reports_user_can_view_report( $report, $group ) ) {
 		return true;
 	}
 
-	return new WP_Error( 'exports_reports_forbidden', 'You are not allowed to read this report.', array( 'status' => rest_authorization_required_code() ) );
+	return new WP_Error( 'exports_reports_forbidden', __( 'You are not allowed to read this report.', 'exports-and-reports' ), array( 'status' => rest_authorization_required_code() ) );
 }
 
 /**
@@ -169,7 +169,7 @@ function exports_reports_rest_data( $request ) {
 	$report = exports_reports_get_report( (int) $request['id'] );
 
 	if ( ! $report ) {
-		return new WP_Error( 'exports_reports_not_found', 'No report with that id.', array( 'status' => 404 ) );
+		return new WP_Error( 'exports_reports_not_found', __( 'No report with that id.', 'exports-and-reports' ), array( 'status' => 404 ) );
 	}
 
 	require_once dirname( __DIR__ ) . '/wp-admin-ui/class-exports-reports-admin-ui.php';
@@ -191,7 +191,7 @@ function exports_reports_rest_data( $request ) {
 	$error = exports_reports_rest_ui_error( (string) ob_get_clean() );
 
 	if ( '' !== $error || ! is_array( $rows ) ) {
-		return new WP_Error( 'exports_reports_query_failed', '' !== $error ? $error : 'The report query failed.', array( 'status' => 500 ) );
+		return new WP_Error( 'exports_reports_query_failed', '' !== $error ? $error : __( 'The report query failed.', 'exports-and-reports' ), array( 'status' => 500 ) );
 	}
 
 	$data = array(
@@ -227,11 +227,11 @@ function exports_reports_rest_export( $request ) {
 	$report = exports_reports_get_report( (int) $request['id'] );
 
 	if ( ! $report ) {
-		return new WP_Error( 'exports_reports_not_found', 'No report with that id.', array( 'status' => 404 ) );
+		return new WP_Error( 'exports_reports_not_found', __( 'No report with that id.', 'exports-and-reports' ), array( 'status' => 404 ) );
 	}
 
 	if ( 0 !== (int) $report->disable_export ) {
-		return new WP_Error( 'exports_reports_export_disabled', 'Exports are disabled for this report.', array( 'status' => 403 ) );
+		return new WP_Error( 'exports_reports_export_disabled', __( 'Exports are disabled for this report.', 'exports-and-reports' ), array( 'status' => 403 ) );
 	}
 
 	require_once dirname( __DIR__ ) . '/wp-admin-ui/class-exports-reports-admin-ui.php';
@@ -252,7 +252,7 @@ function exports_reports_rest_export( $request ) {
 	$error = exports_reports_rest_ui_error( (string) ob_get_clean() );
 
 	if ( '' !== $error || empty( $admin->exported_file ) ) {
-		return new WP_Error( 'exports_reports_export_failed', '' !== $error ? $error : 'The export failed.', array( 'status' => 500 ) );
+		return new WP_Error( 'exports_reports_export_failed', '' !== $error ? $error : __( 'The export failed.', 'exports-and-reports' ), array( 'status' => 500 ) );
 	}
 
 	$file = (string) $admin->exported_file;
@@ -285,7 +285,7 @@ function exports_reports_rest_download( $request ) {
 	$logged = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->exports_reports_log} WHERE `report_id` = %d AND `filename` = %s", (int) $request['id'], $file ) );
 
 	if ( 0 === $logged || ! is_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $file ) ) {
-		return new WP_Error( 'exports_reports_file_not_found', 'No such export of this report.', array( 'status' => 404 ) );
+		return new WP_Error( 'exports_reports_file_not_found', __( 'No such export of this report.', 'exports-and-reports' ), array( 'status' => 404 ) );
 	}
 
 	return rest_ensure_response(
@@ -327,7 +327,7 @@ function exports_reports_rest_serve_file( $served, $result, $request ) {
 		echo wp_json_encode(
 			array(
 				'code'    => 'exports_reports_file_not_found',
-				'message' => 'No such export of this report.',
+				'message' => __( 'No such export of this report.', 'exports-and-reports' ),
 			)
 		);
 	}

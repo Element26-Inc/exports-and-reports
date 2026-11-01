@@ -44,5 +44,7 @@ phpcs.xml.dist export-ignore
 phpstan.neon export-ignore
 phpstan-legacy.neon export-ignore
 composer.lock export-ignore
+composer.json export-ignore
+package.json export-ignore
 .phpcs.compat-pdf.xml export-ignore
 README.md export-ignore

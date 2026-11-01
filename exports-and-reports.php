@@ -88,7 +88,7 @@ require_once EXPORTS_REPORTS_DIR . 'includes/rest-api.php';
 function exports_reports_export_download() {
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/export.php';
 
-	die( 'Invalid request' );
+	wp_die( esc_html__( 'Invalid request.', 'exports-and-reports' ), '', array( 'response' => 400 ) );
 }
 
 /**
@@ -260,7 +260,7 @@ function exports_reports_charset_errors_notice() {
 		return;
 	}
 
-	echo '<div class="notice notice-error"><p><strong>Exports and Reports:</strong> a table could not be converted to the site\'s character set. Convert it by hand or ask your host, then deactivate and reactivate the plugin to retry.</p><ul>';
+	echo '<div class="notice notice-error"><p>' . wp_kses( __( '<strong>Exports and Reports:</strong> a table could not be converted to the site\'s character set. Convert it by hand or ask your host, then deactivate and reactivate the plugin to retry.', 'exports-and-reports' ), array( 'strong' => array() ) ) . '</p><ul>';
 
 	foreach ( $failed as $table => $error ) {
 		echo '<li><code>' . esc_html( $table ) . '</code>: ' . esc_html( $error ) . '</li>';
@@ -412,10 +412,10 @@ function exports_reports_admin_menu() {
 	}
 
 	if ( $has_full_access || exports_reports_current_user_can_any( $min_cap ) || exports_reports_current_user_can_any( 'exports_reports_settings' ) ) {
-		add_menu_page( 'Reports Admin', 'Reports Admin', $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
-		add_submenu_page( 'exports-reports-admin', 'Manage Groups', 'Manage Groups', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin', 'exports_reports_groups' );
-		add_submenu_page( 'exports-reports-admin', 'Manage Reports', 'Manage Reports', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-reports', 'exports_reports_reports' );
-		add_submenu_page( 'exports-reports-admin', 'Settings', 'Settings', $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-settings', 'exports_reports_settings' );
+		add_menu_page( __( 'Reports Admin', 'exports-and-reports' ), __( 'Reports Admin', 'exports-and-reports' ), $has_full_access ? 'read' : $min_cap, 'exports-reports-admin', '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+		add_submenu_page( 'exports-reports-admin', __( 'Manage Groups', 'exports-and-reports' ), __( 'Manage Groups', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin', 'exports_reports_groups' );
+		add_submenu_page( 'exports-reports-admin', __( 'Manage Reports', 'exports-and-reports' ), __( 'Manage Reports', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-reports', 'exports_reports_reports' );
+		add_submenu_page( 'exports-reports-admin', __( 'Settings', 'exports-and-reports' ), __( 'Settings', 'exports-and-reports' ), $has_full_access ? 'read' : 'exports_reports_settings', 'exports-reports-admin-settings', 'exports_reports_settings' );
 	}
 }
 
@@ -449,7 +449,7 @@ function exports_reports_menu() {
 						$menu_page = 'exports-reports-group-' . $group->id;
 
 						if ( ! $init ) {
-							add_menu_page( 'Reports', 'Reports', 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+							add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
 
 							$init = $menu_page;
 						}
@@ -470,7 +470,7 @@ function exports_reports_menu() {
 							$menu_page = 'exports-reports-group-' . $group->id;
 
 							if ( ! $init ) {
-								add_menu_page( 'Reports', 'Reports', 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
+								add_menu_page( __( 'Reports', 'exports-and-reports' ), __( 'Reports', 'exports-and-reports' ), 'read', $menu_page, '', EXPORTS_REPORTS_URL . 'assets/icons/16.png' );
 
 								$init = $menu_page;
 							}
@@ -533,75 +533,105 @@ function exports_reports_settings() {
 
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
-	<div class="wrap">
-		<div id="icon-edit-pages" class="icon32" style="background-position:0 0;background-image:url(<?php echo esc_url( EXPORTS_REPORTS_URL . 'assets/icons/32.png' ); ?>)">
+	<div class="wrap exports-reports-settings">
+		<div id="icon-edit-pages" class="icon32" style="background-image:url(<?php echo esc_url( EXPORTS_REPORTS_URL . 'assets/icons/32.png' ); ?>)">
 			<br /></div>
-		<h2>Exports and Reports - Settings</h2>
+		<h2><?php esc_html_e( 'Exports and Reports - Settings', 'exports-and-reports' ); ?></h2>
 
 		<?php if ( $cleared ) : ?>
 			<div id="message" class="updated fade">
-				<p>Your Exports directory has been cleaned up and all export files have been removed.</p>
+				<p><?php esc_html_e( 'Your Exports directory has been cleaned up and all export files have been removed.', 'exports-and-reports' ); ?></p>
 			</div>
 		<?php endif; ?>
 
 		<?php if ( $reset ) : ?>
 			<div id="message" class="updated fade">
-				<p>Your Settings have been reset.</p>
+				<p><?php esc_html_e( 'Your Settings have been reset.', 'exports-and-reports' ); ?></p>
 			</div>
 		<?php endif; ?>
 
-		<div style="height:20px;"></div>
 		<form method="post" action="">
 			<?php wp_nonce_field( 'exports-reports-settings' ); ?>
 			<table class="form-table">
 				<tr valign="top">
-					<th scope="row"><label for="clear">Clear Exports Directory</label></th>
+					<th scope="row"><label for="clear"><?php esc_html_e( 'Clear Exports Directory', 'exports-and-reports' ); ?></label></th>
 					<td>
-						<input name="clear" type="submit" id="clear" value=" Clear Now " />
-						<span class="description">This will remove all files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ); ?></span>
+						<input name="clear" type="submit" id="clear" class="button" value="<?php esc_attr_e( 'Clear Now', 'exports-and-reports' ); ?>" />
+						<span class="description">
+							<?php
+							/* translators: %s: the export directory, relative to the WordPress directory. */
+							echo esc_html( sprintf( __( 'This will remove all files from your Exports directory - %s', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
+							?>
+						</span>
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row">Export Directory</th>
+					<th scope="row"><?php esc_html_e( 'Export Directory', 'exports-and-reports' ); ?></th>
 					<td>
 						<code><?php echo esc_html( EXPORTS_REPORTS_EXPORT_DIR ); ?></code><br />
 						<span class="description">
-							Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.
+							<?php esc_html_e( 'Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL.', 'exports-and-reports' ); ?>
 							<?php if ( file_exists( EXPORTS_REPORTS_EXPORT_DIR . '/.htaccess' ) ) : ?>
-								Apache: the plugin's .htaccess denies direct requests.
+								<?php esc_html_e( 'Apache: the plugin\'s .htaccess denies direct requests.', 'exports-and-reports' ); ?>
 							<?php else : ?>
-								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
+								<?php esc_html_e( 'Apache: the plugin writes an .htaccess that denies direct requests with the first export.', 'exports-and-reports' ); ?>
 							<?php endif; ?>
-							nginx ignores .htaccess; add <code>location ~* <?php echo esc_html( trailingslashit( (string) wp_parse_url( EXPORTS_REPORTS_EXPORT_URL, PHP_URL_PATH ) ) ); ?> { deny all; }</code> to the server block, or define <code>EXPORTS_REPORTS_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+							<?php
+							echo wp_kses(
+								sprintf(
+									/* translators: 1: the nginx location rule, 2: the EXPORTS_REPORTS_EXPORT_DIR constant. */
+									__( 'nginx ignores .htaccess; add %1$s to the server block, or define %2$s in wp-config.php with a directory outside the web root, which works on any server.', 'exports-and-reports' ),
+									'<code>location ~* ' . esc_html( trailingslashit( (string) wp_parse_url( EXPORTS_REPORTS_EXPORT_URL, PHP_URL_PATH ) ) ) . ' { deny all; }</code>',
+									'<code>EXPORTS_REPORTS_EXPORT_DIR</code>'
+								),
+								array( 'code' => array() )
+							);
+							?>
 						</span>
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row"><label for="cronjob_token">Cronjob/JSON API Token</label></th>
+					<th scope="row"><label for="cronjob_token"><?php esc_html_e( 'Cronjob/JSON API Token', 'exports-and-reports' ); ?></label></th>
 					<td>
 						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
 						<span class="description">
-							Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header <code>Authorization: Bearer TOKEN</code>, or as a <code>token</code> query parameter. You can change it anytime as needed; save it empty to turn token access off.<br /><br />
+							<?php
+							echo wp_kses(
+								sprintf(
+									/* translators: 1: the Authorization header, 2: the token query parameter, both as code. */
+									__( 'Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header %1$s, or as a %2$s query parameter. You can change it anytime as needed; save it empty to turn token access off.', 'exports-and-reports' ),
+									'<code>Authorization: Bearer TOKEN</code>',
+									'<code>token</code>'
+								),
+								array( 'code' => array() )
+							);
+							?>
+							<br /><br />
 
-							<label for="export_api_url1" style="font-style:normal;"><strong>URL to Export (useful for Cronjobs):</strong></label><br />
-							<input type="text" id="export_api_url1" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token ) ); ?>" /><br />
+							<label for="export_api_url1" class="exports-reports-url-label"><strong><?php esc_html_e( 'URL to Export (useful for Cronjobs):', 'exports-and-reports' ); ?></strong></label><br />
+							<input type="text" id="export_api_url1" class="exports-reports-url" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token ) ); ?>" /><br />
 
-							<label for="export_api_url4" style="font-style:normal;"><strong>URL to Export and then Download File:</strong></label><br />
-							<input type="text" id="export_api_url4" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&download=1&token=' . rawurlencode( $token ) ); ?>" /><br />
+							<label for="export_api_url4" class="exports-reports-url-label"><strong><?php esc_html_e( 'URL to Export and then Download File:', 'exports-and-reports' ); ?></strong></label><br />
+							<input type="text" id="export_api_url4" class="exports-reports-url" readonly value="<?php echo esc_url( $rest_base . '/export?type=YOUR_EXPORT_TYPE&download=1&token=' . rawurlencode( $token ) ); ?>" /><br />
 
-							<label for="export_api_url2" style="font-style:normal;"><strong>URL to JSON API (paginated):</strong></label><br />
-							<input type="text" id="export_api_url2" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?pg=PAGE_NUMBER&token=' . rawurlencode( $token ) ); ?>" /><br />
+							<label for="export_api_url2" class="exports-reports-url-label"><strong><?php esc_html_e( 'URL to JSON API (paginated):', 'exports-and-reports' ); ?></strong></label><br />
+							<input type="text" id="export_api_url2" class="exports-reports-url" readonly value="<?php echo esc_url( $rest_base . '/data?pg=PAGE_NUMBER&token=' . rawurlencode( $token ) ); ?>" /><br />
 
-							<label for="export_api_url3" style="font-style:normal;"><strong>URL to JSON API (full data):</strong></label><br />
-							<input type="text" id="export_api_url3" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?full=1&token=' . rawurlencode( $token ) ); ?>" />
+							<label for="export_api_url3" class="exports-reports-url-label"><strong><?php esc_html_e( 'URL to JSON API (full data):', 'exports-and-reports' ); ?></strong></label><br />
+							<input type="text" id="export_api_url3" class="exports-reports-url" readonly value="<?php echo esc_url( $rest_base . '/data?full=1&token=' . rawurlencode( $token ) ); ?>" />
 						</span>
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row"><label for="reset">Reset All Settings</label></th>
+					<th scope="row"><label for="reset"><?php esc_html_e( 'Reset All Settings', 'exports-and-reports' ); ?></label></th>
 					<td>
-						<input name="reset" type="submit" id="reset" value=" Reset Now " />
-						<span class="description">This generates a new token, clears the export log and removes the export files from your Exports directory - <?php echo esc_html( str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ); ?>. Groups and reports are kept.</span>
+						<input name="reset" type="submit" id="reset" class="button" value="<?php esc_attr_e( 'Reset Now', 'exports-and-reports' ); ?>" />
+						<span class="description">
+							<?php
+							/* translators: %s: the export directory, relative to the WordPress directory. */
+							echo esc_html( sprintf( __( 'This generates a new token, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept.', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
+							?>
+						</span>
 					</td>
 				</tr>
 				<!--
@@ -656,8 +686,8 @@ function exports_reports_groups() {
 	$roles = exports_reports_get_roles();
 
 	$form_columns['role_access'] = array(
-		'label'            => 'WP Roles with Access',
-		'comments'         => 'Add the exports_reports_full_access capability to a role for full access to reports, exports_reports_settings for only access to settings, exports_reports_view for access to view all reports, exports_reports_view_group_{ID} for access to view a group and all of the reports within, or exports_reports_view_report_{ID} for access to view a single report',
+		'label'            => __( 'WP Roles with Access', 'exports-and-reports' ),
+		'comments'         => __( 'Add the exports_reports_full_access capability to a role for full access to reports, exports_reports_settings for only access to settings, exports_reports_view for access to view all reports, exports_reports_view_group_{ID} for access to view a group and all of the reports within, or exports_reports_view_report_{ID} for access to view a single report', 'exports-and-reports' ),
 		'type'             => 'related',
 		'related'          => $roles,
 		'related_multiple' => true,
@@ -673,8 +703,8 @@ function exports_reports_groups() {
 		'order'        => '`weight`',
 		'order_dir'    => 'ASC',
 		'css'          => EXPORTS_REPORTS_URL . 'assets/admin.css',
-		'item'         => 'Report Group',
-		'items'        => 'Report Groups',
+		'item'         => __( 'Report Group', 'exports-and-reports' ),
+		'items'        => __( 'Report Groups', 'exports-and-reports' ),
 		'table'        => $wpdb->exports_reports_groups,
 		'columns'      => $columns,
 		'form_columns' => $form_columns,
@@ -699,24 +729,24 @@ function exports_reports_reports() {
 	$columns = array(
 		'name',
 		'group'    => array(
-			'label'   => 'Group',
+			'label'   => __( 'Group', 'exports-and-reports' ),
 			'type'    => 'related',
 			'related' => $wpdb->exports_reports_groups,
 		),
 		'disabled' => array(
-			'label' => 'Disabled',
+			'label' => __( 'Disabled', 'exports-and-reports' ),
 			'type'  => 'bool',
 		),
 		'created'  => array(
-			'label' => 'Date Created',
+			'label' => __( 'Date Created', 'exports-and-reports' ),
 			'type'  => 'datetime',
 		),
 		'updated'  => array(
-			'label' => 'Last Modified',
+			'label' => __( 'Last Modified', 'exports-and-reports' ),
 			'type'  => 'datetime',
 		),
 		'id'       => array(
-			'label' => 'Report ID',
+			'label' => __( 'Report ID', 'exports-and-reports' ),
 			'type'  => 'number',
 		),
 	);
@@ -729,25 +759,25 @@ function exports_reports_reports() {
 
 	unset( $form_columns['id'] );
 
-	$form_columns['disabled']['label'] = 'Disabled?';
+	$form_columns['disabled']['label'] = __( 'Disabled?', 'exports-and-reports' );
 
 	$form_columns['disable_export'] = array(
-		'label' => 'Disable Export?',
+		'label' => __( 'Disable Export?', 'exports-and-reports' ),
 		'type'  => 'bool',
 	);
 
 	$form_columns['default_none'] = array(
-		'label'    => 'Default to No Results?',
+		'label'    => __( 'Default to No Results?', 'exports-and-reports' ),
 		'type'     => 'bool',
-		'comments' => 'On = Show no results and require search; Off (default) = Show all results',
+		'comments' => __( 'On = Show no results and require search; Off (default) = Show all results', 'exports-and-reports' ),
 	);
 
 	$form_columns['page_orientation'] = array(
-		'label'   => 'PDF Report Page Orientation',
+		'label'   => __( 'PDF Report Page Orientation', 'exports-and-reports' ),
 		'type'    => 'related',
 		'related' => array(
-			'L' => 'Landscape',
-			'P' => 'Portrait',
+			'L' => __( 'Landscape', 'exports-and-reports' ),
+			'P' => __( 'Portrait', 'exports-and-reports' ),
 		),
 	);
 
@@ -759,26 +789,26 @@ function exports_reports_reports() {
 	$roles = exports_reports_get_roles();
 
 	$form_columns['role_access'] = array(
-		'label'            => 'WP Roles with Access',
+		'label'            => __( 'WP Roles with Access', 'exports-and-reports' ),
 		'type'             => 'related',
 		'related'          => $roles,
 		'related_multiple' => true,
 	);
 
 	$form_columns['sql_query'] = array(
-		'label'    => 'SQL Query',
+		'label'    => __( 'SQL Query', 'exports-and-reports' ),
 		'type'     => 'desc',
-		'comments' => 'Available Variables: %%WHERE%% %%HAVING%% %%ORDERBY%% %%LIMIT%%<br />(example: WHERE %%WHERE%% my_field=1)',
+		'comments' => __( 'Available Variables: %%WHERE%% %%HAVING%% %%ORDERBY%% %%LIMIT%%<br />(example: WHERE %%WHERE%% my_field=1)', 'exports-and-reports' ),
 	);
 
 	$form_columns['sql_query_count'] = array(
-		'label'    => 'SQL Query for Count (advanced, optional)',
+		'label'    => __( 'SQL Query for Count (advanced, optional)', 'exports-and-reports' ),
 		'type'     => 'desc',
-		'comments' => 'For advanced/complex queries above, you can SELECT minimal fields here for better "Total Count" performance.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)',
+		'comments' => __( 'For advanced/complex queries above, you can SELECT minimal fields here for better "Total Count" performance.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)', 'exports-and-reports' ),
 	);
 
 	$form_columns['field_data'] = array(
-		'label'        => 'Fields (optional)',
+		'label'        => __( 'Fields (optional)', 'exports-and-reports' ),
 		'custom_input' => 'exports_reports_report_field',
 		'custom_save'  => 'exports_reports_report_field_save',
 	);
@@ -789,8 +819,8 @@ function exports_reports_reports() {
 		'order'         => '`group` ASC,`weight`',
 		'order_dir'     => 'ASC',
 		'css'           => EXPORTS_REPORTS_URL . 'assets/admin.css',
-		'item'          => 'Report',
-		'items'         => 'Reports',
+		'item'          => __( 'Report', 'exports-and-reports' ),
+		'items'         => __( 'Reports', 'exports-and-reports' ),
 		'table'         => $wpdb->exports_reports_reports,
 		'columns'       => $columns,
 		'form_columns'  => $form_columns,
@@ -817,7 +847,7 @@ function exports_reports_report_field( $column, $attributes, $obj ) {
 	$types      = exports_reports_field_types();
 	?>
 	<div class="er-fields" data-next-index="<?php echo esc_attr( (string) count( $fields ) ); ?>">
-		<p class="description">Leave this empty to show every column the query returns. Drag a field by its handle to change the order.</p>
+		<p class="description"><?php esc_html_e( 'Leave this empty to show every column the query returns. Drag a field by its handle to change the order.', 'exports-and-reports' ); ?></p>
 		<div class="er-fields__list">
 			<?php
 			foreach ( $fields as $index => $field ) {
@@ -825,7 +855,7 @@ function exports_reports_report_field( $column, $attributes, $obj ) {
 			}
 			?>
 		</div>
-		<p><button type="button" class="button er-fields__add">Add Field</button></p>
+		<p><button type="button" class="button er-fields__add"><?php esc_html_e( 'Add Field', 'exports-and-reports' ); ?></button></p>
 		<template class="er-fields__template"><?php exports_reports_report_field_row( '__i__', exports_reports_field_defaults(), $types ); ?></template>
 	</div>
 	<input type="hidden" name="<?php echo esc_attr( $column ); ?>" value="" />
@@ -880,43 +910,43 @@ function exports_reports_report_field_row( $index, $field, $types ) {
 	?>
 	<div class="er-field">
 		<div class="er-field__bar">
-			<span class="er-field__handle dashicons dashicons-move" title="Drag to reorder"></span>
-			<?php $text( 'field_name', 'Field name (column or alias)' ); ?>
+			<span class="er-field__handle dashicons dashicons-move" title="<?php esc_attr_e( 'Drag to reorder', 'exports-and-reports' ); ?>"></span>
+			<?php $text( 'field_name', __( 'Field name (column or alias)', 'exports-and-reports' ) ); ?>
 			<label>
-				<span>Data type</span>
+				<span><?php esc_html_e( 'Data type', 'exports-and-reports' ); ?></span>
 				<select name="<?php echo esc_attr( 'field_type[' . $index . ']' ); ?>">
 					<?php foreach ( $types as $type => $type_label ) { ?>
 						<option value="<?php echo esc_attr( $type ); ?>"<?php selected( $field['type'], $type ); ?>><?php echo esc_html( $type_label ); ?></option>
 					<?php } ?>
 				</select>
 			</label>
-			<?php $text( 'field_label', 'Label', 'defaults to the field name' ); ?>
-			<button type="button" class="button-link button-link-delete er-field__remove">Remove</button>
+			<?php $text( 'field_label', __( 'Label', 'exports-and-reports' ), __( 'defaults to the field name', 'exports-and-reports' ) ); ?>
+			<button type="button" class="button-link button-link-delete er-field__remove"><?php esc_html_e( 'Remove', 'exports-and-reports' ); ?></button>
 		</div>
 		<div class="er-field__flags">
 			<?php
-			$flag( 'field_hide_report', 'Hide from report', 1 === (int) $field['hide_report'] );
-			$flag( 'field_hide_export', 'Hide from export', 1 === (int) $field['hide_export'] );
-			$flag( 'field_search', 'Searchable', 1 !== (int) $field['search'], '0', '1' );
-			$flag( 'field_filter', 'Filterable', 1 === (int) $field['filter'] );
-			$flag( 'field_group_related', 'Filter with HAVING', 1 === (int) $field['group_related'] );
+			$flag( 'field_hide_report', __( 'Hide from report', 'exports-and-reports' ), 1 === (int) $field['hide_report'] );
+			$flag( 'field_hide_export', __( 'Hide from export', 'exports-and-reports' ), 1 === (int) $field['hide_export'] );
+			$flag( 'field_search', __( 'Searchable', 'exports-and-reports' ), 1 !== (int) $field['search'], '0', '1' );
+			$flag( 'field_filter', __( 'Filterable', 'exports-and-reports' ), 1 === (int) $field['filter'] );
+			$flag( 'field_group_related', __( 'Filter with HAVING', 'exports-and-reports' ), 1 === (int) $field['group_related'] );
 			?>
 		</div>
 		<details class="er-field__advanced">
-			<summary>Advanced options</summary>
+			<summary><?php esc_html_e( 'Advanced options', 'exports-and-reports' ); ?></summary>
 			<div class="er-field__grid">
 				<?php
-				$text( 'field_real_name', 'Real field', 'when the name is an alias' );
-				$text( 'field_custom_display', 'Display function', 'a function a plugin or theme defines' );
-				$text( 'width', 'Width', 'relative, for the PDF export' );
-				$text( 'field_filter_label', 'Filter label' );
-				$text( 'field_filter_default', 'Default filter value' );
-				$text( 'field_filter_ongoing', 'Ongoing date field', 'for a date range filter' );
-				$text( 'field_filter_ongoing_default', 'Ongoing default filter value' );
-				$text( 'field_related', 'Related table', 'related type only' );
-				$text( 'field_related_field', 'Related field' );
-				$text( 'field_related_id', 'Related ID field' );
-				$text( 'field_related_sql', 'Related WHERE / ORDER BY' );
+				$text( 'field_real_name', __( 'Real field', 'exports-and-reports' ), __( 'when the name is an alias', 'exports-and-reports' ) );
+				$text( 'field_custom_display', __( 'Display function', 'exports-and-reports' ), __( 'a function a plugin or theme defines', 'exports-and-reports' ) );
+				$text( 'width', __( 'Width', 'exports-and-reports' ), __( 'relative, for the PDF export', 'exports-and-reports' ) );
+				$text( 'field_filter_label', __( 'Filter label', 'exports-and-reports' ) );
+				$text( 'field_filter_default', __( 'Default filter value', 'exports-and-reports' ) );
+				$text( 'field_filter_ongoing', __( 'Ongoing date field', 'exports-and-reports' ), __( 'for a date range filter', 'exports-and-reports' ) );
+				$text( 'field_filter_ongoing_default', __( 'Ongoing default filter value', 'exports-and-reports' ) );
+				$text( 'field_related', __( 'Related table', 'exports-and-reports' ), __( 'related type only', 'exports-and-reports' ) );
+				$text( 'field_related_field', __( 'Related field', 'exports-and-reports' ) );
+				$text( 'field_related_id', __( 'Related ID field', 'exports-and-reports' ) );
+				$text( 'field_related_sql', __( 'Related WHERE / ORDER BY', 'exports-and-reports' ) );
 				?>
 			</div>
 		</details>
@@ -1135,11 +1165,11 @@ function exports_reports_report_options( $report ) {
 	}
 
 	$options['page_orientation'] = $report->page_orientation;
-	$options['item']             = 'item';
+	$options['item']             = __( 'item', 'exports-and-reports' );
 	$options['items']            = $report->name;
 	$options['icon']             = EXPORTS_REPORTS_URL . 'assets/icons/32.png';
 	$options['heading']          = array(
-		'manage' => 'View Report:',
+		'manage' => __( 'View Report:', 'exports-and-reports' ),
 	);
 
 	$field_data = json_decode( (string) $report->field_data, true );
@@ -1262,6 +1292,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
 	wp_enqueue_script( 'exports-reports-admin' );
+	wp_enqueue_style( 'exports-reports-admin' );
 
 	if ( null === $has_full_access ) {
 		$has_full_access = exports_reports_current_user_can_any( 'exports_reports_full_access' );
@@ -1381,9 +1412,9 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 
 	if ( 1 < count( $selectable_reports ) ) {
 		?>
-		<div style="background-color:#E7E7E7;border:1px solid #D7D7D7; padding:5px 15px;margin:15px 15px 0px 5px;">
-			<strong style="padding-right:10px;">Exports and Reports:</strong>
-			<label for="report" style="vertical-align:baseline;">Choose Report</label>
+		<div class="exports-reports-selector">
+			<strong><?php esc_html_e( 'Exports and Reports:', 'exports-and-reports' ); ?></strong>
+			<label for="report"><?php esc_html_e( 'Choose Report', 'exports-and-reports' ); ?></label>
 			<select id="report">
 				<?php
 				foreach ( $selectable_reports as $report_id => $report ) {
