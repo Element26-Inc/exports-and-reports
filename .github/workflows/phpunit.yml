@@ -100,9 +100,29 @@ jobs:
             ${{ runner.os }}-composer-tools-php${{ matrix.php }}-
       - name: Install the test tooling
         # A project of its own: the plugin's dev dependencies need PHP 8.2, and its runtime vendor tree is committed.
+        # Composer 2.11 refuses a package with a security advisory, which PHPUnit 7 carries; the WordPress 5.7 and
+        # 5.8 test libraries run on nothing newer, and a test runner never runs on a server.
         run: |
           mkdir -p "$RUNNER_TEMP/tools"
-          composer require --working-dir="$RUNNER_TEMP/tools" --no-interaction --no-progress "phpunit/phpunit:${{ matrix.phpunit }}" "yoast/phpunit-polyfills:^1.1" "wp-phpunit/wp-phpunit:${{ steps.wp.outputs.wp-phpunit }}"
+          cat > "$RUNNER_TEMP/tools/composer.json" <<'EOF'
+          {
+            "require": {
+              "phpunit/phpunit": "${{ matrix.phpunit }}",
+              "yoast/phpunit-polyfills": "^1.1",
+              "wp-phpunit/wp-phpunit": "${{ steps.wp.outputs.wp-phpunit }}"
+            },
+            "config": {
+              "policy": {
+                "advisories": {
+                  "ignore": {
+                    "phpunit/phpunit": "The WordPress 5.7 and 5.8 test libraries run on PHPUnit 7; a test runner never runs on a server."
+                  }
+                }
+              }
+            }
+          }
+          EOF
+          composer update --working-dir="$RUNNER_TEMP/tools" --no-interaction --no-progress
       - name: Run the test suite
         env:
           WP_PHPUNIT__DIR: ${{ runner.temp }}/tools/vendor/wp-phpunit/wp-phpunit

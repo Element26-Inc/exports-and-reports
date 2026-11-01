@@ -65,14 +65,20 @@ class Exports_Reports_List_Table extends WP_List_Table {
 		$this->admin   = $admin;
 		$this->reorder = 1 === (int) $reorder && false !== $admin->reorder;
 
-		parent::__construct(
-			array(
-				'singular' => sanitize_key( (string) $admin->item ),
-				'plural'   => sanitize_key( (string) $admin->items ),
-				'ajax'     => false,
-				'screen'   => get_current_screen(),
-			)
+		$args = array(
+			'singular' => sanitize_key( (string) $admin->item ),
+			'plural'   => sanitize_key( (string) $admin->items ),
+			'ajax'     => false,
 		);
+
+		// The current admin screen, by id; outside an admin request (a test, WP-CLI) core works one out.
+		$screen = get_current_screen();
+
+		if ( $screen instanceof WP_Screen ) {
+			$args['screen'] = $screen->id;
+		}
+
+		parent::__construct( $args );
 	}
 
 	/**

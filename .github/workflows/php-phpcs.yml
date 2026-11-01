@@ -47,12 +47,13 @@ jobs:
         run: vendor/bin/phpcs --standard=phpcs.xml
 
       # ------------------------------------------------------------------------------
-      # Get changed files (the plugin's own PHP; vendor/ is third-party code)
+      # Get changed files (the plugin's own PHP; vendor/ is third-party code, and the tests under tests/ follow the
+      # test library's conventions, not the plugin's ruleset: PHPCompatibility covers them in the compatibility job)
       # ------------------------------------------------------------------------------
       - name: Get list of changed files
         id: files
         run: |
-          echo "CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | paste -sd' ' - || true)" >> $GITHUB_ENV
+          echo "CHANGED_FILES=$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} | grep '\.php$' | grep -v '^vendor/' | grep -v '^tests/' | paste -sd' ' - || true)" >> $GITHUB_ENV
 
       # ------------------------------------------------------------------------------
       # PHPCS, reported on the pull request; the repository token serves when no bot token is set
