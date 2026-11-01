@@ -866,6 +866,7 @@ wp_delete_user( (int) $er_subscriber );
 
 // --- the report form's field editor renders the saved fields and saves what it posts ---
 $er_form_row      = new stdClass();
+$er_form_row->do  = 'save';
 $er_form_row->row = array(
 	'field_data' => wp_json_encode(
 		array(
@@ -900,6 +901,7 @@ $er_form_ok   = 3 === substr_count( $er_form_html, 'class="er-field"' )
 er_report( 'report field editor renders the saved fields and a template', $er_form_ok, strlen( $er_form_html ) . ' bytes, ' . substr_count( $er_form_html, 'class="er-field"' ) . ' rows' );
 
 $_POST    = array(
+	'_wpnonce'          => wp_create_nonce( 'exports-reports-form-save' ),
 	'field_name'        => array(
 		3 => 'revenue',
 		7 => 'channel',

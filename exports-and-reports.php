@@ -16,7 +16,7 @@
  * Text Domain:       exports-and-reports
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Requires at least: 5.8
+ * Requires at least: 5.7
  * Requires PHP:      7.2
  * GitHub Plugin URI: https://github.com/sc0ttkclark/exports-and-reports
  * Primary Branch:    main
@@ -939,7 +939,9 @@ function exports_reports_report_field_row( $index, $field, $types ) {
  */
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
 	// Exports_Reports_Admin_UI::save() verified the form nonce before calling this custom_save callback; checked again so the function stands on its own.
-	if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $obj->do ) ) {
+	$form = isset( $obj->do ) && is_string( $obj->do ) ? $obj->do : '';
+
+	if ( '' === $form || ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $form ) ) {
 		return $value;
 	}
 
