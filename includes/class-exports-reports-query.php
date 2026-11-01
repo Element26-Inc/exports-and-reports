@@ -11,6 +11,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the class runs the administrator's report queries and the screens' own statements; there is nothing to cache.
+
 /**
  * Builds and runs the statements of an Exports_Reports_Admin_UI screen.
  *

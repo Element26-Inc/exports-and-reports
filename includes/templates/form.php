@@ -13,6 +13,8 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- included from a method of Exports_Reports_Admin_UI: the variables are local to that call, not globals.
 ?>
 <form method="post" action="<?php echo esc_url( $this->var_update( $vars ) ); ?>" class="wp_admin_ui">
 	<table class="form-table">

@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- included from a method of Exports_Reports_Admin_UI: the variables are local to that call, not globals.
+
 $reordering   = 1 === $reorder && false !== $this->reorder;
 $searchable   = ( ! empty( $this->data ) || false !== $this->search_query || false !== $this->default_none ) && false !== $this->search;
 $screen_title = ( $reordering ? $this->heading['reorder'] : $this->heading['manage'] ) . ' ' . $this->items;
