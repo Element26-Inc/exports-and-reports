@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- included from a method of Exports_Reports_Admin_UI: the variables are local to that call, not globals.
+
 	$excluded_filters = array();
 foreach ( $this->filters as $filter ) {
 	$excluded_filters[] = 'filter_' . $filter . '_start';
