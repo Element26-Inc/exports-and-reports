@@ -230,13 +230,13 @@ er_report( 'tab-indented LIMIT %%LIMIT%%', '' === $er_error && count( $rows ) ==
 // itself and runs the preparation on wpdb's connection, which this callback does for the test.
 add_filter(
 	'exports_reports_get_data_sql',
-	static function ( $args ) {
+	static function ( $sql ) {
 		global $wpdb;
-		$sql = isset( $args[1] ) ? (string) $args[1] : '';
+		$sql = (string) $sql;
 		// Split on ";" followed by whitespace, outside single-quoted strings.
 		$statements = preg_split( "/;\\s+(?=(?:[^']*'[^']*')*[^']*$)/", $sql, -1, PREG_SPLIT_NO_EMPTY );
 		if ( count( $statements ) < 2 ) {
-			return $args;
+			return $sql;
 		}
 		$last = trim( array_pop( $statements ) );
 		if ( mysqli_multi_query( $wpdb->dbh, implode( '; ', $statements ) ) ) { // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_multi_query
@@ -252,11 +252,9 @@ add_filter(
 		}
 		if ( '' !== mysqli_error( $wpdb->dbh ) ) { // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
 			$wpdb->last_error = 'Preparation statement failed: ' . mysqli_error( $wpdb->dbh ); // phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
-			$args[1]          = false;
-			return $args;
+			return false;
 		}
-		$args[1] = $last;
-		return $args;
+		return $last;
 	}
 );
 list( , $rows, $er_error ) = er_run( "SET @cutoff = 50;\nCREATE TEMPORARY TABLE er_test_top AS SELECT * FROM `{$er_table}` WHERE revenue > @cutoff;\nSELECT id, title, revenue FROM er_test_top ORDER BY revenue DESC", 'Prepared' );
@@ -301,10 +299,9 @@ if ( isset( $er_csv['streamed'], $er_csv['buffered'] ) ) {
 
 // --- the count query through its filter (the view path runs it for the totals row) ---
 $er_count_seen = '';
-$er_count_cb   = static function ( $args ) use ( &$er_count_seen ) {
-	$er_count_seen = isset( $args[1] ) ? (string) $args[1] : '';
-	$args[1]       = 'SELECT 42 AS revenue';
-	return $args;
+$er_count_cb   = static function ( $sql_count ) use ( &$er_count_seen ) {
+	$er_count_seen = (string) $sql_count;
+	return 'SELECT 42 AS revenue';
 };
 add_filter( 'exports_reports_get_data_sql_count', $er_count_cb );
 $er_admin = er_admin( "SELECT id, revenue FROM `{$er_table}` ORDER BY id", 'Count', array( 'sql_count' => "SELECT SUM(revenue) AS revenue FROM `{$er_table}`" ) );
@@ -382,11 +379,10 @@ er_report(
 );
 
 // --- a declined query: the callback returns false once it has reported why ---
-$er_decline = static function ( $args ) {
+$er_decline = static function () {
 	global $wpdb;
 	$wpdb->last_error = 'declined by the test';
-	$args[1]          = false;
-	return $args;
+	return false;
 };
 add_filter( 'exports_reports_get_data_sql', $er_decline );
 $er_admin              = er_admin( "SELECT id FROM `{$er_table}`", 'Declined' );
@@ -452,13 +448,10 @@ $er_columns['channel'] = array(
 	'custom_display' => 'strtoupper',
 );
 $er_internal           = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback', array( 'columns' => $er_columns ) );
-$er_allow_strtoupper   = static function ( $args ) {
-	if ( 'strtoupper' === $args[2] ) {
-		$args[1] = true;
-	}
-	return $args;
+$er_allow_strtoupper   = static function ( $allowed, $callback ) {
+	return 'strtoupper' === $callback ? true : $allowed;
 };
-add_filter( 'exports_reports_allowed_callback', $er_allow_strtoupper );
+add_filter( 'exports_reports_allowed_callback', $er_allow_strtoupper, 10, 2 );
 $er_internal_allowed = er_admin( "SELECT id, channel FROM `{$er_table}` WHERE id = 1", 'Internal callback allowed', array( 'columns' => $er_columns ) );
 remove_filter( 'exports_reports_allowed_callback', $er_allow_strtoupper );
 er_report(

@@ -127,7 +127,16 @@ class Exports_Reports_Admin_UI {
 		 */
 		do_action( 'exports_reports_pre_init', $options );
 		do_action_deprecated( 'wp_admin_ui_pre_init', array( $options ), '0.9.5', 'exports_reports_pre_init' );
-		$options          = $this->do_hook( 'options', $options );
+		/**
+		 * Filters the options of a report screen before they take effect.
+		 *
+		 * @since 1.0.0 The options and the instance, one by one; the array form stays with wp_admin_ui_options.
+		 *
+		 * @param array                   $options The options the screen was given.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		$options          = apply_filters( 'exports_reports_options', $options, $this );
+		$options          = $this->legacy_hook( 'options', array( $options ) );
 		$this->base_dir   = __DIR__;
 		$this->base_url   = EXPORTS_REPORTS_URL;
 		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=' . EXPORTS_REPORTS_EXPORT_ACTION . '&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( EXPORTS_REPORTS_EXPORT_NONCE ) . '&exports_and_reports_export=';
@@ -241,7 +250,16 @@ class Exports_Reports_Admin_UI {
 		if ( ! empty( $this->filters ) && ! is_array( $this->filters ) ) {
 			$this->filters = explode( ',', $this->filters );
 		}
-		$this->do_hook( 'post_init', $options );
+		/**
+		 * Fires once a report screen is set up.
+		 *
+		 * @since 1.0.0 The options and the instance, one by one.
+		 *
+		 * @param array                   $options The options.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		do_action( 'exports_reports_post_init', $options, $this );
+		$this->legacy_hook( 'post_init', array( $options ) );
 	}
 
 	/**
@@ -270,7 +288,21 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 
-		return $this->do_hook( 'get_var', $value, $index, $fallback, $allowed, $source );
+		/**
+		 * Filters a request value as the screen reads it.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param mixed                   $value    The value, or the fallback.
+		 * @param string                  $index    The request key.
+		 * @param mixed                   $fallback The fallback.
+		 * @param array|false             $allowed  The values allowed, or false for any.
+		 * @param array|false             $source   The array read instead of the request, or false.
+		 * @param Exports_Reports_Admin_UI $admin    The screen.
+		 */
+		$value = apply_filters( 'exports_reports_get_var', $value, $index, $fallback, $allowed, $source, $this );
+
+		return $this->legacy_hook( 'get_var', array( $value, $index, $fallback, $allowed, $source ) );
 	}
 
 	/**
@@ -316,7 +348,16 @@ class Exports_Reports_Admin_UI {
 	 * @param bool|array $exclude
 	 */
 	public function hidden_vars( $exclude = false ) {
-		$exclude = $this->do_hook( 'hidden_vars', $exclude );
+		/**
+		 * Filters the request keys the search form does not carry as hidden fields.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param array|false             $exclude The keys, or false for the default list.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		$exclude = apply_filters( 'exports_reports_hidden_vars', $exclude, $this );
+		$exclude = $this->legacy_hook( 'hidden_vars', array( $exclude ) );
 		if ( false === $exclude ) {
 			$exclude = array();
 		}
@@ -334,26 +375,34 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * Runs the exports_reports_<name> filter: do_hook( 'name', ...$args ). The callbacks receive the
-	 * arguments as an array (from index 1) and, second, an array of this instance and the hook name.
-	 * The wp_admin_ui_<name> filter of the versions before 0.9.5 runs after it, deprecated.
+	 * Runs the wp_admin_ui_<name> hook of the versions before 0.9.5, deprecated, after the
+	 * exports_reports_<name> hook has run. Its callbacks receive the arguments the way they always did:
+	 * as one array indexed from 1 and, second, an array of this instance and the hook name. The first
+	 * argument comes back as they left it.
 	 *
-	 * @return mixed The first argument as the callbacks left it, or false when there is none.
+	 * @since 1.0.0 The exports_reports_<name> hooks pass their arguments one by one; only the old names keep the array.
+	 *
+	 * @param string $name The hook name without its prefix.
+	 * @param array  $args The arguments of the exports_reports_<name> hook, without this instance.
+	 *
+	 * @return mixed The first argument, or null when the hook has none.
 	 */
-	public function do_hook() {
-		$args = func_get_args();
-		if ( empty( $args ) ) {
-			return false;
-		}
-		$filter = $args[0];
-		unset( $args[0] );
-		$args = apply_filters( 'exports_reports_' . $filter, $args, array( &$this, 'exports_reports_' . $filter ) );
-		$args = apply_filters_deprecated( 'wp_admin_ui_' . $filter, array( $args, array( &$this, 'wp_admin_ui_' . $filter ) ), '0.9.5', 'exports_reports_' . $filter );
-		if ( isset( $args[1] ) ) {
-			return $args[1];
+	public function legacy_hook( $name, array $args = array() ) {
+		$first = isset( $args[0] ) ? $args[0] : null;
+
+		if ( ! has_filter( 'wp_admin_ui_' . $name ) ) {
+			return $first;
 		}
 
-		return false;
+		$legacy = array();
+
+		foreach ( array_values( $args ) as $position => $arg ) {
+			$legacy[ $position + 1 ] = $arg;
+		}
+
+		$legacy = apply_filters_deprecated( 'wp_admin_ui_' . $name, array( $legacy, array( &$this, 'wp_admin_ui_' . $name ) ), '0.9.5', 'exports_reports_' . $name );
+
+		return isset( $legacy[1] ) ? $legacy[1] : $first;
 	}
 
 	/**
@@ -376,9 +425,15 @@ class Exports_Reports_Admin_UI {
 		/**
 		 * Filters whether a function named in a report definition is called back.
 		 *
-		 * @param array $args { @type bool $1 Whether it is called. @type string $2 The function name. }
+		 * @since 1.0.0 The arguments one by one; the array form stays with wp_admin_ui_allowed_callback.
+		 *
+		 * @param bool                    $allowed  Whether it is called.
+		 * @param string                  $callback The function name.
+		 * @param Exports_Reports_Admin_UI $admin    The screen.
 		 */
-		return false !== $this->do_hook( 'allowed_callback', $allowed, $callback );
+		$allowed = apply_filters( 'exports_reports_allowed_callback', $allowed, $callback, $this );
+
+		return false !== $this->legacy_hook( 'allowed_callback', array( $allowed, $callback ) );
 	}
 
 	/**
@@ -634,7 +689,20 @@ class Exports_Reports_Admin_UI {
 			$url = $url[0];
 		}
 
-		return $this->do_hook( 'var_update', $url . '?' . http_build_query( $get ), $vars, $allowed, $url );
+		/**
+		 * Filters a link of the screen after its query has been built.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param string                  $link    The link.
+		 * @param array                   $vars    The query variables set or removed.
+		 * @param array|false             $allowed The variables carried over from the request, or false for all.
+		 * @param string                  $url     The link without its query.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		$link = apply_filters( 'exports_reports_var_update', $url . '?' . http_build_query( $get ), $vars, $allowed, $url, $this );
+
+		return $this->legacy_hook( 'var_update', array( $link, $vars, $allowed, $url ) );
 	}
 
 	public function sanitize( $input ) {
@@ -839,7 +907,19 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 
-		return $this->do_hook( 'setup_columns', $columns, $which, $init );
+		/**
+		 * Filters the column definitions once they are complete.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param array                   $columns The columns, by name.
+		 * @param string                  $which   Which set: columns, reorder_columns, form_columns, ...
+		 * @param bool                    $init    Whether the screen is being set up.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		$columns = apply_filters( 'exports_reports_setup_columns', $columns, $which, $init, $this );
+
+		return $this->legacy_hook( 'setup_columns', array( $columns, $which, $init ) );
 	}
 
 	public function setup_column( $column = null, $attributes = null, $filterable = false ) {
@@ -1014,7 +1094,19 @@ class Exports_Reports_Admin_UI {
 			$attributes['width'] = '';
 		}
 
-		return $this->do_hook( 'setup_column', $attributes, $column, $filterable );
+		/**
+		 * Filters one column definition once it is complete.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param array                   $attributes The column.
+		 * @param string                  $column     Its name.
+		 * @param bool                    $filterable Whether the column may filter the list.
+		 * @param Exports_Reports_Admin_UI $admin      The screen.
+		 */
+		$attributes = apply_filters( 'exports_reports_setup_column', $attributes, $column, $filterable, $this );
+
+		return $this->legacy_hook( 'setup_column', array( $attributes, $column, $filterable ) );
 	}
 
 	/**
@@ -1036,14 +1128,32 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function message( $msg ) {
-		$msg = $this->do_hook( 'message', $msg );
+		/**
+		 * Filters a message before the screen shows it.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param string                  $msg   The message, HTML.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		$msg = apply_filters( 'exports_reports_message', $msg, $this );
+		$msg = $this->legacy_hook( 'message', array( $msg ) );
 		?>
 		<div id="message" class="updated fade"><p><?php echo wp_kses_post( $msg ); ?></p></div>
 		<?php
 	}
 
 	public function error( $msg ) {
-		$msg = $this->do_hook( 'error', $msg );
+		/**
+		 * Filters an error message before the screen shows it.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param string                  $msg   The message, HTML.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		$msg = apply_filters( 'exports_reports_error', $msg, $this );
+		$msg = $this->legacy_hook( 'error', array( $msg ) );
 		?>
 		<div id="message" class="error fade"><p><?php echo wp_kses_post( $msg ); ?></p></div>
 		<?php
@@ -1051,7 +1161,15 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function go() {
-		$this->do_hook( 'go' );
+		/**
+		 * Fires before the screen dispatches the request.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_go', $this );
+		$this->legacy_hook( 'go' );
 
 		if ( false !== $this->css ) {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
@@ -1111,7 +1229,15 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function add() {
-		$this->do_hook( 'add' );
+		/**
+		 * Fires before the add form.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_add', $this );
+		$this->legacy_hook( 'add' );
 		?>
 		<div class="wrap wp-admin-ui-wrap">
 			<div id="icon-edit-pages" class="icon32"
@@ -1143,7 +1269,16 @@ class Exports_Reports_Admin_UI {
 		if ( ! $this->duplicate ) {
 			$duplicate = 0;
 		}
-		$this->do_hook( 'edit', $duplicate );
+		/**
+		 * Fires before the edit form.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $duplicate 1 when the form duplicates the row.
+		 * @param Exports_Reports_Admin_UI $admin     The screen.
+		 */
+		do_action( 'exports_reports_edit', $duplicate, $this );
+		$this->legacy_hook( 'edit', array( $duplicate ) );
 		if ( isset( $this->custom['edit'] ) && function_exists( "{$this->custom['edit']}" ) ) {
 			call_user_func( $this->custom['edit'], $this, $duplicate );
 		}
@@ -1175,7 +1310,17 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function form( $create = 0, $duplicate = 0 ) {
-		$this->do_hook( 'form', $create, $duplicate );
+		/**
+		 * Fires before the form fields.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $create    1 when the form adds a row.
+		 * @param int                     $duplicate 1 when the form duplicates the row.
+		 * @param Exports_Reports_Admin_UI $admin     The screen.
+		 */
+		do_action( 'exports_reports_form', $create, $duplicate, $this );
+		$this->legacy_hook( 'form', array( $create, $duplicate ) );
 		if ( isset( $this->custom['form'] ) && function_exists( "{$this->custom['form']}" ) ) {
 			return call_user_func( $this->custom['form'], $this, $create );
 		}
@@ -1337,7 +1482,15 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function view() {
-		$this->do_hook( 'view' );
+		/**
+		 * Fires before the view screen.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_view', $this );
+		$this->legacy_hook( 'view' );
 		if ( isset( $this->custom['view'] ) && function_exists( "{$this->custom['view']}" ) ) {
 			return call_user_func( $this->custom['view'], $this );
 		}
@@ -1459,7 +1612,16 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function delete( $id = false ) {
-		$this->do_hook( 'pre_delete', $id );
+		/**
+		 * Fires before a row is deleted.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param mixed                   $id    The identifier.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_pre_delete', $id, $this );
+		$this->legacy_hook( 'pre_delete', array( $id ) );
 		if ( isset( $this->custom['delete'] ) && function_exists( "{$this->custom['delete']}" ) ) {
 			return call_user_func( $this->custom['delete'], $this );
 		}
@@ -1481,14 +1643,32 @@ class Exports_Reports_Admin_UI {
 			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
 			$this->error( sprintf( __( '<strong>Error:</strong> %s has not been deleted.', 'exports-and-reports' ), $this->item ) );
 		}
-		$this->do_hook( 'post_delete', $id );
+		/**
+		 * Fires once a row has been deleted.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param mixed                   $id    The identifier.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_post_delete', $id, $this );
+		$this->legacy_hook( 'post_delete', array( $id ) );
 	}
 
 	public function save( $create = 0 ) {
 		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 			return $this->error( __( '<strong>Error:</strong> The form has expired; reload the page and try again.', 'exports-and-reports' ) );
 		}
-		$this->do_hook( 'pre_save', $create );
+		/**
+		 * Fires before the posted form is saved.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $create 1 when a row is added.
+		 * @param Exports_Reports_Admin_UI $admin  The screen.
+		 */
+		do_action( 'exports_reports_pre_save', $create, $this );
+		$this->legacy_hook( 'pre_save', array( $create ) );
 		if ( isset( $this->custom['save'] ) && function_exists( "{$this->custom['save']}" ) ) {
 			return call_user_func( $this->custom['save'], $this, $create );
 		}
@@ -1593,14 +1773,33 @@ class Exports_Reports_Admin_UI {
 			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
 			$this->error( sprintf( __( '<strong>Error:</strong> %s has not been saved.', 'exports-and-reports' ), $this->item ) );
 		}
-		$this->do_hook( 'post_save', $this->insert_id, $data, $create );
+		/**
+		 * Fires once the posted form has been saved.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $id     The identifier of the row.
+		 * @param array                   $data   The values saved.
+		 * @param int                     $create 1 when the row was added.
+		 * @param Exports_Reports_Admin_UI $admin  The screen.
+		 */
+		do_action( 'exports_reports_post_save', $this->insert_id, $data, $create, $this );
+		$this->legacy_hook( 'post_save', array( $this->insert_id, $data, $create ) );
 	}
 
 	public function reorder() {
 		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-reorder' ) ) {
 			return $this->error( __( '<strong>Error:</strong> The order was not saved: the page has expired, reload it and try again.', 'exports-and-reports' ) );
 		}
-		$this->do_hook( 'pre_reorder' );
+		/**
+		 * Fires before the posted order is saved.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_pre_reorder', $this );
+		$this->legacy_hook( 'pre_reorder' );
 		if ( isset( $this->custom['reorder'] ) && function_exists( "{$this->custom['reorder']}" ) ) {
 			return call_user_func( $this->custom['reorder'], $this );
 		}
@@ -1629,7 +1828,16 @@ class Exports_Reports_Admin_UI {
 		} else {
 			$this->error( __( '<strong>Error:</strong> Order has not been updated.', 'exports-and-reports' ) );
 		}
-		$this->do_hook( 'post_reorder', $this->insert_id );
+		/**
+		 * Fires once the posted order has been saved.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $id    The identifier of the last row saved.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_post_reorder', $this->insert_id, $this );
+		$this->legacy_hook( 'post_reorder', array( $this->insert_id ) );
 	}
 
 	public function field_value( $value, $field_name, $attributes ) {
@@ -1764,7 +1972,15 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function export() {
-		$this->do_hook( 'pre_export' );
+		/**
+		 * Fires before an export is written.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_pre_export', $this );
+		$this->legacy_hook( 'pre_export' );
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		$url         = explode( '/', $this->request_uri() );
 		$url         = array_reverse( $url );
@@ -1836,17 +2052,42 @@ class Exports_Reports_Admin_UI {
 				return false;
 			}
 
-			$this->do_hook( 'pre_remove_export', $remove_export, $remove_export_path );
+			/**
+			 * Fires before an export file is removed.
+			 *
+			 * @since 1.0.0
+			 *
+			 * @param string                  $file  The file name.
+			 * @param string                  $path  Its path.
+			 * @param Exports_Reports_Admin_UI $admin The screen.
+			 */
+			do_action( 'exports_reports_pre_remove_export', $remove_export, $remove_export_path, $this );
+			$this->legacy_hook( 'pre_remove_export', array( $remove_export, $remove_export_path ) );
 
 			if ( $wp_filesystem->exists( $remove_export_path ) ) {
 				$remove = $wp_filesystem->delete( $remove_export_path );
 				if ( $remove ) {
-					$this->do_hook( 'post_remove_export', $remove_export, true, $remove_export_path );
+					/**
+					 * Fires once an export file has been removed, or could not be.
+					 *
+					 * @since 1.0.0
+					 *
+					 * @param string                  $file    The file name.
+					 * @param bool                    $removed Whether the file is gone.
+					 * @param string                  $path    Its path.
+					 * @param Exports_Reports_Admin_UI $admin   The screen.
+					 */
+					do_action( 'exports_reports_post_remove_export', $remove_export, true, $remove_export_path, $this );
+					$this->legacy_hook( 'post_remove_export', array( $remove_export, true, $remove_export_path ) );
 					$this->message( __( '<strong>Success:</strong> Export removed successfully.', 'exports-and-reports' ) );
 
 					return;
 				} else {
-					$this->do_hook( 'post_remove_export', $remove_export, false, $remove_export_path );
+					/**
+					 * This action is documented above.
+					 */
+					do_action( 'exports_reports_post_remove_export', $remove_export, false, $remove_export_path, $this );
+					$this->legacy_hook( 'post_remove_export', array( $remove_export, false, $remove_export_path ) );
 					/* translators: %s: the export directory. */
 					$this->error( sprintf( __( '<strong>Error:</strong> Your export directory (<strong>%s</strong>) needs to be writable for this plugin to work. Double-check it and try again.', 'exports-and-reports' ), EXPORTS_REPORTS_EXPORT_DIR ) );
 
@@ -1966,7 +2207,16 @@ class Exports_Reports_Admin_UI {
 
 		$this->exported_file = $export_file;
 
-		$this->do_hook( 'post_export', $export_file );
+		/**
+		 * Fires once an export file has been written.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param string                  $file  The file name.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_post_export', $export_file, $this );
+		$this->legacy_hook( 'post_export', array( $export_file ) );
 	}
 
 	/**
@@ -2093,9 +2343,13 @@ class Exports_Reports_Admin_UI {
 		/**
 		 * Filters whether values a spreadsheet would evaluate as formulas are written as text.
 		 *
-		 * @param array $args { @type bool $1 True by default. }
+		 * @since 1.0.0 The arguments one by one; the array form stays with wp_admin_ui_export_escape_formulas.
+		 *
+		 * @param bool                    $escape True by default.
+		 * @param Exports_Reports_Admin_UI $admin  The screen.
 		 */
-		$escape_formulas = false !== $this->do_hook( 'export_escape_formulas', true ); // Before the unbuffered result is open: a callback may query the database.
+		$escape_formulas = apply_filters( 'exports_reports_export_escape_formulas', true, $this ); // Before the unbuffered result is open: a callback may query the database.
+		$escape_formulas = false !== $this->legacy_hook( 'export_escape_formulas', array( $escape_formulas ) );
 
 		if ( '' !== $this->stream_sql ) {
 			// Unbuffered, on wpdb's connection: the statement may read temporary tables and session variables
@@ -2310,7 +2564,17 @@ class Exports_Reports_Admin_UI {
 
 		$row = current( $this->rows( $sql, ARRAY_A ) );
 
-		$row = $this->do_hook( 'get_row', $row, $id );
+		/**
+		 * Filters the row the edit and view screens load.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param array|false             $row   The row, or false when there is none.
+		 * @param mixed                   $id    Its identifier.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		$row = apply_filters( 'exports_reports_get_row', $row, $id, $this );
+		$row = $this->legacy_hook( 'get_row', array( $row, $id ) );
 		if ( ! empty( $row ) ) {
 			$this->row = $row;
 		}
@@ -2644,16 +2908,19 @@ class Exports_Reports_Admin_UI {
 		 * false to run nothing once it has reported why. A literal % in a quoted value stands behind
 		 * wpdb's placeholder escape, which wpdb removes when it runs the statement.
 		 *
-		 * @param array $args {
-		 *     @type string|false $1 The statement.
-		 *     @type bool         $2 True when every row is read, as for an export.
-		 * }
+		 * @since 1.0.0 The arguments one by one; the array form stays with wp_admin_ui_get_data_sql.
+		 *
+		 * @param string|false            $sql   The statement.
+		 * @param bool                    $full  True when every row is read, as for an export.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
 		 */
-		$sql = $this->do_hook( 'get_data_sql', $sql, $full );
+		$sql = apply_filters( 'exports_reports_get_data_sql', $sql, $full, $this );
+		$sql = $this->legacy_hook( 'get_data_sql', array( $sql, $full ) );
 
 		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
 			/** Filters the count query right before it runs; same arguments as exports_reports_get_data_sql. */
-			$sql_count = $this->do_hook( 'get_data_sql_count', $sql_count, $full );
+			$sql_count = apply_filters( 'exports_reports_get_data_sql_count', $sql_count, $full, $this );
+			$sql_count = $this->legacy_hook( 'get_data_sql_count', array( $sql_count, $full ) );
 		}
 
 		if ( false === $sql ) {
@@ -2682,7 +2949,18 @@ class Exports_Reports_Admin_UI {
 			$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
 		}
 
-		$total = $this->do_hook( 'get_data_total', $total, $full );
+		/**
+		 * Filters the row count of the report, for the paging; a statement that does not begin with
+		 * SELECT has no count of its own and supplies it here.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $total The count.
+		 * @param bool                    $full  Whether every row was asked for (an export).
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		$total = apply_filters( 'exports_reports_get_data_total', $total, $full, $this );
+		$total = $this->legacy_hook( 'get_data_total', array( $total, $full ) );
 
 		if ( is_numeric( $total ) ) {
 			$this->total = $total;
@@ -2767,7 +3045,16 @@ class Exports_Reports_Admin_UI {
 
 	public function manage( $reorder = 0 ) {
 		/** @global wpdb $wpdb */ global $wpdb;
-		$this->do_hook( 'manage', $reorder );
+		/**
+		 * Fires before the list screen.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $reorder 1 on the reorder screen.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		do_action( 'exports_reports_manage', $reorder, $this );
+		$this->legacy_hook( 'manage', array( $reorder ) );
 		if ( isset( $this->custom['manage'] ) && function_exists( "{$this->custom['manage']}" ) ) {
 			return call_user_func( $this->custom['manage'], $this, $reorder );
 		}
@@ -3074,7 +3361,16 @@ class Exports_Reports_Admin_UI {
 		if ( 1 === $reorder && false !== $this->reorder ) {
 			wp_enqueue_script( 'jquery-ui-sortable' );
 		}
-		$this->do_hook( 'table', $reorder );
+		/**
+		 * Fires before the table.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param int                     $reorder 1 on the reorder screen.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		do_action( 'exports_reports_table', $reorder, $this );
+		$this->legacy_hook( 'table', array( $reorder ) );
 		if ( isset( $this->custom['table'] ) && function_exists( "{$this->custom['table']}" ) ) {
 			return call_user_func( $this->custom['table'], $this, $reorder );
 		}
@@ -3324,7 +3620,17 @@ class Exports_Reports_Admin_UI {
 												}
 											}
 										}
-										$actions = $this->do_hook( 'row_actions', $actions );
+										/**
+										 * Filters the links under a row's title.
+										 *
+										 * @since 1.0.0 The row is passed.
+										 *
+										 * @param string[]                $actions The links, HTML, by action.
+										 * @param array                   $row     The row.
+										 * @param Exports_Reports_Admin_UI $admin   The screen.
+										 */
+										$actions = apply_filters( 'exports_reports_row_actions', $actions, $row, $this );
+										$actions = $this->legacy_hook( 'row_actions', array( $actions, $row ) );
 										?>
 										<div class="row-actions">
 											<?php
@@ -3415,7 +3721,15 @@ class Exports_Reports_Admin_UI {
 	 * @return mixed
 	 */
 	public function pagination( $header = false ) {
-		$this->do_hook( 'pagination' );
+		/**
+		 * Fires before the page links.
+		 *
+		 * @since 1.0.0
+		 *
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		do_action( 'exports_reports_pagination', $this );
+		$this->legacy_hook( 'pagination' );
 		if ( isset( $this->custom['pagination'] ) && function_exists( "{$this->custom['pagination']}" ) ) {
 			return call_user_func( $this->custom['pagination'], $this );
 		}
@@ -3475,7 +3789,16 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function limit( $options = false ) {
-		$this->do_hook( 'limit', $options );
+		/**
+		 * Filters the page sizes offered.
+		 *
+		 * @since 1.0.0 A filter; the value the callbacks return is used.
+		 *
+		 * @param int[]|false             $options The sizes, or false for the default list.
+		 * @param Exports_Reports_Admin_UI $admin   The screen.
+		 */
+		$options = apply_filters( 'exports_reports_limit', $options, $this );
+		$options = $this->legacy_hook( 'limit', array( $options ) );
 		if ( isset( $this->custom['limit'] ) && function_exists( "{$this->custom['limit']}" ) ) {
 			return call_user_func( $this->custom['limit'], $this );
 		}
