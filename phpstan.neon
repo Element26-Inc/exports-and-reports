@@ -8,6 +8,7 @@ parameters:
     - exports-and-reports.php
   excludePaths:
     - tests (?)
+    - includes/templates (?)
   scanDirectories:
     - includes
     - vendor/vendor-prefixed

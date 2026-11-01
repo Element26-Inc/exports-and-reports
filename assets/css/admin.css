@@ -168,7 +168,7 @@ select.admin_ui_filter_multiple {
 }
 
 /* The reorder screen: taller rows and a drag handle. */
-table.widefat.fixed tbody.sortable tr {
+.admin_ui_reorder_form table.widefat.fixed tbody tr {
 	height: 50px;
 }
 

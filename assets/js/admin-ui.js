@@ -5,7 +5,7 @@
  */
 /* global jQuery */
 jQuery( function ( $ ) {
-	const sortable = $( 'tbody.sortable' );
+	const sortable = $( '.admin_ui_reorder_form tbody' );
 
 	if ( sortable.length && $.fn.sortable ) {
 		sortable.sortable( { axis: 'y', handle: '.dragme' } );

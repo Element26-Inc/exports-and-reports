@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/class-exports-reports-query.php';
 require_once __DIR__ . '/exporters/class-exports-reports-exporter.php';
+require_once __DIR__ . '/class-exports-reports-list-table.php';
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
 
@@ -1210,31 +1211,12 @@ class Exports_Reports_Admin_UI {
 		 */
 		do_action( 'exports_reports_add', $this );
 		$this->legacy_hook( 'add' );
-		?>
-		<div class="wrap wp-admin-ui-wrap">
-			<div id="icon-edit-pages" class="icon32"
-				<?php
-				if ( false !== $this->icon ) {
-					?>
-					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
-				<br /></div>
-			<h2><?php echo esc_html( $this->heading['add'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="
-				<?php
-					echo esc_url(
-						$this->var_update(
-							array(
-								'action' => 'manage',
-								'id'     => '',
-							)
-						)
-					);
-				?>
-									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
-			</h2>
-			<?php $this->form( 1 ); ?>
-		</div>
-		<?php
+
+		$screen_title = $this->heading['add'] . ' ' . $this->item;
+		$create       = 1;
+		$duplicate    = 0;
+
+		require __DIR__ . '/templates/edit.php';
 	}
 
 	public function edit( $duplicate = 0 ) {
@@ -1254,31 +1236,11 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom['edit'] ) && function_exists( "{$this->custom['edit']}" ) ) {
 			call_user_func( $this->custom['edit'], $this, $duplicate );
 		}
-		?>
-		<div class="wrap wp-admin-ui-wrap">
-			<div id="icon-edit-pages" class="icon32"
-				<?php
-				if ( false !== $this->icon ) {
-					?>
-					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
-				<br /></div>
-			<h2><?php echo esc_html( $duplicate ? $this->heading['duplicate'] : $this->heading['edit'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="
-				<?php
-					echo esc_url(
-						$this->var_update(
-							array(
-								'action' => 'manage',
-								'id'     => '',
-							)
-						)
-					);
-				?>
-									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
-			</h2>
-			<?php $this->form( 0, $duplicate ); ?>
-		</div>
-		<?php
+
+		$screen_title = ( $duplicate ? $this->heading['duplicate'] : $this->heading['edit'] ) . ' ' . $this->item;
+		$create       = 0;
+
+		require __DIR__ . '/templates/edit.php';
 	}
 
 	public function form( $create = 0, $duplicate = 0 ) {
@@ -1299,11 +1261,11 @@ class Exports_Reports_Admin_UI {
 		if ( false === $this->table && false === $this->sql ) {
 			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
-		global $wpdb;
 		if ( empty( $this->form_columns ) ) {
 			$this->form_columns = $this->columns;
 		}
-		$submit = 'Add ' . $this->item;
+		/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+		$submit = sprintf( __( 'Add %s', 'exports-and-reports' ), $this->item );
 		$id     = '';
 		$vars   = array(
 			'action' => 'manage',
@@ -1319,7 +1281,7 @@ class Exports_Reports_Admin_UI {
 				return $this->error( sprintf( __( '<strong>Error:</strong> %s not found.', 'exports-and-reports' ), $this->item ) );
 			}
 			if ( 0 === $duplicate ) {
-				$submit = 'Save Changes';
+				$submit = __( 'Save Changes', 'exports-and-reports' );
 				$id     = $this->row[ $this->identifier ];
 				$vars   = array(
 					'action' => 'edit',
@@ -1328,129 +1290,7 @@ class Exports_Reports_Admin_UI {
 				);
 			}
 		}
-		?>
-		<form method="post" action="<?php echo esc_url( $this->var_update( $vars ) ); ?>" class="wp_admin_ui">
-			<table class="form-table">
-				<?php
-				foreach ( $this->form_columns as $column => $attributes ) {
-					if ( ! is_array( $attributes ) ) {
-						$column     = $attributes;
-						$attributes = $this->setup_column( $column );
-					}
-					if ( ! isset( $this->row[ $column ] ) ) {
-						$this->row[ $column ] = '';
-					}
-					if ( false === $attributes['display'] ) {
-						continue;
-					}
-					?>
-					<tr valign="top">
-					<th scope="row">
-						<label for="admin_ui_<?php echo esc_attr( $column ); ?>"><?php echo esc_html( $attributes['label'] ); ?></label>
-					</th>
-					<td>
-					<?php
-					if ( ! empty( $attributes['comments'] ) && ! empty( $attributes['comments_top'] ) ) {
-						?>
-						<span class="description"><?php echo wp_kses_post( $attributes['comments'] ); ?></span>
-						<?php
-						if ( ! in_array( $attributes['type'], array( 'desc', 'code' ), true ) ) {
-							echo '<br />';
-						}
-					}
-					if ( false !== $attributes['custom_input'] && function_exists( "{$attributes['custom_input']}" ) ) {
-						$attributes['custom_input']( $column, $attributes, $this );
-						?>
-						</td>
-						</tr>
-						<?php
-						continue;
-					}
-					if ( false !== $attributes['custom_form_display'] && function_exists( "{$attributes['custom_form_display']}" ) ) {
-						$this->row[ $column ] = $attributes['custom_form_display']( $column, $attributes, $this );
-					}
-					if ( false !== $attributes['readonly'] ) {
-						?>
-						<div id="admin_ui_<?php echo esc_attr( $column ); ?>"><?php echo esc_html( $this->row[ $column ] ); ?></div>
-						<?php
-					} elseif ( 'bool' === $attributes['type'] ) {
-						?>
-						<input type="checkbox" name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" value="1"<?php checked( 1, (int) $this->row[ $column ] ); ?> />
-						<?php
-					} elseif ( 'password' === $attributes['type'] ) {
-						?>
-						<input type="password" name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" value="<?php echo esc_attr( $this->row[ $column ] ); ?>" class="regular-text" />
-						<?php
-					} elseif ( 'desc' === $attributes['type'] || 'code' === $attributes['type'] ) {
-						?>
-						<textarea name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" rows="10" cols="50"><?php echo esc_textarea( $this->row[ $column ] ); ?></textarea>
-						<?php
-					} elseif ( in_array( $attributes['type'], array( 'date', 'datetime', 'time' ), true ) ) {
-						$html_input_type = $attributes['type'];
-
-						if ( 'datetime' === $html_input_type ) {
-							$html_input_type = 'datetime-local';
-						}
-						?>
-						<input type="<?php echo esc_attr( $html_input_type ); ?>" name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" value="<?php echo esc_attr( str_replace( ' ', 'T', $this->row[ $column ] ) ); ?>" />
-						<?php
-					} elseif ( 'related' === $attributes['type'] && false !== $attributes['related'] ) {
-						if ( ! is_array( $attributes['related'] ) ) {
-							$related = $this->rows( 'SELECT id,`' . $this->sanitize( (string) $attributes['related_field'] ) . '` FROM ' . (string) $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . (string) $attributes['related_sql'] : '' ) );
-							$choices = array();
-							foreach ( $related as $option ) {
-								$choices[ (string) $option->id ] = (string) $option->{$attributes['related_field']};
-							}
-						} else {
-							$choices = array();
-							foreach ( (array) $attributes['related'] as $option_id => $option ) {
-								$choices[ (string) $option_id ] = (string) $option;
-							}
-						}
-						$selected_options = array_map( 'strval', explode( ',', (string) $this->row[ $column ] ) );
-						if ( false !== $attributes['related_multiple'] ) {
-							?>
-							<fieldset class="er-choices" id="admin_ui_<?php echo esc_attr( $column ); ?>">
-								<?php foreach ( $choices as $option_id => $option ) { ?>
-									<label><input type="checkbox" name="<?php echo esc_attr( $column ); ?>[]" value="<?php echo esc_attr( $option_id ); ?>"<?php checked( in_array( $option_id, $selected_options, true ) ); ?> /> <?php echo esc_html( $option ); ?></label>
-								<?php } ?>
-							</fieldset>
-							<?php
-						} else {
-							?>
-							<select name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>">
-								<?php foreach ( $choices as $option_id => $option ) { ?>
-									<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( in_array( $option_id, $selected_options, true ) ); ?>><?php echo esc_html( $option ); ?></option>
-								<?php } ?>
-							</select>
-							<?php
-						}
-					} else {
-						?>
-						<input type="text" name="<?php echo esc_attr( $column ); ?>" id="admin_ui_<?php echo esc_attr( $column ); ?>" value="<?php echo esc_attr( $this->row[ $column ] ); ?>" class="regular-text" />
-						<?php
-					}
-					if ( ! empty( $attributes['comments'] ) && false === $attributes['comments_top'] ) {
-						if ( ! in_array( $attributes['type'], array( 'desc', 'code' ), true ) ) {
-							echo '<br />';
-						}
-						?>
-						<span class="description"><?php echo wp_kses_post( $attributes['comments'] ); ?></span>
-						<?php
-					}
-					?>
-					</td>
-					</tr>
-					<?php
-				}
-				?>
-			</table>
-			<p class="submit">
-				<input type="submit" name="Submit" class="button-primary" value="<?php echo esc_attr( $submit ); ?>" />
-				<?php wp_nonce_field( 'exports-reports-form-' . $vars['do'] ); ?>
-			</p>
-		</form>
-		<?php
+		require __DIR__ . '/templates/form.php';
 	}
 
 	public function view() {
@@ -1469,118 +1309,14 @@ class Exports_Reports_Admin_UI {
 		if ( false === $this->table && false === $this->sql ) {
 			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
-		global $wpdb;
 		if ( empty( $this->row ) ) {
 			$this->get_row();
 		}
 		if ( empty( $this->row ) ) {
 			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
-				return $this->error( sprintf( __( '<strong>Error:</strong> %s not found.', 'exports-and-reports' ), $this->item ) );
+			return $this->error( sprintf( __( '<strong>Error:</strong> %s not found.', 'exports-and-reports' ), $this->item ) );
 		}
-		?>
-		<div class="wrap wp-admin-ui-wrap">
-			<div id="icon-edit-pages" class="icon32"
-				<?php
-				if ( false !== $this->icon ) {
-					?>
-					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
-				<br /></div>
-			<h2><?php echo esc_html( $this->heading['view'] ); ?> <?php echo esc_html( $this->item ); ?>
-				<small>(<a href="
-				<?php
-					echo esc_url(
-						$this->var_update(
-							array(
-								'action' => 'manage',
-								'id'     => '',
-							)
-						)
-					);
-				?>
-									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
-			</h2>
-			<table class="form-table">
-				<?php
-				foreach ( $this->view_columns as $column => $attributes ) {
-					if ( ! is_array( $attributes ) ) {
-						$column     = $attributes;
-						$attributes = $this->setup_column( $column );
-					}
-					if ( ! isset( $this->row[ $column ] ) ) {
-						$this->row[ $column ] = '';
-					}
-					if ( false === $attributes['display'] ) {
-						continue;
-					}
-					?>
-					<tr valign="top">
-					<th scope="row">
-						<label for="admin_ui_<?php echo esc_attr( $column ); ?>"><?php echo esc_html( $attributes['label'] ); ?></label>
-					</th>
-					<td>
-					<?php
-					if ( false !== $attributes['custom_view'] && is_callable( $attributes['custom_view'] ) ) {
-						echo wp_kses( (string) call_user_func( $attributes['custom_view'], $this->row[ $column ], $this->row, $column, $attributes, $this ), $this->allowed_html() );
-						?>
-						</td>
-						</tr>
-						<?php
-						continue;
-					}
-					if ( 'date' === $attributes['type'] ) {
-						$this->row[ $column ] = date_i18n( 'Y/m/d', strtotime( $this->row[ $column ] ) );
-					} elseif ( 'time' === $attributes['type'] ) {
-						$this->row[ $column ] = date_i18n( 'g:i:s A', strtotime( $this->row[ $column ] ) );
-					} elseif ( 'datetime' === $attributes['type'] ) {
-						$this->row[ $column ] = date_i18n( 'Y/m/d g:i:s A', strtotime( $this->row[ $column ] ) );
-					} elseif ( 'bool' === $attributes['type'] ) {
-						$this->row[ $column ] = ( 1 === (int) $this->row[ $column ] ? __( 'Yes', 'exports-and-reports' ) : __( 'No', 'exports-and-reports' ) );
-					} elseif ( 'number' === $attributes['type'] ) {
-						$this->row[ $column ] = (int) ( $this->row[ $column ] );
-					} elseif ( 'decimal' === $attributes['type'] ) {
-						$this->row[ $column ] = number_format( $this->row[ $column ], 2 );
-					} elseif ( 'related' === $attributes['type'] && false !== $attributes['related'] ) {
-						$old_value            = $this->row[ $column ];
-						$this->row[ $column ] = '';
-						if ( ! empty( $old_value ) ) {
-							$this->row[ $column ] = array();
-							if ( ! is_array( $attributes['related'] ) ) {
-								$related = $this->rows( 'SELECT `id`,`' . $this->sanitize( (string) $attributes['related_field'] ) . '` FROM ' . (string) $attributes['related'] . ' WHERE `id` IN (' . $this->sanitize( (string) $old_value ) . ')' . ( ! empty( $attributes['related_sql'] ) ? ' ' . (string) $attributes['related_sql'] : '' ) );
-
-								foreach ( $related as $option ) {
-									$this->row[ $column ][] = esc_html( $option->{$attributes['related_field']} );
-								}
-							} else {
-								$related          = $attributes['related'];
-								$selected_options = explode( ',', $old_value );
-								foreach ( $related as $option_id => $option ) {
-									if ( in_array( (string) $option_id, $selected_options, true ) ) {
-										$this->row[ $column ][] = esc_html( $option );
-									}
-								}
-							}
-							$this->row[ $column ] = '<ul><li>' . implode( '</li><li>', $this->row[ $column ] ) . '</li></ul>';
-						} else {
-							$this->row[ $column ] = 'N/A';
-						}
-					}
-					?>
-					<div id="admin_ui_<?php echo esc_attr( $column ); ?>"><?php echo wp_kses_post( $this->row[ $column ] ); ?></div>
-					<?php
-					if ( ! empty( $attributes['comments'] ) && false === $attributes['comments_top'] ) {
-						?>
-						<span class="description"><?php echo wp_kses_post( $attributes['comments'] ); ?></span>
-						<?php
-					}
-					?>
-					</td>
-					</tr>
-					<?php
-				}
-				?>
-			</table>
-		</div>
-		<?php
+		require __DIR__ . '/templates/view.php';
 	}
 
 	public function delete( $id = false ) {
@@ -2348,8 +2084,12 @@ class Exports_Reports_Admin_UI {
 		}
 	}
 
+	/**
+	 * The list screen, or the reorder screen: loads the rows and renders includes/templates/manage.php.
+	 *
+	 * @param int $reorder 1 for the reorder screen.
+	 */
 	public function manage( $reorder = 0 ) {
-		/** @global wpdb $wpdb */ global $wpdb;
 		/**
 		 * Fires before the list screen.
 		 *
@@ -2363,305 +2103,27 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom['manage'] ) && function_exists( "{$this->custom['manage']}" ) ) {
 			return call_user_func( $this->custom['manage'], $this, $reorder );
 		}
-		?>
-		<div class="wrap wp-admin-ui-wrap">
-			<div id="icon-edit-pages" class="icon32"
-				<?php
-				if ( false !== $this->icon ) {
-					?>
-					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
-				<br /></div>
-			<h2><?php echo esc_html( 0 === $reorder || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
-				<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
-					<small>(<a href="
-					<?php
-					echo esc_url(
-						$this->var_update(
-							array(
-								'action' => 'manage',
-								'id'     => '',
-							)
-						)
-					);
-					?>
-										">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>)</small><?php } ?></h2>
-			<?php
-			if ( isset( $this->custom['header'] ) && function_exists( "{$this->custom['header']}" ) ) {
-				echo wp_kses( (string) call_user_func( $this->custom['header'], $this ), $this->allowed_html() );
-			}
-			if ( empty( $this->data ) ) {
-				$this->get_data();
-			}
-			if ( empty( $this->columns ) ) {
-				$this->catch_columns();
-			}
-			if ( false !== $this->export && 'export' === $this->action ) {
-				$this->export();
-			}
-			if ( ( ! empty( $this->data ) || false !== $this->search_query || false !== $this->default_none ) && false !== $this->search ) {
-				?>
-				<form id="posts-filter" action="" method="get">
-					<p class="search-box">
-						<?php
-						$excluded_filters = array();
-						foreach ( $this->filters as $filter ) {
-							$excluded_filters[] = 'filter_' . $filter . '_start';
-							$excluded_filters[] = 'filter_' . $filter . '_end';
-							$excluded_filters[] = 'filter_' . $filter;
-						}
-						$excluded_filters = array_merge( $excluded_filters, array( 'search_query' ) );
-						$this->hidden_vars( $excluded_filters );
-						foreach ( $this->filters as $filter ) {
-							if ( ! isset( $this->search_columns[ $filter ] ) ) {
-								continue;
-							}
 
-							$filter_column = $this->search_columns[ $filter ];
-							$date_exists   = false;
+		if ( empty( $this->data ) ) {
+			$this->get_data();
+		}
 
-							if ( in_array( $filter_column['type'], array( 'date', 'datetime', 'time' ), true ) ) {
-								$html_input_type = $filter_column['type'];
+		if ( empty( $this->columns ) ) {
+			$this->catch_columns();
+		}
 
-								if ( 'datetime' === $html_input_type ) {
-									$html_input_type = 'datetime-local';
-								}
-
-								$start = implode( ', ', $this->filter_values( 'filter_' . $filter . '_start', $filter_column['filter_default'] ) );
-								$end   = implode( ', ', $this->filter_values( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] ) );
-								?>
-								&nbsp;&nbsp;
-								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_start"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_start" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_start" value="<?php echo esc_attr( $start ); ?>" />
-								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_end">to</label>
-								<input type="<?php echo esc_attr( $html_input_type ); ?>" name="filter_<?php echo esc_attr( $filter ); ?>_end" class="admin_ui_filter admin_ui_date" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>_end" value="<?php echo esc_attr( $end ); ?>" />
-								<?php
-							} elseif ( 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
-								if ( ! is_array( $filter_column['related'] ) ) {
-									$related  = $this->rows( 'SELECT ' . $this->backtick( $filter_column['related_id'] ) . ',' . $this->backtick( $filter_column['related_field'] ) . ' FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ) );
-									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
-									?>
-									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" class="admin_ui_filter_multiple" multiple' : '' ); ?>>
-										<option value="">-- Show All --</option>
-										<?php
-										foreach ( $related as $option ) {
-											?>
-											<option value="<?php echo esc_attr( $option->{$filter_column['related_id']} ); ?>"<?php selected( in_array( (string) $option->{$filter_column['related_id']}, $selected, true ) ); ?>><?php echo esc_html( $option->{$filter_column['related_field']} ); ?></option>
-											<?php
-										}
-										?>
-									</select>
-									<?php
-								} else {
-									$related  = $filter_column['related'];
-									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
-									?>
-									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" class="admin_ui_filter_multiple" multiple' : '' ); ?>>
-										<option value="">-- Show All --</option>
-										<?php
-										foreach ( $related as $option_id => $option ) {
-											?>
-											<option value="<?php echo esc_attr( $option_id ); ?>"<?php selected( in_array( (string) $option_id, $selected, true ) ); ?>><?php echo esc_html( $option ); ?></option>
-											<?php
-										}
-										?>
-									</select>
-									<?php
-								}
-							} elseif ( 'bool' === $filter_column['type'] ) {
-								$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
-								$selected = array() === $selected ? '' : ( 1 === (int) $selected[0] ? '1' : '0' );
-								?>
-								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-								<select name="filter_<?php echo esc_attr( $filter ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>">
-									<option value=""><?php esc_html_e( '-- Show All --', 'exports-and-reports' ); ?></option>
-									<option value="1"<?php selected( '1', $selected ); ?>><?php esc_html_e( 'Yes', 'exports-and-reports' ); ?></option>
-									<option value="0"<?php selected( '0', $selected ); ?>><?php esc_html_e( 'No', 'exports-and-reports' ); ?></option>
-								</select>
-								<?php
-							} else {
-								?>
-								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-								<input type="text" name="filter_<?php echo esc_attr( $filter ); ?>" class="admin_ui_filter" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>" value="<?php echo esc_attr( implode( ', ', $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] ) ) ); ?>" />
-								<?php
-							}
-						}
-						?>
-						&nbsp;&nbsp;
-						<label<?php echo( empty( $this->filters ) ? ' class="screen-reader-text"' : '' ); ?> for="page-search-input"><?php esc_html_e( 'Search:', 'exports-and-reports' ); ?></label>
-						<input type="text" name="search_query" id="page-search-input" value="<?php echo esc_attr( $this->search_query ); ?>" />
-						<input type="submit" value="<?php esc_attr_e( 'Search', 'exports-and-reports' ); ?>" class="button" />
-						<?php
-						if ( false !== $this->search_query ) {
-							$clear_filters = array();
-							foreach ( $this->filters as $filter ) {
-								$clear_filters[ 'filter_' . $filter . '_start' ] = '';
-								$clear_filters[ 'filter_' . $filter . '_end' ]   = '';
-								$clear_filters[ 'filter_' . $filter ]            = '';
-							}
-							?>
-							&nbsp;&nbsp;&nbsp;
-							<small>[<a href="
-							<?php
-								echo esc_url(
-									$this->var_update(
-										$clear_filters,
-										array(
-											'order',
-											'order_dir',
-											'limit',
-										)
-									)
-								);
-							?>
-												"><?php esc_html_e( 'Reset Filters', 'exports-and-reports' ); ?></a>] </small>
-							<?php
-						}
-						?>
-					</p>
-				</form>
-				<?php
-			} else {
-				?>
-				<br class="clear" />
-				<br class="clear" />
-				<?php
-			}
-			?>
-			<div class="tablenav">
-				<?php
-				if ( ! empty( $this->data ) && false !== $this->pagination ) {
-					?>
-					<div class="tablenav-pages">
-						<?php esc_html_e( 'Show per page:', 'exports-and-reports' ); ?><?php $this->limit(); ?> &nbsp;|&nbsp;
-						<?php $this->pagination( true ); ?>
-					</div>
-					<?php
-				}
-				if ( 1 === $reorder ) {
-					?>
-					<button type="submit" form="exports-reports-reorder" class="button"><?php esc_html_e( 'Update Order', 'exports-and-reports' ); ?></button>
-					<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>"><?php esc_html_e( 'Cancel', 'exports-and-reports' ); ?></a>
-					<?php
-				} elseif ( $this->add || $this->export ) {
-					?>
-					<div class="alignleft actions">
-						<?php if ( $this->add ) { ?>
-							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>">
-								<?php
-								/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
-								echo esc_html( sprintf( __( 'Add New %s', 'exports-and-reports' ), $this->item ) );
-								?>
-							</a>
-						<?php } ?>
-
-						<?php if ( $this->reorder ) { ?>
-							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>"><?php esc_html_e( 'Reorder', 'exports-and-reports' ); ?></a>
-						<?php } ?>
-
-						<?php if ( $this->export && ! empty( $this->data ) ) { ?>
-							<?php
-							$export_format_types = array(
-								'CSV'  => 'csv',
-								'TSV'  => 'tsv',
-								'TXT'  => 'pipe',
-								'XLSX' => 'xlsx',
-								'XML'  => 'xml',
-								'JSON' => 'json',
-								'PDF'  => 'pdf',
-							);
-							$export_format_links = array();
-							foreach ( $export_format_types as $export_format_text => $export_format_type ) {
-								$export_format_links[ $export_format_text ] = $this->export_link( array( 'export_type' => $export_format_type ) );
-							}
-							?>
-							<strong><?php esc_html_e( 'Export:', 'exports-and-reports' ); ?></strong>
-							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
-								<a class="button" href="<?php echo esc_url( $export_format_link ); ?>"><?php echo esc_html( $export_format_text ); ?></a>
-							<?php } ?>
-						<?php } ?>
-					</div>
-					<?php
-				}
-				?>
-				<br class="clear" />
-			</div>
-			<div class="clear"></div>
-			<?php
-			if ( empty( $this->data ) && false !== $this->default_none && false === $this->search_query ) {
-				?>
-				<p>
-					<?php
-					if ( $this->export ) {
-						esc_html_e( 'Please use the search filter(s) above to display data, or click on an Export to download a full copy of the data.', 'exports-and-reports' );
-					} else {
-						esc_html_e( 'Please use the search filter(s) above to display data.', 'exports-and-reports' );
-					}
-					?>
-				</p>
-			<?php } else { ?>
-				<?php $this->table( $reorder ); ?>
-			<?php } ?>
-
-			<?php if ( ! empty( $this->data ) ) { ?>
-				<div class="tablenav">
-					<div class="tablenav-pages">
-						<?php $this->pagination(); ?>
-						<br class="clear" />
-					</div>
-				</div>
-			<?php } ?>
-
-			<?php if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) { ?>
-				<h3 class="admin_ui_totals_heading"><?php esc_html_e( 'Totals', 'exports-and-reports' ); ?></h3>
-				<table class="widefat fixed admin_ui_table admin_ui_totals" cellspacing="0">
-					<thead>
-					<tr>
-						<?php
-						$columns = array();
-						foreach ( $this->columns as $column => $attributes ) {
-							if ( ! isset( $this->totals[ $column ] ) ) {
-								continue;
-							}
-							$label = ucwords( str_replace( '_', ' ', $column ) );
-							if ( false !== $this->get_var( 'label', false, false, $attributes ) ) {
-								$label = $attributes['label'];
-							}
-							?>
-							<th scope="col" class="manage-column"><?php echo wp_kses_post( $label ); ?></th>
-							<?php
-							if ( 'number' === $attributes['type'] ) {
-								$total = (int) $this->totals[ $column ];
-							} elseif ( 'decimal' === $attributes['type'] ) {
-								$total = number_format( $this->totals[ $column ], 2 );
-							} else {
-								$total = $this->totals[ $column ];
-							}
-							$columns[ $column ] = $total;
-						}
-						?>
-					</tr>
-					</thead>
-					<tbody>
-					<tr>
-						<?php
-						foreach ( $columns as $column => $total ) {
-							?>
-							<td><?php echo esc_html( $total ); ?></td>
-							<?php
-						}
-						?>
-					</tr>
-					</tbody>
-				</table>
-				<?php
-			}
-			?>
-		</div>
-		<?php
+		require __DIR__ . '/templates/manage.php';
 	}
 
+	/**
+	 * The table of rows (Exports_Reports_List_Table), inside the reorder form on the reorder screen.
+	 *
+	 * @since 1.0.0 On WP_List_Table.
+	 *
+	 * @param int $reorder 1 for the reorder screen.
+	 *
+	 * @return bool False when the screen has no columns.
+	 */
 	public function table( $reorder = 0 ) {
 		if ( 1 === $reorder && false !== $this->reorder ) {
 			wp_enqueue_script( 'jquery-ui-sortable' );
@@ -2679,15 +2141,18 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom['table'] ) && function_exists( "{$this->custom['table']}" ) ) {
 			return call_user_func( $this->custom['table'], $this, $reorder );
 		}
-		if ( empty( $this->data ) ) {
-			?>
-			<p><?php esc_html_e( 'No items found', 'exports-and-reports' ); ?></p>
-			<?php
-			return false;
+		$column_index = 1 === $reorder ? 'reorder_columns' : 'columns';
+
+		if ( empty( $this->{$column_index} ) ) {
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.', 'exports-and-reports' ) );
 		}
+
+		$list = $this->list_table( $reorder );
+		$list->prepare_items();
+
 		if ( 1 === $reorder && $this->reorder ) {
 			?>
-		<form action="
+			<form action="
 			<?php
 			echo esc_url(
 				$this->var_update(
@@ -2698,326 +2163,29 @@ class Exports_Reports_Admin_UI {
 				)
 			);
 			?>
-						" method="post" id="exports-reports-reorder" class="admin_ui_reorder_form">
-			<?php wp_nonce_field( 'exports-reports-reorder' ); ?>
+							" method="post" id="exports-reports-reorder" class="admin_ui_reorder_form">
+				<?php wp_nonce_field( 'exports-reports-reorder' ); ?>
+				<?php $list->display(); ?>
+			</form>
 			<?php
+		} else {
+			$list->display();
 		}
-			$column_index = 'columns';
-		if ( 1 === $reorder ) {
-			$column_index = 'reorder_columns';
-		}
-		if ( false === $this->{$column_index} || empty( $this->{$column_index} ) ) {
-			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.', 'exports-and-reports' ) );
-		}
-		?>
-			<table class="widefat striped page fixed admin_ui_table wp-list-table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?>>
-				<thead>
-				<tr>
-					<?php
-					$name_column = false;
-					$columns     = array();
-					if ( ! empty( $this->{$column_index} ) ) {
-						foreach ( $this->columns as $column => $attributes ) {
-							if ( ! is_array( $attributes ) ) {
-								$column     = $attributes;
-								$attributes = $this->setup_column( $column );
-							}
-							if ( false === $attributes['display'] ) {
-								continue;
-							}
-							if ( false === $name_column ) {
-								$id = 'title';
-							} else {
-								$id = '';
-							}
-							if ( false !== $this->get_var( 'type', false, false, $attributes ) ) {
-								if ( 'other' === $attributes['type'] ) {
-									$id = '';
-								}
-								if ( 'date' === $attributes['type'] || 'datetime' === $attributes['type'] || 'time' === $attributes['type'] ) {
-									$id = 'date';
-								}
-							}
-							if ( false === $name_column && 'title' === $id ) {
-								$name_column = true;
-							}
-							$label = ucwords( str_replace( '_', ' ', $column ) );
-							if ( false !== $this->get_var( 'label', false, false, $attributes ) ) {
-								$label = $attributes['label'];
-							}
-							$columns[ $column ] = array(
-								'label' => $label,
-								'id'    => $id,
-							);
-							$columns[ $column ] = array_merge( $columns[ $column ], $attributes );
-							$dir                = 'ASC';
-							if ( $this->order === $column && 'ASC' === $this->order_dir ) {
-								$dir = 'DESC';
-							}
 
-							$width = '';
+		return true;
+	}
 
-							if ( ! empty( $columns[ $column ]['width'] ) ) {
-								$width = ' width="' . esc_attr( $columns[ $column ]['width'] ) . '"';
-							}
-							?>
-							<th scope="col" id="<?php echo esc_attr( $id ); ?>" class="manage-column column-<?php echo esc_attr( $id ); ?>"<?php echo esc_html( $width ); ?>>
-								<a href="
-								<?php
-								echo esc_url(
-									$this->var_update(
-										array(
-											'order'     => $column,
-											'order_dir' => $dir,
-										),
-										array( 'limit', 'search_query' )
-									)
-								);
-								?>
-											"><?php echo wp_kses_post( $label ); ?></a>
-							</th>
-							<?php
-						}
-					}
-					?>
-				</tr>
-				</thead>
-				<tfoot>
-				<tr>
-					<?php if ( ! empty( $columns ) ) { ?>
-						<?php foreach ( $columns as $column => $attributes ) { ?>
-							<th scope="col" class="manage-column column-<?php echo esc_attr( $attributes['id'] ); ?>"><?php echo wp_kses_post( $attributes['label'] ); ?></th>
-						<?php } ?>
-					<?php } ?>
-				</tr>
-				</tfoot>
-				<tbody<?php echo( 1 === $reorder && $this->reorder ? ' class="sortable"' : '' ); ?>>
-				<?php
-				if ( ! empty( $this->data ) ) {
-					foreach ( $this->data as $row ) {
-						$id = 0;
-
-						if ( ! empty( $row[ $this->identifier ] ) ) {
-							$id = $row[ $this->identifier ];
-						}
-						?>
-						<tr id="item-<?php echo esc_attr( $id ); ?>" class="iedit">
-							<?php
-							foreach ( $columns as $column => $attributes ) {
-								if ( false === $attributes['display'] ) {
-									continue;
-								}
-								$row[ $column ] = $this->field_value( $row[ $column ], $column, $attributes );
-								if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-									$row[ $column ] = $attributes['custom_display']( $row[ $column ], $row, $column, $attributes, $this );
-								}
-								if ( 'title' === $attributes['id'] ) {
-									if ( $this->view && ( 0 === $reorder || false === $this->reorder ) ) {
-										?>
-										<td class="post-title page-title column-title">
-										<strong><a class="row-title" href="
-										<?php
-											echo esc_url(
-												$this->var_update(
-													array(
-														'action' => 'view',
-														'id'     => $id,
-													)
-												)
-											);
-										?>
-																			" title="View &#8220;<?php echo esc_attr( wp_strip_all_tags( (string) $row[ $column ] ) ); ?>&#8221;"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></a></strong>
-										<?php
-									} elseif ( $this->edit && ( 0 === $reorder || false === $this->reorder ) ) {
-										?>
-										<td class="post-title page-title column-title">
-										<strong><a class="row-title" href="
-										<?php
-											echo esc_url(
-												$this->var_update(
-													array(
-														'action' => 'edit',
-														'id'     => $id,
-													)
-												)
-											);
-										?>
-																			" title="Edit &#8220;<?php echo esc_attr( wp_strip_all_tags( (string) $row[ $column ] ) ); ?>&#8221;"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></a></strong>
-										<?php
-									} else {
-										?>
-										<td class="post-title page-title column-title<?php echo( 1 === $reorder && $this->reorder ? ' dragme' : '' ); ?>">
-										<strong>
-											<?php
-											echo wp_kses( (string) $row[ $column ], $this->allowed_html() );
-											?>
-										</strong>
-										<?php
-									}
-									if ( 0 === $reorder || false === $this->reorder ) {
-										$actions = array();
-										if ( $this->view ) {
-											$actions['view'] = '<span class="view"><a href="' . esc_url(
-												$this->var_update(
-													array(
-														'action' => 'view',
-														'id'     => $id,
-													)
-												)
-											) . '" title="' . esc_attr__( 'View this item', 'exports-and-reports' ) . '">' . esc_html__( 'View', 'exports-and-reports' ) . '</a></span>';
-										}
-										if ( $this->edit ) {
-											$actions['edit'] = '<span class="edit"><a href="' . esc_url(
-												$this->var_update(
-													array(
-														'action' => 'edit',
-														'id'     => $id,
-													)
-												)
-											) . '" title="' . esc_attr__( 'Edit this item', 'exports-and-reports' ) . '">' . esc_html__( 'Edit', 'exports-and-reports' ) . '</a></span>';
-										}
-										if ( $this->duplicate ) {
-											$actions['duplicate'] = '<span class="edit"><a href="' . esc_url(
-												$this->var_update(
-													array(
-														'action' => 'duplicate',
-														'id'     => $id,
-													)
-												)
-											) . '" title="' . esc_attr__( 'Duplicate this item', 'exports-and-reports' ) . '">' . esc_html__( 'Duplicate', 'exports-and-reports' ) . '</a></span>';
-										}
-										if ( $this->delete ) {
-											/* translators: %s: the item's title, as the row shows it. */
-											$confirm           = sprintf( __( 'You are about to delete "%s". Cancel to stop, OK to delete.', 'exports-and-reports' ), wp_strip_all_tags( (string) $row[ $column ] ) );
-											$actions['delete'] = '<span class="delete"><a class="submitdelete" title="' . esc_attr__( 'Delete this item', 'exports-and-reports' ) . '" href="' . esc_url(
-												$this->var_update(
-													array(
-														'action'   => 'delete',
-														'id'       => $id,
-														'_wpnonce' => wp_create_nonce( 'exports-reports-delete' ),
-													)
-												)
-											) . '" data-exports-reports-confirm="' . esc_attr( $confirm ) . '">' . esc_html__( 'Delete', 'exports-and-reports' ) . '</a></span>';
-										}
-										if ( is_array( $this->custom ) ) {
-											foreach ( $this->custom as $custom_action => $custom_data ) {
-												if ( is_array( $custom_data ) && isset( $custom_data['link'] ) ) {
-													if ( ! in_array(
-														$custom_action,
-														array(
-															'add',
-															'view',
-															'edit',
-															'duplicate',
-															'delete',
-															'save',
-															'readonly',
-															'export',
-															'reorder',
-														),
-														true
-													) ) {
-														if ( ! isset( $custom_data['label'] ) ) {
-															$custom_data['label'] = ucwords( str_replace( '_', ' ', $custom_action ) );
-														}
-														$actions[ $custom_action ] = '<span class="edit"><a href="' . esc_url( $this->parse_template_string( $custom_data['link'], $row ) ) . '" title="' . esc_attr( $custom_data['label'] ) . ' this item">' . wp_kses_post( $custom_data['label'] ) . '</a></span>';
-													}
-												}
-											}
-										}
-										/**
-										 * Filters the links under a row's title.
-										 *
-										 * @since 1.0.0 The row is passed.
-										 *
-										 * @param string[]                $actions The links, HTML, by action.
-										 * @param array                   $row     The row.
-										 * @param Exports_Reports_Admin_UI $admin   The screen.
-										 */
-										$actions = apply_filters( 'exports_reports_row_actions', $actions, $row, $this );
-										$actions = $this->legacy_hook( 'row_actions', array( $actions, $row ) );
-										?>
-										<div class="row-actions">
-											<?php
-											if ( isset( $this->custom['actions_start'] ) && function_exists( "{$this->custom['actions_start']}" ) ) {
-												call_user_func( $this->custom['actions_start'], $this, $row );
-											}
-											echo wp_kses_post( implode( ' | ', $actions ) );
-											if ( isset( $this->custom['actions_end'] ) && function_exists( "{$this->custom['actions_end']}" ) ) {
-												call_user_func( $this->custom['actions_end'], $this, $row );
-											}
-											?>
-										</div>
-										<?php
-									} else {
-										?>
-										<input type="hidden" name="order[]" value="<?php echo esc_attr( $id ); ?>" />
-										<?php
-									}
-									?>
-									</td>
-									<?php
-								} elseif ( 'date' === $attributes['type'] ) {
-									?>
-									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
-									</td>
-									<?php
-								} elseif ( 'time' === $attributes['type'] ) {
-									?>
-									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
-									</td>
-									<?php
-								} elseif ( 'datetime' === $attributes['type'] ) {
-									?>
-									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
-									</td>
-									<?php
-								} elseif ( 'related' === $attributes['type'] && false !== $attributes['related'] ) {
-									?>
-									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
-									<?php
-								} elseif ( 'bool' === $attributes['type'] ) {
-									?>
-									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
-									<?php
-								} elseif ( 'number' === $attributes['type'] ) {
-									?>
-									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
-									<?php
-								} elseif ( 'decimal' === $attributes['type'] ) {
-									?>
-									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
-									<?php
-								} else {
-									?>
-									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
-									<?php
-								}
-							}
-							?>
-						</tr>
-						<?php
-					}
-				}
-				?>
-				<?php if ( 0 < count( $this->sum_data ) && ceil( $this->total / $this->limit ) === $this->page ) { // The sum row, on the last page only. ?>
-					<tr id="exports-and-reports-sums" class="iedit">
-						<?php foreach ( $columns as $column => $attributes ) { ?>
-							<td class="exports-and-reports-sum-<?php echo esc_attr( $column ); ?>">
-								<strong><?php echo esc_html( isset( $this->sum_data[0][ $column ] ) ? $this->sum_data[0][ $column ] : '' ); ?></strong>
-							</td>
-						<?php } ?>
-					</tr>
-				<?php } ?>
-				</tbody>
-			</table>
-			<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
-		</form>
-	<?php } ?>
-		<?php
+	/**
+	 * The list table that renders the rows.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param int $reorder 1 for the reorder screen.
+	 *
+	 * @return Exports_Reports_List_Table
+	 */
+	public function list_table( $reorder = 0 ) {
+		return new Exports_Reports_List_Table( $this, $reorder );
 	}
 
 	/**
