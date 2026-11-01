@@ -54,9 +54,9 @@ $back         = $reordering;
 		<?php
 		require __DIR__ . '/list-body.php';
 	}
-	?>
 
-<?php if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) { ?>
+	if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) {
+		?>
 		<h3 class="admin_ui_totals_heading"><?php esc_html_e( 'Totals', 'exports-and-reports' ); ?></h3>
 		<table class="widefat fixed admin_ui_table admin_ui_totals" cellspacing="0">
 			<thead>
@@ -99,6 +99,6 @@ $back         = $reordering;
 			</tbody>
 		</table>
 		<?php
-}
-?>
+	}
+	?>
 </div>

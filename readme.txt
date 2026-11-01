@@ -49,6 +49,21 @@ In `wp-content/uploads/exports-and-reports` by default, a folder of the uploads 
 
 or define `EXPORTS_REPORTS_EXPORT_DIR` in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
 
+= Who can see what? =
+
+The plugin registers three capabilities: `exports_reports_full_access` (everything), `exports_reports_settings` (the Reports Admin screens) and `exports_reports_view` (every report). A group or a report can also be opened to roles on its edit screen, and a role can be given `exports_reports_view_group_ID` or `exports_reports_view_report_ID` for one group or one report. The administrator role receives the three capabilities when the plugin is activated (and on the upgrade to 1.0); a roles plugin such as Members can take them away or give them to other roles, and the plugin does not put them back until it is activated again. Super admins of a network always have full access.
+
+= Which hooks does the plugin offer? =
+
+Every hook is documented where it runs; these are the ones sites use most. Filters receive the value first and the report screen (`Exports_Reports_Admin_UI`) last.
+
+* The report query: `exports_reports_get_data_sql( $sql, $full, $admin )` and `exports_reports_get_data_sql_count( $sql, $full, $admin )` right before the query and its count query run (return false to run nothing); `exports_reports_get_data_total( $total, $full, $admin )` for the row count; `exports_reports_data_filter_sql( $condition, $filter, $column, $field, $related_field, $value, $admin )` for the condition a filter adds.
+* Exports: `exports_reports_export_file( $file, $type, $extension, $items, $admin )` for the file name; `exports_reports_export_escape_formulas( $escape, $admin )`; `exports_reports_export_pdf_engine( $engine )` and `exports_reports_export_pdf_report_file( $file, $admin )`; the actions `exports_reports_pre_export( $admin )`, `exports_reports_post_export( $file, $admin )`, `exports_reports_pre_remove_export( $file, $path, $admin )`, `exports_reports_post_remove_export( $file, $removed, $path, $admin )` and `exports_reports_export_download`.
+* The screens: `exports_reports_report_options( $options, $report_id )` and `exports_reports_options( $options, $admin )` for a screen's settings; `exports_reports_setup_columns( $columns, $which, $init, $admin )` and `exports_reports_setup_column( $attributes, $column, $filterable, $admin )`; `exports_reports_row_actions( $links, $row, $admin )`; `exports_reports_limit( $sizes, $admin )` for the page sizes; `exports_reports_allowed_html( $allowed )` for the HTML a display callback may return; `exports_reports_allowed_callback( $allowed, $callback, $admin )` for the functions a field definition may name; the actions `exports_reports_pre_init( $options )`, `exports_reports_post_init( $options, $admin )`, `exports_reports_pre_save( $create, $admin )`, `exports_reports_post_save( $id, $data, $create, $admin )`, `exports_reports_pre_delete( $id, $admin )`, `exports_reports_post_delete( $id, $admin )`, `exports_reports_post_reorder( $id, $admin )`.
+* Capabilities: `exports_reports_capabilities( $caps )`.
+
+Before 1.0 the `exports_reports_*` and `wp_admin_ui_*` hooks of the report screen passed their arguments as one array; callbacks on the `wp_admin_ui_*` names still receive that array, with a deprecation notice.
+
 == Installation ==
 
 1. Download the plugin zip from the [GitHub releases](https://github.com/sc0ttkclark/exports-and-reports/releases) (the plugin is not listed on wordpress.org at the moment)
@@ -103,6 +118,15 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.0.0 =
+* The capabilities (`exports_reports_full_access`, `exports_reports_settings`, `exports_reports_view`) sit on the administrator role: added on activation and on this upgrade, each site of a network on its own, and removed on uninstall. The filter that granted administrators full access on every request is gone (with the `exports_reports_full_access` filter it ran), so a site can take the capabilities away from a role. A network activation installs every site; a site added later installs on its first admin request.
+* The hooks of the report screen pass their arguments one by one, the screen last (`exports_reports_get_data_sql( $sql, $full, $admin )`, ...), instead of one array; the `wp_admin_ui_*` names keep the array, deprecated. `exports_reports_row_actions` receives the links by action and the row; `exports_reports_limit` is a filter.
+* The report list is a `WP_List_Table`: sortable column headers with their indicators, the row actions and the responsive toggle core's lists have; the search form wraps the table, so a new search starts on page 1.
+* The code is in classes by task: `Exports_Reports_Query` builds the report query and its count query, the export formats are classes under `includes/exporters/`, the screens' markup is under `includes/templates/`, and `Exports_Reports_Admin_UI` handles the request. Code that called `export_sv()`, `can_stream_export()`, `pdf_engine()`, `quote()`, `rows()` or `execute()` on the screen keeps working.
+* The stored version is the version itself, compared with `version_compare()`. The schema is written the way `dbDelta()` reads it, so an upgrade compares the columns instead of failing a `CREATE TABLE`.
+* An export that writes nothing (a declined query) no longer fires `exports_reports_post_export` or logs an empty file name.
+* Tests: a PHPUnit suite on the WordPress test library replaces the WP-CLI script, run in CI on WordPress 5.7 and 5.8 and the current release, on MariaDB and MySQL.
 
 = 0.9.5 =
 * Security: search and filter values reach the query through `$wpdb->prepare()` with LIKE wildcards escaped, and identifiers from the report definition are quoted as identifiers; the Settings page, the reorder form and the save path verify a nonce; the report field editor sanitises its inputs; the export directory is no longer served by the web server (an .htaccess and an index.php are written, downloads go through the plugin after a nonce or token check).
@@ -277,3 +301,8 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 
 = 0.2 =
 * First official release to the public as a plugin
+
+== Upgrade Notice ==
+
+= 1.0.0 =
+Administrators keep their access through capabilities placed on their role during the upgrade. Code hooked to the report screen's `exports_reports_*` filters of 0.9.5 must take positional arguments; callbacks on the `wp_admin_ui_*` names keep working.

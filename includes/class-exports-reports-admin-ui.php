@@ -26,8 +26,11 @@ if ( ! defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ) {
 /**
  * Class Exports_Reports_Admin_UI
  *
- * One instance per screen: the options name the table, the columns and what the screen allows, and the
- * instance renders the list, the form and the exports for it.
+ * One instance per screen: the options name the table or the query, the columns and what the screen
+ * allows; the instance reads the request, loads the rows and dispatches the action. Its collaborators
+ * do the rest: Exports_Reports_Query builds and runs the statements, Exports_Reports_List_Table draws
+ * the rows, the Exports_Reports_Exporter classes write the export files, and the templates under
+ * templates/ hold the markup of the screens.
  */
 class Exports_Reports_Admin_UI {
 
@@ -1982,7 +1985,7 @@ class Exports_Reports_Admin_UI {
 		$total   = 0;
 
 		if ( $this->stream_export ) {
-			// export_sv() reads the result row by row.
+			// The delimited exporter reads the result row by row.
 			$this->stream_sql = $wpdb->remove_placeholder_escape( $sql ); // mysqli runs it without wpdb, which would remove the escape.
 		} else {
 			$results = $this->rows( $sql, ARRAY_A );
