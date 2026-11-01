@@ -1083,59 +1083,6 @@ er_report(
 	'unknown column: first id ' . ( isset( $er_sort_bad->data[0]['id'] ) ? $er_sort_bad->data[0]['id'] : 'none' ) . ' (report order id DESC); revenue ASC: ' . ( isset( $er_sort_ok->data[0]['revenue'] ) ? $er_sort_ok->data[0]['revenue'] . ', ' . $er_sort_ok->data[1]['revenue'] : 'none' )
 );
 
-// --- the pre-0.9.5 api.php answers through the REST routes with its old response shape ---
-$er_api_capture = static function ( array $query ) use ( $er_report_id ) {
-	$_GET = array_merge(
-		array(
-			'report' => (string) $er_report_id,
-			'token'  => (string) get_option( 'exports_reports_token' ),
-		),
-		$query
-	);
-	add_filter( 'wp_doing_ajax', '__return_true' );
-	add_filter( 'deprecated_file_trigger_error', '__return_false' );
-	$er_thrower = static function () {
-		return static function () {
-			throw new RuntimeException( 'api.php finished' );
-		};
-	};
-	add_filter( 'wp_die_ajax_handler', $er_thrower );
-	$ended = false;
-	ob_start();
-	try {
-		include EXPORTS_REPORTS_DIR . 'api.php';
-	} catch ( RuntimeException $e ) {
-		$ended = true; // wp_send_json() ended the response.
-	}
-	$out = (string) ob_get_clean();
-	remove_filter( 'wp_die_ajax_handler', $er_thrower );
-	remove_filter( 'wp_doing_ajax', '__return_true' );
-	remove_filter( 'deprecated_file_trigger_error', '__return_false' );
-	$_GET = array();
-	return $ended ? json_decode( $out, true ) : null;
-};
-$wpdb->update( $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports', array( 'disabled' => 0 ), array( 'id' => $er_report_id ) );
-$er_api_rows   = $er_api_capture(
-	array(
-		'action' => 'json',
-		'full'   => '1',
-	)
-);
-$er_api_export = $er_api_capture( array( 'export_type' => 'csv' ) );
-$er_api_bad    = $er_api_capture(
-	array(
-		'action' => 'json',
-		'token'  => 'wrong',
-	)
-);
-er_report(
-	'api.php (deprecated) returns rows, an export file and the old error shape through the REST routes',
-	is_array( $er_api_rows ) && true === $er_api_rows['success'] && is_array( $er_api_rows['data'] ) && count( $er_api_rows['data'] ) === $er_rows
-		&& is_array( $er_api_export ) && true === $er_api_export['success'] && 'Report exported' === $er_api_export['data']['message'] && file_exists( $er_api_export['data']['export_file'] )
-		&& is_array( $er_api_bad ) && false === $er_api_bad['success'],
-	'rows ' . ( is_array( $er_api_rows ) && isset( $er_api_rows['data'] ) ? count( (array) $er_api_rows['data'] ) : 'n/a' ) . ', export ' . ( is_array( $er_api_export ) ? wp_json_encode( $er_api_export['data'] ) : 'n/a' ) . ', wrong token ' . wp_json_encode( $er_api_bad )
-);
-
 $wpdb->query( "DROP TABLE IF EXISTS `{$er_table}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 // --- uninstall removes the tables, the options, the cleanup event and the export files (last: nothing runs after it) ---

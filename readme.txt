@@ -88,7 +88,6 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * Run the Export action for a specific report to any supported export type, and download the file
 * Get paginated / full data from a report in JSON format
 * Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the Settings page shows the URLs
-* The pre-0.9.5 api.php endpoint still answers for existing cronjobs and goes away in 1.0
 
 == Screenshots ==
 
@@ -105,7 +104,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 
 = 0.9.5 =
 * Security: search and filter values reach the query through `$wpdb->prepare()` with LIKE wildcards escaped, and identifiers from the report definition are quoted as identifiers; the Settings page, the reorder form and the save path verify a nonce; the report field editor sanitises its inputs; the export directory is no longer served by the web server (an .htaccess and an index.php are written, downloads go through the plugin after a nonce or token check).
-* Added a REST API (`exports-reports/v1/reports/{id}/data`, `/export`, `/exports/{file}`): the cronjob token as a bearer token or as the `token` parameter, or the logged-in user's access. `api.php` answers through it and is deprecated.
+* Added a REST API (`exports-reports/v1/reports/{id}/data`, `/export`, `/exports/{file}`): the cronjob token as a bearer token or as the `token` parameter, or the logged-in user's access. The old `api.php` endpoint is removed; cronjobs use these routes (the Settings page shows the URLs).
 * Added the `wp_admin_ui_get_data_sql` and `wp_admin_ui_get_data_sql_count` filters, applied to the report query and its count query right before they run.
 * CSV, TSV and pipe exports stream from an unbuffered result, so memory no longer grows with the table; every value is quoted, a UTF-8 byte order mark is written, and formula-like values are wrapped as text (`wp_admin_ui_export_escape_formulas` turns that off).
 * Tabs around the `%%LIMIT%%` placeholder are handled like newlines.

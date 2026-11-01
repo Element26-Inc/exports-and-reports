@@ -528,9 +528,8 @@ function exports_reports_settings() {
 		}
 	}
 
-	$rest_base  = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
-	$token      = (string) get_option( 'exports_reports_token' );
-	$legacy_url = EXPORTS_REPORTS_URL . 'api.php?report=YOUR_REPORT_ID&export_type=YOUR_EXPORT_TYPE&token=' . rawurlencode( $token );
+	$rest_base = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
+	$token     = (string) get_option( 'exports_reports_token' );
 
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
@@ -594,9 +593,7 @@ function exports_reports_settings() {
 							<input type="text" id="export_api_url2" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?pg=PAGE_NUMBER&token=' . rawurlencode( $token ) ); ?>" /><br />
 
 							<label for="export_api_url3" style="font-style:normal;"><strong>URL to JSON API (full data):</strong></label><br />
-							<input type="text" id="export_api_url3" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?full=1&token=' . rawurlencode( $token ) ); ?>" /><br /><br />
-
-							The pre-0.9.5 endpoint still answers for cronjobs set up before: <code><?php echo esc_html( $legacy_url ); ?></code>. It will be removed in 1.0; move those jobs to the URLs above.
+							<input type="text" id="export_api_url3" style="width:100%;" readonly value="<?php echo esc_url( $rest_base . '/data?full=1&token=' . rawurlencode( $token ) ); ?>" />
 						</span>
 					</td>
 				</tr>
@@ -1116,7 +1113,7 @@ function exports_reports_user_can_view_report( $report, $group ) {
 }
 
 /**
- * The admin UI options for a report row: what the report page, the REST API and api.php hand to
+ * The admin UI options for a report row: what the report page and the REST API hand to
  * Exports_Reports_Admin_UI.
  *
  * @since 0.9.5
