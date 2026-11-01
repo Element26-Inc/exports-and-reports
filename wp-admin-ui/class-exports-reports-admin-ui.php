@@ -442,6 +442,75 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
+	 * The columns an export writes, each with its attributes, in order.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @return array<string, array> Keyed by column.
+	 */
+	public function exported_columns() {
+		$columns = array();
+
+		foreach ( (array) $this->export_columns as $key => $attributes ) {
+			if ( ! is_array( $attributes ) ) {
+				$key        = $attributes;
+				$attributes = $this->setup_column( $key );
+			}
+
+			if ( false !== $attributes['export'] ) {
+				$columns[ $key ] = $attributes;
+			}
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * One row of an export: the exported columns' values, formatted by field_value() and the column's
+	 * display function.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @param array $item    The row as the query returned it.
+	 * @param array $columns exported_columns().
+	 *
+	 * @return array<string, mixed> Keyed by column.
+	 */
+	public function export_row( array $item, array $columns ) {
+		$row = array();
+
+		foreach ( $columns as $key => $attributes ) {
+			$item[ $key ] = $this->field_value( $item[ $key ], $key, $attributes );
+
+			if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
+				$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
+			}
+
+			$row[ $key ] = $item[ $key ];
+		}
+
+		return $row;
+	}
+
+	/**
+	 * Tells the user an export is written: the message with the download and removal links, and the
+	 * script that opens the download.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @param string $export_file The file name, in the export directory.
+	 * @param string $format      The format, for the message (csv, pdf, ...).
+	 */
+	public function export_ready( $export_file, $format ) {
+		$download = $this->export_url . rawurlencode( $export_file );
+
+		$this->message(
+			'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $download ) . '" target="_blank">click here to download your ' . esc_html( strtoupper( $format ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->export_link( array( 'remove_export' => $export_file ) ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+		);
+		wp_print_inline_script_tag( 'window.open( ' . wp_json_encode( $download ) . ' );' );
+	}
+
+	/**
 	 * The extensions export files have.
 	 *
 	 * @return string[]
@@ -1699,157 +1768,78 @@ class Exports_Reports_Admin_UI {
 		} elseif ( 'xml' === $this->export_type ) {
 			$export_file          = $this->export_file( $this->export_type );
 			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
-
-			$wp_filesystem->touch( $export_file_location );
-
-			$file_contents = '';
-
-			$head = '<?xml version="1.0" encoding="' . get_bloginfo( 'charset' ) . '" ?>' . "\r\n<items count=\"" . count( $this->full_data ) . "\">\r\n";
-			$head = substr( $head, 0, - 1 );
-
-			$file_contents .= $head . "\r\n";
+			$columns              = $this->exported_columns();
+			$file_contents        = '<?xml version="1.0" encoding="' . get_bloginfo( 'charset' ) . '" ?>' . "\r\n<items count=\"" . count( $this->full_data ) . "\">\r\n";
 
 			foreach ( $this->full_data as $item ) {
-				$line = "\t<item>\r\n";
-				foreach ( $this->export_columns as $key => $attributes ) {
-					if ( ! is_array( $attributes ) ) {
-						$key        = $attributes;
-						$attributes = $this->setup_column( $key );
-					}
-					if ( false === $attributes['export'] ) {
-						continue;
-					}
-					$item[ $key ] = $this->field_value( $item[ $key ], $key, $attributes );
-					if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-						$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
-					}
-					$line .= "\t\t<{$key}><![CDATA[" . $item[ $key ] . "]]></{$key}>\r\n";
+				$file_contents .= "\t<item>\r\n";
+
+				foreach ( $this->export_row( $item, $columns ) as $key => $value ) {
+					$file_contents .= "\t\t<{$key}><![CDATA[" . $value . "]]></{$key}>\r\n";
 				}
-				$line .= "\t</item>\r\n";
 
-				$file_contents .= $line;
+				$file_contents .= "\t</item>\r\n";
 			}
-			$foot = '</items>';
 
-			$file_contents .= $foot;
+			$file_contents .= '</items>';
 
 			$wp_filesystem->put_contents( $export_file_location, $file_contents );
-
-			$this->message(
-				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '" target="_blank">click here to download your XML export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->export_link( array( 'remove_export' => $export_file ) )
-				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
-			);
-			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
+			$this->export_ready( $export_file, $this->export_type );
 		} elseif ( 'xlsx' === $this->export_type ) {
-			$writer = new ExportsReports__Prefixed__XLSXWriter();
-
 			$export_file          = $this->export_file( $this->export_type );
 			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
+			$columns              = $this->exported_columns();
+			$header               = array();
 
-			$wp_filesystem->touch( $export_file_location );
+			foreach ( $columns as $attributes ) {
+				$header[ $attributes['label'] ] = 'string';
+			}
 
-			$data = array(
-				'header'         => array(),
-				'header_options' => array(
+			$writer = new ExportsReports__Prefixed__XLSXWriter();
+			$writer->writeSheetHeader(
+				'Sheet1',
+				$header,
+				array(
 					'fill'   => '#eee',
 					'halign' => 'center',
 					'border' => 'left,right,top,bottom',
-				),
-				'items'          => array(),
+				)
 			);
-
-			foreach ( $this->export_columns as $key => $attributes ) {
-				if ( ! is_array( $attributes ) ) {
-					$key        = $attributes;
-					$attributes = $this->setup_column( $key );
-				}
-
-				if ( false === $attributes['export'] ) {
-					continue;
-				}
-
-				$data['header'][ $attributes['label'] ] = 'string';
-			}
-
-			$writer->writeSheetHeader( 'Sheet1', $data['header'], $data['header_options'] );
 
 			foreach ( $this->full_data as $item ) {
 				$row = array();
-				foreach ( $this->export_columns as $key => $attributes ) {
-					if ( ! is_array( $attributes ) ) {
-						$key        = $attributes;
-						$attributes = $this->setup_column( $key );
-					}
-					if ( false === $attributes['export'] ) {
-						continue;
-					}
-					$item[ $key ] = $this->field_value( $item[ $key ], $key, $attributes );
-					if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-						$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
-					}
-					$row[ $key ] = wp_strip_all_tags( $item[ $key ] );
 
-					// Enforce numbers for the XLSX column.
-					if ( ! empty( $attributes['type'] ) && 'number' === $attributes['type'] ) {
-						$row[ $key ] = (int) $row[ $key ];
-					}
+				foreach ( $this->export_row( $item, $columns ) as $key => $value ) {
+					$value = wp_strip_all_tags( (string) $value );
+
+					// The cell is text unless the column is a number.
+					$row[] = ! empty( $columns[ $key ]['type'] ) && 'number' === $columns[ $key ]['type'] ? (int) $value : $value;
 				}
 
-				$writer->writeSheetRow( 'Sheet1', array_values( $row ) );
+				$writer->writeSheetRow( 'Sheet1', $row );
 			}
 
-			$file_contents = (string) $writer->writeToString();
-
-			$wp_filesystem->put_contents( $export_file_location, $file_contents );
-
-			$this->message(
-				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '" target="_blank">click here to access your XLSX export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->export_link( array( 'remove_export' => $export_file ) )
-				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
-			);
-			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
+			$wp_filesystem->put_contents( $export_file_location, (string) $writer->writeToString() );
+			$this->export_ready( $export_file, $this->export_type );
 		} elseif ( 'json' === $this->export_type ) {
 			$export_file          = $this->export_file( $this->export_type );
 			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
+			$columns              = $this->exported_columns();
+			$rows                 = array();
 
-			$wp_filesystem->touch( $export_file_location );
+			foreach ( $this->full_data as $item ) {
+				$rows[] = $this->export_row( $item, $columns );
+			}
 
 			$data = array(
 				'items' => array(
-					'count' => count( $this->full_data ),
-					'item'  => array(),
+					'count' => count( $rows ),
+					'item'  => $rows,
 				),
 			);
-			foreach ( $this->full_data as $item ) {
-				$row = array();
-				foreach ( $this->export_columns as $key => $attributes ) {
-					if ( ! is_array( $attributes ) ) {
-						$key        = $attributes;
-						$attributes = $this->setup_column( $key );
-					}
-					if ( false === $attributes['export'] ) {
-						continue;
-					}
-					$item[ $key ] = $this->field_value( $item[ $key ], $key, $attributes );
-					if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-						$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
-					}
-					$row[ $key ] = $item[ $key ];
-				}
-				$data['items']['item'][] = $row;
-			}
 
-			$file_contents = wp_json_encode( $data, JSON_PRETTY_PRINT );
-
-			$wp_filesystem->put_contents( $export_file_location, $file_contents );
-
-			$this->message(
-				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '" target="_blank">click here to access your JSON export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->export_link( array( 'remove_export' => $export_file ) )
-				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
-			);
-			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
+			$wp_filesystem->put_contents( $export_file_location, wp_json_encode( $data, JSON_PRETTY_PRINT ) );
+			$this->export_ready( $export_file, $this->export_type );
 		} elseif ( 'pdf' === $this->export_type ) {
 			if ( 'tcpdf' === self::pdf_engine() ) {
 				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf-legacy.php';
@@ -1873,12 +1863,7 @@ class Exports_Reports_Admin_UI {
 				$export_file = $pdf_class::CreateReport( $this );
 			}
 
-			$this->message(
-				'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '" target="_blank">click here to access your PDF export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-					$this->export_link( array( 'remove_export' => $export_file ) )
-				) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
-			);
-			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
+			$this->export_ready( $export_file, $this->export_type );
 		} else {
 			$this->error( '<strong>Error:</strong> Invalid export type.' );
 
@@ -1929,12 +1914,7 @@ class Exports_Reports_Admin_UI {
 			return false;
 		}
 
-		foreach ( (array) $this->export_columns as $key => $attributes ) {
-			if ( ! is_array( $attributes ) ) {
-				$key        = $attributes;
-				$attributes = $this->setup_column( $key );
-			}
-
+		foreach ( $this->exported_columns() as $attributes ) {
 			if ( ! empty( $attributes['custom_display'] ) || ! empty( $attributes['custom_relate'] ) || ( isset( $attributes['type'], $attributes['related'] ) && 'related' === $attributes['type'] && false !== $attributes['related'] ) ) {
 				return false;
 			}
@@ -2057,16 +2037,9 @@ class Exports_Reports_Admin_UI {
 			}
 		}
 
-		foreach ( $this->export_columns as $key => $attributes ) {
-			if ( ! is_array( $attributes ) ) {
-				$key        = $attributes;
-				$attributes = $this->setup_column( $key );
-			}
+		$columns = $this->exported_columns();
 
-			if ( false === $attributes['export'] ) {
-				continue;
-			}
-
+		foreach ( $columns as $attributes ) {
 			$head[] = $attributes['label'];
 		}
 
@@ -2081,23 +2054,8 @@ class Exports_Reports_Admin_UI {
 		foreach ( $rows as $item ) {
 			$column_values = array();
 
-			foreach ( $this->export_columns as $key => $attributes ) {
-				if ( ! is_array( $attributes ) ) {
-					$key        = $attributes;
-					$attributes = $this->setup_column( $key );
-				}
-
-				if ( false === $attributes['export'] ) {
-					continue;
-				}
-
-				$item[ $key ] = $this->field_value( $item[ $key ], $key, $attributes );
-
-				if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
-					$item[ $key ] = $attributes['custom_display']( $item[ $key ], $item, $key, $attributes, $this );
-				}
-
-				$column_value = trim( str_replace( array( "\r", "\n" ), ' ', (string) $item[ $key ] ) );
+			foreach ( $this->export_row( $item, $columns ) as $value ) {
+				$column_value = trim( str_replace( array( "\r", "\n" ), ' ', (string) $value ) );
 
 				// A value a spreadsheet would evaluate as a formula is wrapped in a string formula, which shows the
 				// text and stays inert. The leading characters are the ones spreadsheets act on; the tab and carriage
@@ -2134,14 +2092,109 @@ class Exports_Reports_Admin_UI {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		fclose( $fp );
 
-		$this->message(
-			'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '" target="_blank">click here to access your ' . esc_html( strtoupper( $export_ext ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url(
-				$this->export_link( array( 'remove_export' => $export_file ) )
-			) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
-		);
-		echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
+		$this->export_ready( $export_file, $export_ext );
 
 		return $export_file;
+	}
+
+	/**
+	 * The WHERE or HAVING text the filters add to a statement: the clause itself when the statement has
+	 * none, otherwise the conditions for its %%WHERE%% or %%HAVING%% placeholder, joined to the statement's
+	 * own with AND.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @param string   $sql        The statement.
+	 * @param string   $keyword    'WHERE' or 'HAVING'.
+	 * @param string[] $conditions The conditions, values prepared.
+	 *
+	 * @return string '' when there is no condition.
+	 */
+	public function clause_sql( $sql, $keyword, array $conditions ) {
+		if ( empty( $conditions ) ) {
+			return '';
+		}
+
+		$conditions = ' (' . implode( ' AND ', $conditions ) . ') ';
+
+		if ( false === stripos( $sql, ' ' . $keyword . ' ' ) ) {
+			return ' ' . $keyword . $conditions;
+		}
+
+		if ( false !== stripos( $sql, ' ' . $keyword . ' %%' . $keyword . '%% ' ) || false === stripos( $sql, ' %%' . $keyword . '%% ' ) ) {
+			return $conditions . 'AND ';
+		}
+
+		return ' AND' . $conditions;
+	}
+
+	/**
+	 * Puts the plugin's clauses into a statement. A %%WHERE%%, %%HAVING%%, %%ORDERBY%% or %%LIMIT%%
+	 * placeholder the definition lacks is added for a clause that has text: right after the statement's own
+	 * keyword, before the first clause that follows it in SQL order, or at the end. The filters' own
+	 * %%name%% variables are substituted, then each placeholder is replaced by its clause.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @param string                $sql       The statement, a space at each end.
+	 * @param array<string, string> $clauses   The clauses by placeholder name (WHERE, HAVING, ORDERBY, LIMIT), '' for none: the
+	 *                                         first three with their keyword when the statement has none, the LIMIT as the page alone.
+	 * @param array<string, string> $variables The filters' conditions by the %%name%% the definition wrote for them.
+	 *
+	 * @return string
+	 */
+	public function place_clauses( $sql, array $clauses, array $variables = array() ) {
+		$keywords  = array(
+			'WHERE'   => ' WHERE ',
+			'HAVING'  => ' HAVING ',
+			'ORDERBY' => ' ORDER BY ',
+			'LIMIT'   => ' LIMIT ',
+		);
+		$followers = array(
+			'WHERE'   => array( ' GROUP BY ', ' ORDER BY ', ' LIMIT ' ),
+			'HAVING'  => array( ' ORDER BY ', ' LIMIT ' ),
+			'ORDERBY' => array( ' LIMIT ' ),
+			'LIMIT'   => array(),
+		);
+		// The WHERE, HAVING and ORDER BY clauses bring their keyword when the statement has none; the LIMIT clause is the page alone.
+		$appended = array(
+			'WHERE'   => ' %%WHERE%% ',
+			'HAVING'  => ' %%HAVING%% ',
+			'ORDERBY' => ' %%ORDERBY%% ',
+			'LIMIT'   => ' LIMIT %%LIMIT%% ',
+		);
+
+		foreach ( $clauses as $name => $clause ) {
+			$placeholder = '%%' . $name . '%%';
+
+			if ( '' === $clause || false !== stripos( $sql, $placeholder ) ) {
+				continue;
+			}
+
+			if ( false !== stripos( $sql, $keywords[ $name ] ) ) {
+				$sql = str_ireplace( $keywords[ $name ], $keywords[ $name ] . $placeholder . ' ', $sql );
+				continue;
+			}
+
+			foreach ( $followers[ $name ] as $follower ) {
+				if ( false !== stripos( $sql, $follower ) ) {
+					$sql = str_ireplace( $follower, ' ' . $placeholder . $follower, $sql );
+					continue 2;
+				}
+			}
+
+			$sql .= $appended[ $name ];
+		}
+
+		foreach ( $variables as $name => $value ) {
+			$sql = str_ireplace( '%%' . $name . '%%', $value, $sql );
+		}
+
+		foreach ( $clauses as $name => $clause ) {
+			$sql = str_ireplace( '%%' . $name . '%%', $clause, $sql );
+		}
+
+		return str_replace( array( '``', '  ' ), array( '`', ' ' ), $sql );
 	}
 
 	public function get_row( $id = false ) {
@@ -2401,42 +2454,16 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 			}
-			if ( ! empty( $other_sql ) ) {
-				foreach ( $other_sql as $key => $value ) {
-					if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
-						$replace_variables[ $key ] = $value;
+			// A filter the definition wrote a %%name%% placeholder for goes there; the others join the WHERE or HAVING clause.
+			foreach ( $other_sql + $having_sql as $key => $value ) {
+				if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
+					$replace_variables[ $key ] = $value;
 
-						unset( $other_sql[ $key ] );
-					}
+					unset( $other_sql[ $key ], $having_sql[ $key ] );
 				}
 			}
-			if ( ! empty( $other_sql ) ) {
-				if ( false === stripos( $sql, ' WHERE ' ) ) {
-					$wheresql .= ' WHERE (' . implode( ' AND ', $other_sql ) . ') ';
-				} elseif ( false !== stripos( $sql, ' WHERE %%WHERE%% ' ) || false === stripos( $sql, ' %%WHERE%% ' ) ) {
-					$wheresql .= ' (' . implode( ' AND ', $other_sql ) . ') AND ';
-				} else {
-					$wheresql .= ' AND (' . implode( ' AND ', $other_sql ) . ') ';
-				}
-			}
-			if ( ! empty( $having_sql ) ) {
-				foreach ( $having_sql as $key => $value ) {
-					if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
-						$replace_variables[ $key ] = $value;
-
-						unset( $having_sql[ $key ] );
-					}
-				}
-			}
-			if ( ! empty( $having_sql ) ) {
-				if ( false === stripos( $sql, ' HAVING ' ) ) {
-					$havingsql .= ' HAVING (' . implode( ' AND ', $having_sql ) . ') ';
-				} elseif ( false !== stripos( $sql, ' HAVING %%HAVING%% ' ) || false === stripos( $sql, ' %%HAVING%% ' ) ) {
-					$havingsql .= ' (' . implode( ' AND ', $having_sql ) . ') AND ';
-				} else {
-					$havingsql .= ' AND (' . implode( ' AND ', $having_sql ) . ') ';
-				}
-			}
+			$wheresql  = $this->clause_sql( $sql, 'WHERE', $other_sql );
+			$havingsql = $this->clause_sql( $sql, 'HAVING', $having_sql );
 		}
 		if ( $this->order_from_request && ! in_array( $this->order, $this->column_names(), true ) && ! isset( $selects[ $this->order ] ) ) {
 			// The request named a column the report does not have: the report's own order applies.
@@ -2466,115 +2493,29 @@ class Exports_Reports_Admin_UI {
 		} else {
 			$sql = preg_replace( '/\s+LIMIT\s+%%LIMIT%%\s*/i', ' ', $sql );
 		}
-		if ( stripos( $sql, '%%WHERE%%' ) === false && stripos( $sql, ' WHERE ' ) === false ) {
-			if ( stripos( $sql, ' GROUP BY ' ) !== false ) {
-				$sql = str_replace( ' GROUP BY ', ' %%WHERE%% GROUP BY ', $sql );
-			} elseif ( stripos( $sql, ' ORDER BY ' ) !== false ) {
-				$sql = str_replace( ' ORDER BY ', ' %%WHERE%% ORDER BY ', $sql );
-			} elseif ( stripos( $sql, ' LIMIT ' ) !== false ) {
-				$sql = str_replace( ' LIMIT ', ' %%WHERE%% LIMIT ', $sql );
-			} else {
-				$sql .= ' %%WHERE%% ';
-			}
-		} elseif ( stripos( $sql, '%%WHERE%%' ) === false ) {
-			$sql = str_replace( ' WHERE ', ' WHERE %%WHERE%% ', $sql );
-		}
-		if ( stripos( $sql, '%%HAVING%%' ) === false && stripos( $sql, ' HAVING ' ) === false ) {
-			if ( stripos( $sql, ' ORDER BY ' ) !== false ) {
-				$sql = str_replace( ' ORDER BY ', ' %%HAVING%% ORDER BY ', $sql );
-			} elseif ( stripos( $sql, ' LIMIT ' ) !== false ) {
-				$sql = str_replace( ' LIMIT ', ' %%HAVING%% LIMIT ', $sql );
-			} else {
-				$sql .= ' %%HAVING%% ';
-			}
-		} elseif ( stripos( $sql, '%%HAVING%%' ) === false ) {
-			$sql = str_replace( ' HAVING ', ' HAVING %%HAVING%% ', $sql );
-		}
-		if ( stripos( $sql, '%%ORDERBY%%' ) === false && stripos( $sql, ' ORDER BY ' ) === false ) {
-			if ( stripos( $sql, ' LIMIT ' ) !== false ) {
-				$sql = str_replace( ' LIMIT ', ' %%ORDERBY%% LIMIT ', $sql );
-			} else {
-				$sql .= ' %%ORDERBY%% ';
-			}
-		} elseif ( stripos( $sql, '%%ORDERBY%%' ) === false ) {
-			$sql = str_replace( ' ORDER BY ', ' ORDER BY %%ORDERBY%% ', $sql );
-		}
-		if ( stripos( $sql, '%%LIMIT%%' ) === false && stripos( $sql, ' LIMIT ' ) === false && ! empty( $limitsql ) ) {
-			$sql .= ' LIMIT %%LIMIT%% ';
-		} elseif ( stripos( $sql, '%%LIMIT%%' ) === false ) {
-			$sql = str_replace( ' LIMIT ', ' LIMIT %%LIMIT%% ', $sql );
-		}
-		foreach ( $replace_variables as $k => $v ) {
-			$sql = str_ireplace( '%%' . $k . '%%', $v, $sql );
-		}
-		$sql = str_replace( '%%WHERE%%', $wheresql, $sql );
-		$sql = str_replace( '%%HAVING%%', $havingsql, $sql );
-		$sql = str_replace( '%%ORDERBY%%', $ordersql, $sql );
-		$sql = str_replace( '%%LIMIT%%', $limitsql, $sql );
-		$sql = str_replace( '``', '`', $sql );
-		$sql = str_replace( '  ', ' ', $sql );
+		$sql = $this->place_clauses(
+			$sql,
+			array(
+				'WHERE'   => $wheresql,
+				'HAVING'  => $havingsql,
+				'ORDERBY' => $ordersql,
+				'LIMIT'   => $limitsql,
+			),
+			$replace_variables
+		);
 		if ( false !== $this->sql_count ) {
-			$wheresql  = '';
-			$havingsql = '';
-			$ordersql  = '';
-			$limitsql  = '';
+			// The count query takes the same conditions, placed by its own shape, and one row.
 			$sql_count = ' ' . preg_replace( '/\s+/', ' ', ' ' . $this->sql_count ) . ' ';
 			$sql_count = str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count );
-			if ( false !== $this->search && ! empty( $this->search_columns ) ) {
-				if ( ! empty( $other_sql ) ) {
-					if ( false === stripos( $sql, ' WHERE ' ) ) {
-						$wheresql .= ' WHERE (' . implode( ' AND ', $other_sql ) . ') ';
-					} elseif ( false !== stripos( $sql, ' WHERE %%WHERE%% ' ) || false === stripos( $sql, ' %%WHERE%% ' ) ) {
-						$wheresql .= ' (' . implode( ' AND ', $other_sql ) . ') AND ';
-					} else {
-						$wheresql .= ' AND (' . implode( ' AND ', $other_sql ) . ') ';
-					}
-				}
-				if ( ! empty( $having_sql ) ) {
-					if ( false === stripos( $sql, ' HAVING ' ) ) {
-						$havingsql .= ' HAVING (' . implode( ' AND ', $having_sql ) . ') ';
-					} elseif ( false !== stripos( $sql, ' HAVING %%HAVING%% ' ) || false === stripos( $sql, ' %%HAVING%% ' ) ) {
-						$havingsql .= ' (' . implode( ' AND ', $having_sql ) . ') AND ';
-					} else {
-						$havingsql .= ' AND (' . implode( ' AND ', $having_sql ) . ') ';
-					}
-				}
-			}
-			$limitsql .= '1';
-			if ( stripos( $sql_count, '%%WHERE%%' ) === false && stripos( $sql_count, ' WHERE ' ) === false ) {
-				if ( stripos( $sql_count, ' GROUP BY ' ) !== false ) {
-					$sql_count = str_replace( ' GROUP BY ', ' %%WHERE%% GROUP BY ', $sql_count );
-				} elseif ( stripos( $sql_count, ' ORDER BY ' ) !== false ) {
-					$sql_count = str_replace( ' ORDER BY ', ' %%WHERE%% ORDER BY ', $sql_count );
-				} elseif ( stripos( $sql_count, ' LIMIT ' ) !== false ) {
-					$sql_count = str_replace( ' LIMIT ', ' %%WHERE%% LIMIT ', $sql_count );
-				} else {
-					$sql_count .= ' %%WHERE%% ';
-				}
-			} elseif ( stripos( $sql_count, '%%WHERE%%' ) === false ) {
-				$sql_count = str_replace( ' WHERE ', ' WHERE %%WHERE%% ', $sql_count );
-			}
-			if ( stripos( $sql_count, '%%HAVING%%' ) === false && stripos( $sql_count, ' HAVING ' ) === false ) {
-				if ( stripos( $sql_count, ' ORDER BY ' ) !== false ) {
-					$sql_count = str_replace( ' ORDER BY ', ' %%HAVING%% ORDER BY ', $sql_count );
-				} elseif ( stripos( $sql_count, ' LIMIT ' ) !== false ) {
-					$sql_count = str_replace( ' LIMIT ', ' %%HAVING%% LIMIT ', $sql_count );
-				} else {
-					$sql_count .= ' %%HAVING%% ';
-				}
-			} elseif ( stripos( $sql_count, '%%HAVING%%' ) === false ) {
-				$sql_count = str_replace( ' HAVING ', ' HAVING %%HAVING%% ', $sql_count );
-			}
-			if ( stripos( $sql_count, '%%LIMIT%%' ) === false && stripos( $sql_count, ' LIMIT ' ) === false ) {
-				$sql_count .= ' LIMIT %%LIMIT%% ';
-			} elseif ( stripos( $sql_count, '%%LIMIT%%' ) === false ) {
-				$sql_count = str_replace( ' LIMIT ', ' LIMIT %%LIMIT%% ', $sql_count );
-			}
-			$sql_count = str_replace( '%%WHERE%%', $wheresql, $sql_count );
-			$sql_count = str_replace( '%%HAVING%%', $havingsql, $sql_count );
-			$sql_count = str_replace( '%%LIMIT%%', $limitsql, $sql_count );
-			$sql_count = str_replace( '``', '`', $sql_count );
-			$sql_count = str_replace( '  ', ' ', $sql_count );
+			$sql_count = $this->place_clauses(
+				$sql_count,
+				array(
+					'WHERE'  => $this->clause_sql( $sql_count, 'WHERE', $other_sql ),
+					'HAVING' => $this->clause_sql( $sql_count, 'HAVING', $having_sql ),
+					'LIMIT'  => '1',
+				),
+				$replace_variables
+			);
 		}
 		/**
 		 * Filters the report query right before it runs, placeholders substituted.
