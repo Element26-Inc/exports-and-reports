@@ -54,7 +54,7 @@ jobs:
           if [ -z "${CHANGED_FILES}" ]; then echo "No PHP files changed."; exit 0; fi
           ( vendor/bin/phpcs --standard=.phpcs.compat.xml --report=json ${CHANGED_FILES} || true ) | jq -r ' .files | to_entries[] | .key as $path | .value.messages[] as $msg | "\($path):\($msg.line):\($msg.column):`\($msg.source)`<br>\($msg.message)" ' | reviewdog -efm="%f:%l:%c:%m" -name="phpcompatibility" -filter-mode="added" -fail-level=any -reporter=github-pr-review
           # The PDF export class is excluded above (it needs PHP 8.2); it gets its own run at that floor.
-          pdf_class="includes/class-exports-reports-admin-ui-export-pdf.php"
+          pdf_class="includes/exporters/class-exports-reports-admin-ui-export-pdf.php"
           if grep -qx "$pdf_class" <<< "$(tr ' ' '\n' <<< "${CHANGED_FILES}")"; then
             ( vendor/bin/phpcs --standard=.phpcs.compat-pdf.xml --report=json "$pdf_class" || true ) | jq -r ' .files | to_entries[] | .key as $path | .value.messages[] as $msg | "\($path):\($msg.line):\($msg.column):`\($msg.source)`<br>\($msg.message)" ' | reviewdog -efm="%f:%l:%c:%m" -name="phpcompatibility-pdf" -filter-mode="added" -fail-level=any -reporter=github-pr-review
           fi
