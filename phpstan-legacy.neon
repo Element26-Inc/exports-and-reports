@@ -9,4 +9,4 @@ parameters:
 		- vendor/vendor-prefixed/mk-j
 		- vendor/vendor-prefixed/tecnickcom/tcpdf
 	excludePaths:
-		- includes/class-exports-reports-admin-ui-export-pdf.php
+		- includes/exporters/class-exports-reports-admin-ui-export-pdf.php

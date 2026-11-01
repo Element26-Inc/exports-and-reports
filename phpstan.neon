@@ -23,4 +23,4 @@ parameters:
         - class.extendsDeprecatedClass
         - method.deprecatedClass
         - property.deprecatedClass
-      path: includes/class-exports-reports-admin-ui-export-pdf-legacy.php
+      path: includes/exporters/class-exports-reports-admin-ui-export-pdf-legacy.php

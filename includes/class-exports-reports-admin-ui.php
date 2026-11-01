@@ -13,6 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/class-exports-reports-query.php';
+require_once __DIR__ . '/exporters/class-exports-reports-exporter.php';
+
 // phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
 
 if ( ! defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ) {
@@ -112,7 +115,16 @@ class Exports_Reports_Admin_UI {
 	public $export_delimiter = false;
 	public $page_orientation = 'P';
 
-	public $base_dir   = '';
+	public $base_dir = '';
+
+	/**
+	 * The screen's statements: the SQL helpers and the assembly of the report query.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @var Exports_Reports_Query
+	 */
+	public $query;
 	public $base_url   = '';
 	public $assets_url = '';
 
@@ -120,6 +132,8 @@ class Exports_Reports_Admin_UI {
 	 * @param bool|array $options
 	 */
 	public function __construct( $options = false ) {
+		$this->query = new Exports_Reports_Query( $this );
+
 		/**
 		 * Fires before the admin UI reads its options.
 		 *
@@ -705,127 +719,85 @@ class Exports_Reports_Admin_UI {
 		return $this->legacy_hook( 'var_update', array( $link, $vars, $allowed, $url ) );
 	}
 
+	/**
+	 * Escapes a value for a statement that is not prepared; see Exports_Reports_Query::sanitize().
+	 *
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
+	 */
 	public function sanitize( $input ) {
-		$output = array();
-
-		if ( is_numeric( $input ) ) {
-			$output = $input;
-		} elseif ( is_object( $input ) ) {
-			$input = (array) $input;
-			foreach ( $input as $key => $val ) {
-				$output[ $key ] = $this->sanitize( $val );
-			}
-			$output = (object) $output;
-		} elseif ( is_array( $input ) ) {
-			foreach ( $input as $key => $val ) {
-				$output[ $key ] = $this->sanitize( $val );
-			}
-		} elseif ( ! empty( $input ) ) {
-			$output = esc_sql( trim( $input ) );
-		}
-
-		return $output;
+		return $this->query->sanitize( $input );
 	}
 
 	/**
-	 * A column or table name as a quoted identifier: backticks around it, a backtick inside it doubled.
+	 * A column or table name as a quoted identifier; see Exports_Reports_Query::backtick().
 	 *
-	 * @param string $name The name, from the report definition.
-	 *
-	 * @return string
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
 	 */
 	public function backtick( $name ) {
-		return '`' . str_replace( '`', '``', (string) $name ) . '`';
+		return $this->query->backtick( $name );
 	}
 
 	/**
-	 * The names of the report's columns, whether they are set up already (keyed arrays) or still a list of names.
+	 * The names of the report's columns; see Exports_Reports_Query::column_names().
 	 *
-	 * @return string[]
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
 	 */
 	public function column_names() {
-		$names = array();
-
-		foreach ( (array) $this->columns as $key => $column ) {
-			$names[] = (string) ( is_array( $column ) ? $key : $column );
-		}
-
-		return $names;
+		return $this->query->column_names();
 	}
 
 	/**
-	 * A value as a SQL string literal, quoted and escaped by $wpdb->prepare(). A literal % in it stands behind
-	 * wpdb's placeholder escape until the statement runs through wpdb, as rows() and execute() do; a statement
-	 * run anywhere else takes $wpdb->remove_placeholder_escape() first.
+	 * A value as a SQL string literal; see Exports_Reports_Query::quote().
 	 *
-	 * @since 0.9.5
-	 *
-	 * @param string $value The value.
-	 *
-	 * @return string
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
 	 */
 	public function quote( $value ) {
-		global $wpdb;
-
-		return (string) $wpdb->prepare( '%s', $value );
+		return $this->query->quote( $value );
 	}
 
 	/**
-	 * Runs a statement and returns its rows. The one place the plugin runs SQL it did not prepare in full: the
-	 * report's query and count query as the administrator wrote them, with the plugin's clauses around prepared
-	 * values; a lookup on a related table the definition names; the screen's own table. Only a user with the
-	 * plugin's settings capability writes a definition.
+	 * Runs a statement and returns its rows; see Exports_Reports_Query::rows().
 	 *
-	 * @since 0.9.5
-	 *
-	 * @param string $sql    The statement.
-	 * @param string $output OBJECT or ARRAY_A, as $wpdb->get_results() takes it.
-	 *
-	 * @return array<int, mixed>
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
 	 */
 	public function rows( $sql, $output = OBJECT ) {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the administrator's own statement, or one of the plugin's with its values prepared; see the method's description.
-		return $wpdb->get_results( $sql, $output );
+		return $this->query->rows( $sql, $output );
 	}
 
 	/**
-	 * Runs a statement that writes to the screen's own table (the form's INSERT, UPDATE and DELETE), its values
-	 * quoted by quote() or cast.
+	 * Runs a statement that writes to the screen's own table; see Exports_Reports_Query::execute().
 	 *
-	 * @since 0.9.5
-	 *
-	 * @param string $sql The statement.
-	 *
-	 * @return int|bool Rows affected, or false on error.
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
 	 */
 	public function execute( $sql ) {
-		global $wpdb;
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the screen's own table; the values are quoted or cast by the caller.
-		return $wpdb->query( $sql );
+		return $this->query->execute( $sql );
 	}
 
+	/**
+	 * Removes the slashes a request adds; see Exports_Reports_Query::unsanitize().
+	 *
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
+	 */
 	public function unsanitize( $input ) {
-		$output = array();
-		if ( is_object( $input ) ) {
-			$input = (array) $input;
-			foreach ( $input as $key => $val ) {
-				$output[ $key ] = $this->unsanitize( $val );
-			}
-			$output = (object) $output;
-		} elseif ( is_array( $input ) ) {
-			foreach ( $input as $key => $val ) {
-				$output[ $key ] = $this->unsanitize( $val );
-			}
-		} elseif ( empty( $input ) ) {
-			$output = $input;
-		} else {
-			$output = stripslashes( $input );
-		}
+		return $this->query->unsanitize( $input );
+	}
 
-		return $output;
+	/**
+	 * The WHERE or HAVING text the filters add to a statement; see Exports_Reports_Query::clause_sql().
+	 *
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
+	 */
+	public function clause_sql( $sql, $keyword, array $conditions ) {
+		return $this->query->clause_sql( $sql, $keyword, $conditions );
+	}
+
+	/**
+	 * Places the clauses into a statement; see Exports_Reports_Query::place_clauses().
+	 *
+	 * @since 1.0.0 Forwards to the screen's Exports_Reports_Query.
+	 */
+	public function place_clauses( $sql, array $clauses, array $variables = array() ) {
+		return $this->query->place_clauses( $sql, $clauses, $variables );
 	}
 
 	public function catch_columns( $full = false ) {
@@ -1954,21 +1926,45 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * The PDF engine: tc-lib-pdf on PHP 8.2 and later, TCPDF below that (tc-lib-pdf's floor is 8.2). The
-	 * exports_reports_export_pdf_engine filter may choose 'tcpdf' on a newer PHP; it cannot choose tc-lib-pdf on an older one.
+	 * The PDF engine; see Exports_Reports_Exporter_PDF::engine().
+	 *
+	 * @since 1.0.0 Forwards to the PDF exporter.
 	 *
 	 * @return string 'tc-lib-pdf' or 'tcpdf'.
 	 */
 	public static function pdf_engine() {
-		/**
-		 * Filters the PDF engine.
-		 *
-		 * @param string $engine 'tc-lib-pdf' on PHP 8.2 and later, 'tcpdf' below.
-		 */
-		$engine = apply_filters( 'exports_reports_export_pdf_engine', PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' );
-		$engine = apply_filters_deprecated( 'wp_admin_ui_export_pdf_engine', array( $engine ), '0.9.5', 'exports_reports_export_pdf_engine' );
+		return Exports_Reports_Exporter_PDF::engine();
+	}
 
-		return ( 'tcpdf' === $engine || PHP_VERSION_ID < 80200 ) ? 'tcpdf' : 'tc-lib-pdf';
+	/**
+	 * Whether a delimited export can read its rows from an unbuffered result; see
+	 * Exports_Reports_Exporter_Delimited::can_stream().
+	 *
+	 * @since 1.0.0 Forwards to the delimited exporter.
+	 *
+	 * @return bool
+	 */
+	public function can_stream_export() {
+		return ( new Exports_Reports_Exporter_Delimited( $this ) )->can_stream();
+	}
+
+	/**
+	 * Writes a delimited export (CSV, TSV, pipe or custom) and shows the download; see
+	 * Exports_Reports_Exporter_Delimited. export() does this for every format.
+	 *
+	 * @since 1.0.0 Forwards to the delimited exporter.
+	 *
+	 * @return string|false The file name, or false when the statement failed.
+	 */
+	public function export_sv() {
+		$exporter    = new Exports_Reports_Exporter_Delimited( $this );
+		$export_file = $exporter->write();
+
+		if ( false !== $export_file ) {
+			$this->export_ready( $export_file, $exporter->extension() );
+		}
+
+		return $export_file;
 	}
 
 	public function export() {
@@ -2016,9 +2012,9 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['export'], $this );
 		}
 		if ( empty( $this->full_data ) ) {
-			// Delimited exports read their rows in export_sv(); the other formats load the whole result here.
+			// Delimited exports read their rows from an unbuffered result; the other formats load the whole result here.
 			$this->stream_sql    = '';
-			$this->stream_export = in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) && $this->can_stream_export();
+			$this->stream_export = Exports_Reports_Exporter::streams( $this->export_type ) && $this->can_stream_export();
 			$data                = $this->get_data( true );
 			$this->stream_export = false;
 
@@ -2098,111 +2094,22 @@ class Exports_Reports_Admin_UI {
 
 				return false;
 			}
-		} elseif ( in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) ) {
-			$export_file = $this->export_sv();
-		} elseif ( 'xml' === $this->export_type ) {
-			$export_file          = $this->export_file( $this->export_type );
-			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
-			$columns              = $this->exported_columns();
-			$file_contents        = '<?xml version="1.0" encoding="' . get_bloginfo( 'charset' ) . '" ?>' . "\r\n<items count=\"" . count( $this->full_data ) . "\">\r\n";
-
-			foreach ( $this->full_data as $item ) {
-				$file_contents .= "\t<item>\r\n";
-
-				foreach ( $this->export_row( $item, $columns ) as $key => $value ) {
-					$file_contents .= "\t\t<{$key}><![CDATA[" . $value . "]]></{$key}>\r\n";
-				}
-
-				$file_contents .= "\t</item>\r\n";
-			}
-
-			$file_contents .= '</items>';
-
-			$wp_filesystem->put_contents( $export_file_location, $file_contents );
-			$this->export_ready( $export_file, $this->export_type );
-		} elseif ( 'xlsx' === $this->export_type ) {
-			$export_file          = $this->export_file( $this->export_type );
-			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
-			$columns              = $this->exported_columns();
-			$header               = array();
-
-			foreach ( $columns as $attributes ) {
-				$header[ $attributes['label'] ] = 'string';
-			}
-
-			$writer = new ExportsReports__Prefixed__XLSXWriter();
-			$writer->writeSheetHeader(
-				'Sheet1',
-				$header,
-				array(
-					'fill'   => '#eee',
-					'halign' => 'center',
-					'border' => 'left,right,top,bottom',
-				)
-			);
-
-			foreach ( $this->full_data as $item ) {
-				$row = array();
-
-				foreach ( $this->export_row( $item, $columns ) as $key => $value ) {
-					$value = wp_strip_all_tags( (string) $value );
-
-					// The cell is text unless the column is a number.
-					$row[] = ! empty( $columns[ $key ]['type'] ) && 'number' === $columns[ $key ]['type'] ? (int) $value : $value;
-				}
-
-				$writer->writeSheetRow( 'Sheet1', $row );
-			}
-
-			$wp_filesystem->put_contents( $export_file_location, (string) $writer->writeToString() );
-			$this->export_ready( $export_file, $this->export_type );
-		} elseif ( 'json' === $this->export_type ) {
-			$export_file          = $this->export_file( $this->export_type );
-			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
-			$columns              = $this->exported_columns();
-			$rows                 = array();
-
-			foreach ( $this->full_data as $item ) {
-				$rows[] = $this->export_row( $item, $columns );
-			}
-
-			$data = array(
-				'items' => array(
-					'count' => count( $rows ),
-					'item'  => $rows,
-				),
-			);
-
-			$wp_filesystem->put_contents( $export_file_location, wp_json_encode( $data, JSON_PRETTY_PRINT ) );
-			$this->export_ready( $export_file, $this->export_type );
-		} elseif ( 'pdf' === $this->export_type ) {
-			if ( 'tcpdf' === self::pdf_engine() ) {
-				require_once $this->base_dir . '/class-exports-reports-admin-ui-export-pdf-legacy.php';
-				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF_Legacy';
-			} else {
-				require_once $this->base_dir . '/class-exports-reports-admin-ui-export-pdf.php';
-				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF';
-			}
-
-			/**
-			 * Filters the PDF export before the plugin renders it: a callback that writes the file into the
-			 * export directory itself returns its name.
-			 *
-			 * @param string|null              $export_file Null: the plugin renders the report.
-			 * @param Exports_Reports_Admin_UI $admin       The report.
-			 */
-			$export_file = apply_filters( 'exports_reports_export_pdf_report_file', null, $this );
-			$export_file = apply_filters_deprecated( 'wp_admin_ui_export_pdf_report_file', array( $export_file, $this ), '0.9.5', 'exports_reports_export_pdf_report_file' );
-
-			if ( ! $export_file ) {
-				$export_file = $pdf_class::CreateReport( $this );
-			}
-
-			$this->export_ready( $export_file, $this->export_type );
 		} else {
-			$this->error( __( '<strong>Error:</strong> Invalid export type.', 'exports-and-reports' ) );
+			$exporter = Exports_Reports_Exporter::create( $this->export_type, $this );
 
-			return false;
+			if ( null === $exporter ) {
+				$this->error( __( '<strong>Error:</strong> Invalid export type.', 'exports-and-reports' ) );
+
+				return false;
+			}
+
+			$export_file = $exporter->write();
+
+			if ( false === $export_file ) {
+				return false;
+			}
+
+			$this->export_ready( $export_file, $exporter->extension() );
 		}
 
 		$this->exported_file = $export_file;
@@ -2243,306 +2150,6 @@ class Exports_Reports_Admin_UI {
 				$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
 			}
 		}
-	}
-
-	/**
-	 * Whether export_sv() can read the rows from an unbuffered result: wpdb must be on mysqli, and no column
-	 * may run a query while the result is open, as a "related" lookup or a custom display callback might.
-	 *
-	 * @return bool
-	 */
-	public function can_stream_export() {
-		global $wpdb;
-
-		if ( ! isset( $wpdb->dbh ) || ! $wpdb->dbh instanceof mysqli ) {
-			return false;
-		}
-
-		foreach ( $this->exported_columns() as $attributes ) {
-			if ( ! empty( $attributes['custom_display'] ) || ! empty( $attributes['custom_relate'] ) || ( isset( $attributes['type'], $attributes['related'] ) && 'related' === $attributes['type'] && false !== $attributes['related'] ) ) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/**
-	 * Yield the rows of an unbuffered result one at a time.
-	 *
-	 * @param mysqli_result $stream The result.
-	 * @return Generator<int, array<string, string|null>>
-	 */
-	protected function stream_rows( $stream ) {
-		// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_assoc
-		$row = mysqli_fetch_assoc( $stream );
-
-		while ( is_array( $row ) ) {
-			yield $row;
-
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_assoc
-			$row = mysqli_fetch_assoc( $stream );
-		}
-	}
-
-	/**
-	 * Write one line of a delimited export with every value quoted.
-	 *
-	 * @param resource $fp        The open export file.
-	 * @param array    $values    The values of the line.
-	 * @param string   $delimiter The delimiter between values.
-	 */
-	public function write_sv_line( $fp, $values, $delimiter ) {
-		$quoted = array();
-
-		foreach ( $values as $value ) {
-			$quoted[] = '"' . str_replace( '"', '""', (string) $value ) . '"';
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-		fwrite( $fp, implode( $delimiter, $quoted ) . "\n" );
-	}
-
-	public function export_sv() {
-		global $wpdb;
-
-		$file_ext = array(
-			'csv'    => 'csv',
-			'tsv'    => 'tsv',
-			'pipe'   => 'txt',
-			'custom' => 'txt',
-		);
-
-		$file_delimiter = array(
-			'csv'  => ',',
-			'tsv'  => "\t",
-			'pipe' => '|',
-		);
-
-		$export_delimiter = ',';
-		$export_ext       = 'csv';
-
-		if ( $this->export_delimiter ) {
-			$export_delimiter = $this->export_delimiter;
-		} elseif ( isset( $file_delimiter[ $this->export_type ] ) ) {
-			$export_delimiter = $file_delimiter[ $this->export_type ];
-		}
-
-		if ( isset( $file_ext[ $this->export_type ] ) ) {
-			$export_ext = $file_ext[ $this->export_type ];
-		}
-
-		$export_file          = $this->export_file( $export_ext );
-		$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		$fp     = fopen( $export_file_location, 'a+' );
-		$head   = array();
-		$stream = null;
-
-		/**
-		 * Filters whether values a spreadsheet would evaluate as formulas are written as text.
-		 *
-		 * @since 1.0.0 The arguments one by one; the array form stays with wp_admin_ui_export_escape_formulas.
-		 *
-		 * @param bool                    $escape True by default.
-		 * @param Exports_Reports_Admin_UI $admin  The screen.
-		 */
-		$escape_formulas = apply_filters( 'exports_reports_export_escape_formulas', true, $this ); // Before the unbuffered result is open: a callback may query the database.
-		$escape_formulas = false !== $this->legacy_hook( 'export_escape_formulas', array( $escape_formulas ) );
-
-		if ( '' !== $this->stream_sql ) {
-			// Unbuffered, on wpdb's connection: the statement may read temporary tables and session variables
-			// a filter callback created there. One row is in memory at a time.
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query -- an unbuffered result on wpdb's connection; the statement is the report's own query.
-			$stream = mysqli_query( $wpdb->dbh, $this->stream_sql, MYSQLI_USE_RESULT );
-
-			if ( ! $stream instanceof mysqli_result ) {
-				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
-				$wpdb->last_error = mysqli_error( $wpdb->dbh );
-				$this->stream_sql = '';
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-				fclose( $fp );
-				wp_delete_file( $export_file_location );
-				$this->error( '<strong>' . esc_html__( 'Error:', 'exports-and-reports' ) . '</strong> ' . esc_html( $wpdb->last_error ) );
-
-				return false;
-			}
-
-			if ( empty( $this->columns ) ) {
-				$names = array();
-
-				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_fields
-				foreach ( mysqli_fetch_fields( $stream ) as $field ) {
-					$name = trim( str_replace( '`', '', $field->name ) );
-
-					if ( 0 < strlen( $name ) ) {
-						$names[] = $name;
-					}
-				}
-
-				$this->columns = $this->setup_columns( $names, 'columns', true );
-			}
-		}
-
-		$columns = $this->exported_columns();
-
-		foreach ( $columns as $attributes ) {
-			$head[] = $attributes['label'];
-		}
-
-		// A UTF-8 byte order mark so spreadsheet applications read the encoding right. With the first label
-		// quoted it also keeps Excel from taking a file that starts with "ID" for SYLK.
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
-		fwrite( $fp, "\xEF\xBB\xBF" );
-		$this->write_sv_line( $fp, $head, $export_delimiter );
-
-		$rows = $stream instanceof mysqli_result ? $this->stream_rows( $stream ) : $this->full_data;
-
-		foreach ( $rows as $item ) {
-			$column_values = array();
-
-			foreach ( $this->export_row( $item, $columns ) as $value ) {
-				$column_value = trim( str_replace( array( "\r", "\n" ), ' ', (string) $value ) );
-
-				// A value a spreadsheet would evaluate as a formula is wrapped in a string formula, which shows the
-				// text and stays inert. The leading characters are the ones spreadsheets act on; the tab and carriage
-				// return of the usual list cannot reach this point, the trim and the line-break replacement above take
-				// them. Numbers are left alone: a negative amount starts with "-".
-				if ( $escape_formulas && '' !== $column_value && ! is_numeric( $column_value ) && false !== strpos( '=+-@', $column_value[0] ) ) {
-					$column_value = '="" & "' . str_replace( '"', '""', $column_value ) . '"';
-				}
-
-				$column_values[] = $column_value;
-			}
-
-			$this->write_sv_line( $fp, $column_values, $export_delimiter );
-		}
-
-		if ( $stream instanceof mysqli_result ) {
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error
-			$stream_error = mysqli_error( $wpdb->dbh );
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_free_result
-			mysqli_free_result( $stream );
-			$this->stream_sql = '';
-
-			if ( '' !== $stream_error ) {
-				$wpdb->last_error = $stream_error;
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-				fclose( $fp );
-				wp_delete_file( $export_file_location );
-				$this->error( '<strong>' . esc_html__( 'Error:', 'exports-and-reports' ) . '</strong> ' . esc_html( $stream_error ) );
-
-				return false;
-			}
-		}
-
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-		fclose( $fp );
-
-		$this->export_ready( $export_file, $export_ext );
-
-		return $export_file;
-	}
-
-	/**
-	 * The WHERE or HAVING text the filters add to a statement: the clause itself when the statement has
-	 * none, otherwise the conditions for its %%WHERE%% or %%HAVING%% placeholder, joined to the statement's
-	 * own with AND.
-	 *
-	 * @since 0.9.5
-	 *
-	 * @param string   $sql        The statement.
-	 * @param string   $keyword    'WHERE' or 'HAVING'.
-	 * @param string[] $conditions The conditions, values prepared.
-	 *
-	 * @return string '' when there is no condition.
-	 */
-	public function clause_sql( $sql, $keyword, array $conditions ) {
-		if ( empty( $conditions ) ) {
-			return '';
-		}
-
-		$conditions = ' (' . implode( ' AND ', $conditions ) . ') ';
-
-		if ( false === stripos( $sql, ' ' . $keyword . ' ' ) ) {
-			return ' ' . $keyword . $conditions;
-		}
-
-		if ( false !== stripos( $sql, ' ' . $keyword . ' %%' . $keyword . '%% ' ) || false === stripos( $sql, ' %%' . $keyword . '%% ' ) ) {
-			return $conditions . 'AND ';
-		}
-
-		return ' AND' . $conditions;
-	}
-
-	/**
-	 * Puts the plugin's clauses into a statement. A %%WHERE%%, %%HAVING%%, %%ORDERBY%% or %%LIMIT%%
-	 * placeholder the definition lacks is added for a clause that has text: right after the statement's own
-	 * keyword, before the first clause that follows it in SQL order, or at the end. The filters' own
-	 * %%name%% variables are substituted, then each placeholder is replaced by its clause.
-	 *
-	 * @since 0.9.5
-	 *
-	 * @param string                $sql       The statement, a space at each end.
-	 * @param array<string, string> $clauses   The clauses by placeholder name (WHERE, HAVING, ORDERBY, LIMIT), '' for none: the
-	 *                                         first three with their keyword when the statement has none, the LIMIT as the page alone.
-	 * @param array<string, string> $variables The filters' conditions by the %%name%% the definition wrote for them.
-	 *
-	 * @return string
-	 */
-	public function place_clauses( $sql, array $clauses, array $variables = array() ) {
-		$keywords  = array(
-			'WHERE'   => ' WHERE ',
-			'HAVING'  => ' HAVING ',
-			'ORDERBY' => ' ORDER BY ',
-			'LIMIT'   => ' LIMIT ',
-		);
-		$followers = array(
-			'WHERE'   => array( ' GROUP BY ', ' ORDER BY ', ' LIMIT ' ),
-			'HAVING'  => array( ' ORDER BY ', ' LIMIT ' ),
-			'ORDERBY' => array( ' LIMIT ' ),
-			'LIMIT'   => array(),
-		);
-		// The WHERE, HAVING and ORDER BY clauses bring their keyword when the statement has none; the LIMIT clause is the page alone.
-		$appended = array(
-			'WHERE'   => ' %%WHERE%% ',
-			'HAVING'  => ' %%HAVING%% ',
-			'ORDERBY' => ' %%ORDERBY%% ',
-			'LIMIT'   => ' LIMIT %%LIMIT%% ',
-		);
-
-		foreach ( $clauses as $name => $clause ) {
-			$placeholder = '%%' . $name . '%%';
-
-			if ( '' === $clause || false !== stripos( $sql, $placeholder ) ) {
-				continue;
-			}
-
-			if ( false !== stripos( $sql, $keywords[ $name ] ) ) {
-				$sql = str_ireplace( $keywords[ $name ], $keywords[ $name ] . $placeholder . ' ', $sql );
-				continue;
-			}
-
-			foreach ( $followers[ $name ] as $follower ) {
-				if ( false !== stripos( $sql, $follower ) ) {
-					$sql = str_ireplace( $follower, ' ' . $placeholder . $follower, $sql );
-					continue 2;
-				}
-			}
-
-			$sql .= $appended[ $name ];
-		}
-
-		foreach ( $variables as $name => $value ) {
-			$sql = str_ireplace( '%%' . $name . '%%', $value, $sql );
-		}
-
-		foreach ( $clauses as $name => $clause ) {
-			$sql = str_ireplace( '%%' . $name . '%%', $clause, $sql );
-		}
-
-		return $sql;
 	}
 
 	public function get_row( $id = false ) {
@@ -2591,315 +2198,13 @@ class Exports_Reports_Admin_UI {
 		}
 
 		/** @global wpdb $wpdb */ global $wpdb;
-		$this->sql_count = trim( $this->sql_count );
-		if ( empty( $this->sql_count ) ) {
-			$this->sql_count = false;
-		}
-		if ( false === $this->sql ) {
-			$this->sql = "SELECT * FROM $this->table";
-		}
-		$sql = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $this->sql ) . ' ';
-		// The author's own SQL_CALC_FOUND_ROWS, if any, comes off; the select list is read before anything is added to it.
-		$sql = preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 );
-		preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
-		// What goes after the first SELECT: the row count for the page view (an export reads every row and needs
-		// none; a totals query feeds the sum row, not the count), then a SUM() per total field.
-		$select_extras = $full ? '' : 'SQL_CALC_FOUND_ROWS';
-		$totals        = array();
-		foreach ( $this->columns as $key => $column ) {
-			$attributes = $column;
-			if ( ! is_array( $attributes ) ) {
-				$attributes = $this->setup_column( $column );
-			}
-			if ( true !== $attributes['total_field'] ) {
-				continue;
-			}
-			if ( is_array( $column ) ) {
-				$column = $key;
-			}
-			$columnfield = '`' . $column . '`';
-			if ( false !== $attributes['real_name'] ) {
-				$columnfield = $attributes['real_name'];
-			}
-			$totals[] = 'SUM(' . $columnfield . ') AS ' . $this->backtick( 'exports_reports_total_' . $column );
-		}
-		if ( ! empty( $totals ) ) {
-			$select_extras .= ' ' . implode( ',', $totals ) . ', ';
-		}
-		$sql               = preg_replace( '/ SELECT /i', " SELECT {$select_extras} ", $sql, 1 );
-		$wheresql          = '';
-		$havingsql         = '';
-		$ordersql          = '';
-		$limitsql          = '';
-		$other_sql         = array();
-		$having_sql        = array();
-		$replace_variables = array();
-		$selects           = array();
-		// The columns the SELECT list names, for the sort check: its aliases and its bare column names. A list
-		// with a * or an unaliased expression names fewer columns than the result has, so it settles nothing.
-		$select_names = array();
-		$select_known = isset( $selectmatches[1] ) && '' !== trim( $selectmatches[1] );
-		if ( $select_known ) {
-			$theselects = explode( ', ', $selectmatches[1] );
-			if ( 1 === count( $theselects ) ) {
-				$theselects = explode( ',', $selectmatches[1] );
-			}
-			foreach ( $theselects as $selected ) {
-				$selectfield = preg_split( '/ AS /i', $selected );
-				if ( count( $selectfield ) === 2 ) {
-					$field             = trim( trim( $selectfield[1] ), '`' );
-					$real_field        = trim( trim( $selectfield[0] ), '`' );
-					$selects[ $field ] = $real_field;
-					$select_names[]    = $field;
-				} elseif ( preg_match( '/^`?(?:[a-z0-9_]+`?\.`?)?([a-z0-9_]+)`?$/i', trim( $selected ), $bare ) ) {
-					$select_names[] = $bare[1];
-				} else {
-					$select_known = false;
-				}
-			}
-		}
-		if ( false !== $this->search && ! empty( $this->search_columns ) ) {
-			if ( false !== $this->search_query && 0 < strlen( $this->search_query ) ) {
-				foreach ( $this->search_columns as $key => $column ) {
-					$attributes = $column;
-					if ( ! is_array( $attributes ) ) {
-						$attributes = $this->setup_column( $column );
-					}
-					if ( false === $attributes['search'] ) {
-						continue;
-					}
-					if ( in_array( $attributes['type'], array( 'date', 'time', 'datetime' ), true ) ) {
-						continue;
-					}
-					if ( is_array( $column ) ) {
-						$column = $key;
-					}
-					if ( isset( $this->filters[ $column ] ) ) {
-						continue;
-					}
-					$columnfield = '`' . $column . '`';
-					if ( isset( $selects[ $column ] ) ) {
-						$columnfield = '`' . $selects[ $column ] . '`';
-					}
-					if ( false !== $attributes['real_name'] ) {
-						$columnfield = $attributes['real_name'];
-					}
 
-					$filter_field_key = str_replace( '`', '', $columnfield );
-					$like             = $columnfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $this->search_query ) . '%' );
+		$statement = $this->query->statement( $full );
+		$sql       = $statement['sql'];
+		$sql_count = $statement['sql_count'];
+		$wheresql  = $statement['where'];
+		$havingsql = $statement['having'];
 
-					if ( false !== $attributes['group_related'] ) {
-						$having_sql[ $filter_field_key ] = $like;
-					} else {
-						$other_sql[ $filter_field_key ] = $like;
-					}
-				}
-				if ( ! empty( $other_sql ) ) {
-					foreach ( $other_sql as $key => $value ) {
-						if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
-							$replace_variables[ $key ] = $value;
-
-							unset( $other_sql[ $key ] );
-						}
-					}
-				}
-				if ( ! empty( $other_sql ) ) {
-					$other_sql = array( '(' . implode( ' OR ', $other_sql ) . ')' );
-				}
-				if ( ! empty( $having_sql ) ) {
-					foreach ( $having_sql as $key => $value ) {
-						if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
-							$replace_variables[ $key ] = $value;
-
-							unset( $having_sql[ $key ] );
-						}
-					}
-				}
-				if ( ! empty( $having_sql ) ) {
-					$having_sql = array( '(' . implode( ' OR ', $having_sql ) . ')' );
-				}
-			}
-			foreach ( $this->filters as $filter ) {
-				if ( ! isset( $this->search_columns[ $filter ] ) ) {
-					continue;
-				}
-
-				$filter_column = $this->search_columns[ $filter ];
-				$filter_values = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
-
-				$filterfield         = '`' . $filter . '`';
-				$filter_sql          = false;
-				$search_value        = false;
-				$related_filterfield = false;
-
-				if ( isset( $selects[ $filter ] ) ) {
-					$filterfield = '`' . $selects[ $filter ] . '`';
-				}
-				if ( false !== $filter_column['real_name'] ) {
-					$filterfield = $filter_column['real_name'];
-				}
-				if ( in_array( $filter_column['type'], array( 'date', 'datetime' ), true ) ) {
-					$start        = date_i18n( 'Y-m-d' ) . ( 'datetime' === $filter_column['type'] ? ' 00:00:00' : '' );
-					$end          = date_i18n( 'Y-m-d' ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
-					$start_values = $this->filter_values( 'filter_' . $filter . '_start', $filter_column['filter_default'] );
-					$end_values   = $this->filter_values( 'filter_' . $filter . '_end', $filter_column['filter_ongoing_default'] );
-					if ( array() === $start_values && array() === $end_values ) {
-						continue;
-					}
-					if ( array() !== $start_values ) {
-						$start = date_i18n( 'Y-m-d', strtotime( $start_values[0] ) ) . ( 'datetime' === $filter_column['type'] ? ' 00:00:00' : '' );
-					}
-					if ( array() !== $end_values ) {
-						$end = date_i18n( 'Y-m-d', strtotime( $end_values[0] ) ) . ( 'datetime' === $filter_column['type'] ? ' 23:59:59' : '' );
-					}
-					$from = $this->quote( $start );
-					$to   = $this->quote( $end );
-
-					if ( false !== $filter_column['date_ongoing'] ) {
-						$date_ongoing = $filter_column['date_ongoing'];
-						if ( isset( $selects[ $date_ongoing ] ) ) {
-							$date_ongoing = $selects[ $date_ongoing ];
-						}
-
-						$filter_sql = "(($filterfield <= $from OR ($filterfield >= $from AND $filterfield <= $to)) AND ($date_ongoing >= $from OR ($date_ongoing >= $from AND $date_ongoing <= $to)))";
-					} else {
-						$filter_sql = "($filterfield BETWEEN $from AND $to)";
-					}
-				} elseif ( array() !== $filter_values && 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
-					if ( ! is_array( $filter_column['related'] ) ) {
-						$search_values = array();
-						foreach ( $filter_values as $filter_value ) {
-							$search_values[] = preg_match( '/[^0-9]/', $filter_value ) ? $wpdb->prepare( '%s', $filter_value ) : (string) (int) $filter_value;
-						}
-						$search_value        = implode( ', ', $search_values );
-						$related_filterfield = '`' . $filter . '`.`' . $filter_column['related_id'] . '`';
-						if ( isset( $selects[ $filter ] ) ) {
-							$related_filterfield = '`' . $selects[ $filter ] . '`.`' . $filter_column['related_id'] . '`';
-						}
-						if ( false !== $filter_column['real_name'] ) {
-							$related_filterfield = $filter_column['real_name'];
-						}
-
-						$filter_sql = 1 === count( $search_values ) ? "{$related_filterfield} = {$search_value}" : "{$related_filterfield} IN ({$search_value})";
-					} else {
-						$likes = array();
-						foreach ( $filter_values as $filter_value ) {
-							$likes[] = $filterfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $filter_value ) . '%' );
-						}
-						$filter_sql = 1 === count( $likes ) ? $likes[0] : '(' . implode( ' OR ', $likes ) . ')';
-					}
-				} elseif ( 'bool' === $filter_column['type'] && array() !== $filter_values ) {
-					$filter_sql = "$filterfield = " . (int) $filter_values[0];
-				} elseif ( array() !== $filter_values ) {
-					$filter_sql = $filterfield . ' LIKE ' . $this->quote( '%' . $wpdb->esc_like( $filter_values[0] ) . '%' );
-				}
-
-				if ( $filter_sql ) {
-					/**
-					 * Filters the condition a filter value adds to the query.
-					 *
-					 * @param string                   $filter_sql          The condition, values prepared: a literal % in a value
-					 *                                                      stands behind wpdb's placeholder escape until the query runs.
-					 * @param string                   $filter              The filter's column.
-					 * @param array                    $filter_column       The column's attributes.
-					 * @param string                   $filterfield         The column as an identifier.
-					 * @param string|bool              $related_filterfield The related column, or false.
-					 * @param string|array             $search_value        The value from the request.
-					 * @param Exports_Reports_Admin_UI $admin               The report.
-					 */
-					$filter_sql = apply_filters( 'exports_reports_data_filter_sql', $filter_sql, $filter, $filter_column, $filterfield, $related_filterfield, $search_value, $this );
-					$filter_sql = apply_filters_deprecated( 'wp_admin_ui_data_filter_sql', array( $filter_sql, $filter, $filter_column, $filterfield, $related_filterfield, $search_value, $this ), '0.9.5', 'exports_reports_data_filter_sql' );
-
-					$filter_field_key = str_replace( '`', '', $filterfield );
-
-					if ( false !== $filter_column['group_related'] ) {
-						$having_sql[ $filter ] = $filter_sql;
-					} else {
-						$other_sql[ $filter ] = $filter_sql;
-					}
-				}
-			}
-			// A filter the definition wrote a %%name%% placeholder for goes there; the others join the WHERE or HAVING clause.
-			foreach ( $other_sql + $having_sql as $key => $value ) {
-				if ( false !== stripos( $sql, '%%' . $key . '%%' ) ) {
-					$replace_variables[ $key ] = $value;
-
-					unset( $other_sql[ $key ], $having_sql[ $key ] );
-				}
-			}
-			$wheresql  = $this->clause_sql( $sql, 'WHERE', $other_sql );
-			$havingsql = $this->clause_sql( $sql, 'HAVING', $having_sql );
-		}
-		if ( $this->order_from_request && ( ! empty( $this->columns ) || $select_known ) ) {
-			// The request's column, lower-cased on the way in, against the report's columns as the report writes
-			// them. A report whose columns are not known before it runs (no field definitions, a SELECT list that
-			// names fewer columns than its result) takes the name as the identifier it was sanitized to; the
-			// database checks it.
-			$sort_column = false;
-
-			foreach ( array_merge( $this->column_names(), $select_names ) as $name ) {
-				if ( strtolower( $name ) === $this->order ) {
-					$sort_column = $name;
-					break;
-				}
-			}
-
-			if ( false === $sort_column ) {
-				// The request named a column the report does not have: the report's own order applies.
-				$this->order              = $this->order_default;
-				$this->order_dir          = $this->order_dir_default;
-				$this->order_from_request = false;
-			} else {
-				$this->order = $sort_column;
-			}
-		}
-		if ( false !== $this->order && ( false === $this->reorder || 'reorder' !== $this->action ) ) {
-			$ordersql = trim( ( $this->order_from_request ? $this->backtick( $this->order ) : $this->order ) . ' ' . $this->order_dir );
-		} elseif ( false !== $this->reorder && 'reorder' === $this->action ) {
-			$ordersql = trim( $this->reorder_order . ' ' . $this->reorder_order_dir );
-		}
-		if ( ! empty( $ordersql ) ) {
-			if ( false === stripos( $sql, ' ORDER BY ' ) ) {
-				$ordersql = ' ORDER BY ' . $ordersql;
-			} elseif ( false !== stripos( $sql, ' ORDER BY %%ORDERBY%% ' ) ) {
-				$ordersql = $ordersql . ', ';
-			} elseif ( false !== stripos( $sql, ' %%ORDERBY%% ' ) ) {
-				$ordersql = ',' . $ordersql;
-			} else {
-				$ordersql = $ordersql . ', ';
-			}
-		}
-		if ( false !== $this->pagination && ! $full ) {
-			$start = ( $this->page - 1 ) * $this->limit;
-
-			$limitsql .= (int) $start . ',' . (int) $this->limit;
-		} else {
-			$sql = preg_replace( '/\s+LIMIT\s+%%LIMIT%%\s*/i', ' ', $sql );
-		}
-		$sql = $this->place_clauses(
-			$sql,
-			array(
-				'WHERE'   => $wheresql,
-				'HAVING'  => $havingsql,
-				'ORDERBY' => $ordersql,
-				'LIMIT'   => $limitsql,
-			),
-			$replace_variables
-		);
-		if ( false !== $this->sql_count ) {
-			// The count query takes the same conditions, placed by its own shape, and one row.
-			$sql_count = ' ' . preg_replace( '/\s+/', ' ', ' ' . $this->sql_count ) . ' ';
-			$sql_count = str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count );
-			$sql_count = $this->place_clauses(
-				$sql_count,
-				array(
-					'WHERE'  => $this->clause_sql( $sql_count, 'WHERE', $other_sql ),
-					'HAVING' => $this->clause_sql( $sql_count, 'HAVING', $having_sql ),
-					'LIMIT'  => '1',
-				),
-				$replace_variables
-			);
-		}
 		/**
 		 * Filters the report query right before it runs, placeholders substituted.
 		 *
