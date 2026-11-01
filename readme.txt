@@ -19,6 +19,8 @@ All you do is install the plugin, create your Groups, create your Reports, and h
 
 Requires PHP 7.2 and WordPress 6.0 or later. PDF exports render with tc-lib-pdf on PHP 8.2 and later and with TCPDF below that.
 
+Report queries are written by administrators and run as written: only users with the plugin's settings capability (administrators by default) can create or edit a report. The plugin adds its paging, sorting and filters around the query, with every request value passed as a prepared placeholder and the sort column checked against the report's columns; readers of a report cannot change its SQL.
+
 Please submit bug reports or contribute your own enhancements/fixes on [GitHub](https://github.com/sc0ttkclark/exports-and-reports).
 
 == Frequently Asked Questions ==
@@ -87,7 +89,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 = REST API / Cronjob =
 * Run the Export action for a specific report to any supported export type, and download the file
 * Get paginated / full data from a report in JSON format
-* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the Settings page shows the URLs
+* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the header keeps the token out of URLs and server logs the Settings page shows the URLs
 
 == Screenshots ==
 
