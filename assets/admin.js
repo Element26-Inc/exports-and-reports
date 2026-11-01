@@ -1,5 +1,10 @@
 jQuery( function ( $ ) {
 
+	// The report selector goes to the chosen report.
+	$( '#report' ).on( 'change', function () {
+		window.location = this.value;
+	} );
+
 	// Store the original query params to test for changes later
 	var originalQueryParams = {};
 	location.search.substr( 1 ).split( "&" ).forEach( function ( item ) {

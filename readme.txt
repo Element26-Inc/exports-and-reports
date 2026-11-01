@@ -119,6 +119,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * Export files live in the uploads directory (`wp-content/uploads/exports-and-reports` by default); files in the old `wp-content/exports` move over on upgrade. `EXPORTS_REPORTS_EXPORT_DIR` and `EXPORTS_REPORTS_EXPORT_URL` relocate it; the `WP_ADMIN_UI_` names are still read.
 * The page view of a report with a count query (the totals row) counts every row again; it had stopped at the first page.
 * Every hook carries the plugin's prefix: `exports_reports_` replaces `wp_admin_ui_` in the filter and action names (`exports_reports_get_data_sql`, `exports_reports_export_file`, `exports_reports_post_export`, ...), and the download link's admin-ajax action is `exports_reports_export`. The old names still run their callbacks, with a deprecation notice.
+* The report screens escape the output of display, view and header callbacks with the post-content HTML rules (the `exports_reports_allowed_html` filter extends them), the screens' scripts are in an enqueued file with no inline handlers, and the table rows are striped by the admin styles. The window the export page opens carries the file again, and the delete links ask for confirmation again.
 * Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
 
 = 0.9.4 =

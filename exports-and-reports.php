@@ -1424,7 +1424,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		<div style="background-color:#E7E7E7;border:1px solid #D7D7D7; padding:5px 15px;margin:15px 15px 0px 5px;">
 			<strong style="padding-right:10px;">Exports and Reports:</strong>
 			<label for="report" style="vertical-align:baseline;">Choose Report</label>
-			<select id="report" onchange="document.location=this.value;">
+			<select id="report">
 				<?php
 				foreach ( $selectable_reports as $report_id => $report ) {
 					?>
