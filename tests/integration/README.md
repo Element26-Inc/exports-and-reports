@@ -26,8 +26,7 @@ code is non-zero when a case fails) and removes the table and the files it wrote
   it and the next admin request puts it back.
 - REST API: the report refused without the token or a user; full and paged data with the token
   parameter and the bearer token; the report access rules for users; a disabled report hidden;
-  export and download through the routes; `api.php` (deprecated) answering through them with the
-  old response shape.
+  export and download through the routes.
 - Access: administrators hold `exports_reports_full_access` through the capability filter, not
   user meta; display functions limited to plugin functions unless a filter allows a PHP function;
   an array filter value filtering on each value.
