@@ -946,6 +946,24 @@ class Exports_Reports_Admin_UI {
 		return $this->do_hook( 'setup_column', $attributes, $column, $filterable );
 	}
 
+	/**
+	 * The HTML a display function, a view function or the header callback may return: the tags of post
+	 * content, which the exports_reports_allowed_html filter may extend.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @return array<string, array<string, bool>> As wp_kses() takes it.
+	 */
+	public function allowed_html() {
+		/**
+		 * Filters the HTML the report screens let a callback's output keep.
+		 *
+		 * @param array                    $allowed wp_kses_allowed_html( 'post' ).
+		 * @param Exports_Reports_Admin_UI $admin   The report.
+		 */
+		return apply_filters( 'exports_reports_allowed_html', wp_kses_allowed_html( 'post' ), $this );
+	}
+
 	public function message( $msg ) {
 		$msg = $this->do_hook( 'message', $msg );
 		?>
@@ -967,6 +985,8 @@ class Exports_Reports_Admin_UI {
 		if ( false !== $this->css ) {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
 		}
+
+		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/admin-ui.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
 
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );
@@ -1303,17 +1323,7 @@ class Exports_Reports_Admin_UI {
 					<td>
 					<?php
 					if ( false !== $attributes['custom_view'] && is_callable( $attributes['custom_view'] ) ) {
-						// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- a custom_view callback returns its own HTML.
-						echo call_user_func_array(
-							$attributes['custom_view'],
-							array(
-								$this->row[ $column ],
-								$this->row,
-								$column,
-								$attributes,
-								$this,
-							)
-						);
+						echo wp_kses( (string) call_user_func( $attributes['custom_view'], $this->row[ $column ], $this->row, $column, $attributes, $this ), $this->allowed_html() );
 						?>
 						</td>
 						</tr>
@@ -2662,8 +2672,7 @@ class Exports_Reports_Admin_UI {
 					?>
 					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
-			<?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the headings are the screen's own option strings. ?>
-			<h2><?php echo( 0 === $reorder || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
+			<h2><?php echo esc_html( 0 === $reorder || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
 				<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
 					<small>(<a href="
 					<?php
@@ -2679,8 +2688,7 @@ class Exports_Reports_Admin_UI {
 										">&laquo; Back to Manage</a>)</small><?php } ?></h2>
 			<?php
 			if ( isset( $this->custom['header'] ) && function_exists( "{$this->custom['header']}" ) ) {
-				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- the custom header callback returns its own HTML.
-				echo call_user_func( $this->custom['header'], $this );
+				echo wp_kses( (string) call_user_func( $this->custom['header'], $this ), $this->allowed_html() );
 			}
 			if ( empty( $this->data ) ) {
 				$this->get_data();
@@ -2835,18 +2843,18 @@ class Exports_Reports_Admin_UI {
 				}
 				if ( 1 === $reorder ) {
 					?>
-					<input type="button" value="Update Order" class="button" onclick="jQuery('form.admin_ui_reorder_form').submit();" />
-					<input type="button" value="Cancel" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>';" />
+					<button type="submit" form="exports-reports-reorder" class="button">Update Order</button>
+					<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>">Cancel</a>
 					<?php
 				} elseif ( $this->add || $this->export ) {
 					?>
 					<div class="alignleft actions">
 						<?php if ( $this->add ) { ?>
-							<input type="button" value="Add New <?php echo esc_attr( $this->item ); ?>" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>';" />
+							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>">Add New <?php echo esc_html( $this->item ); ?></a>
 						<?php } ?>
 
 						<?php if ( $this->reorder ) { ?>
-							<input type="button" value="Reorder" class="button" onclick="document.location='<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>';" />
+							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>">Reorder</a>
 						<?php } ?>
 
 						<?php if ( $this->export && ! empty( $this->data ) ) { ?>
@@ -2867,7 +2875,7 @@ class Exports_Reports_Admin_UI {
 							?>
 							<strong>Export:</strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
-								<input type="button" value=" <?php echo esc_attr( $export_format_text ); ?> " class="button" onclick="document.location='<?php echo esc_url( $export_format_link ); ?>';" />
+								<a class="button" href="<?php echo esc_url( $export_format_link ); ?>"><?php echo esc_html( $export_format_text ); ?></a>
 							<?php } ?>
 						<?php } ?>
 					</div>
@@ -2949,12 +2957,7 @@ class Exports_Reports_Admin_UI {
 
 	public function table( $reorder = 0 ) {
 		if ( 1 === $reorder && false !== $this->reorder ) {
-			if ( ! wp_script_is( 'jquery-ui-core', 'queue' ) && ! wp_script_is( 'jquery-ui-core', 'to_do' ) && ! wp_script_is( 'jquery-ui-core', 'done' ) ) {
-				wp_print_scripts( 'jquery-ui-core' );
-			}
-			if ( ! wp_script_is( 'jquery-ui-sortable', 'queue' ) && ! wp_script_is( 'jquery-ui-sortable', 'to_do' ) && ! wp_script_is( 'jquery-ui-sortable', 'done' ) ) {
-				wp_print_scripts( 'jquery-ui-sortable' );
-			}
+			wp_enqueue_script( 'jquery-ui-sortable' );
 		}
 		$this->do_hook( 'table', $reorder );
 		if ( isset( $this->custom['table'] ) && function_exists( "{$this->custom['table']}" ) ) {
@@ -2994,7 +2997,7 @@ class Exports_Reports_Admin_UI {
 				)
 			);
 			?>
-						" method="post" class="admin_ui_reorder_form">
+						" method="post" id="exports-reports-reorder" class="admin_ui_reorder_form">
 			<?php wp_nonce_field( 'exports-reports-reorder' ); ?>
 			<?php
 		}
@@ -3006,7 +3009,7 @@ class Exports_Reports_Admin_UI {
 			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.' );
 		}
 		?>
-			<table class="widefat page fixed admin_ui_table wp-list-table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?>>
+			<table class="widefat striped page fixed admin_ui_table wp-list-table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?>>
 				<thead>
 				<tr>
 					<?php
@@ -3106,8 +3109,6 @@ class Exports_Reports_Admin_UI {
 								$row[ $column ] = $this->field_value( $row[ $column ], $column, $attributes );
 								if ( false !== $attributes['custom_display'] && function_exists( "{$attributes['custom_display']}" ) ) {
 									$row[ $column ] = $attributes['custom_display']( $row[ $column ], $row, $column, $attributes, $this );
-								} else {
-									$row[ $column ] = wp_kses_post( $row[ $column ] );
 								}
 								if ( 'title' === $attributes['id'] ) {
 									if ( $this->view && ( 0 === $reorder || false === $this->reorder ) ) {
@@ -3124,7 +3125,7 @@ class Exports_Reports_Admin_UI {
 												)
 											);
 										?>
-																			" title="View &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
+																			" title="View &#8220;<?php echo esc_attr( wp_strip_all_tags( (string) $row[ $column ] ) ); ?>&#8221;"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></a></strong>
 										<?php
 									} elseif ( $this->edit && ( 0 === $reorder || false === $this->reorder ) ) {
 										?>
@@ -3140,15 +3141,14 @@ class Exports_Reports_Admin_UI {
 												)
 											);
 										?>
-																			" title="Edit &#8220;<?php echo esc_attr( htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) ); ?>&#8221;"><?php echo wp_kses_post( $row[ $column ] ); ?></a></strong>
+																			" title="Edit &#8220;<?php echo esc_attr( wp_strip_all_tags( (string) $row[ $column ] ) ); ?>&#8221;"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></a></strong>
 										<?php
 									} else {
 										?>
 										<td class="post-title page-title column-title<?php echo( 1 === $reorder && $this->reorder ? ' dragme' : '' ); ?>">
 										<strong>
 											<?php
-											// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_kses_post() above, or the HTML a custom_display callback returns.
-											echo $row[ $column ];
+											echo wp_kses( (string) $row[ $column ], $this->allowed_html() );
 											?>
 										</strong>
 										<?php
@@ -3194,7 +3194,7 @@ class Exports_Reports_Admin_UI {
 														'_wpnonce' => wp_create_nonce( 'exports-reports-delete' ),
 													)
 												)
-											) . '" onclick="if(confirm(\'You are about to delete this item \'' . htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) . '\'\n \'Cancel\' to stop, \'OK\' to delete.\')){return true;}return false;">Delete</a></span>';
+											) . '" data-exports-reports-confirm="' . esc_attr( 'You are about to delete "' . wp_strip_all_tags( (string) $row[ $column ] ) . '". Cancel to stop, OK to delete.' ) . '">Delete</a></span>';
 										}
 										if ( is_array( $this->custom ) ) {
 											foreach ( $this->custom as $custom_action => $custom_data ) {
@@ -3247,40 +3247,40 @@ class Exports_Reports_Admin_UI {
 								} elseif ( 'date' === $attributes['type'] ) {
 									?>
 									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses_post( $row[ $column ] ); ?></abbr>
+										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
 									</td>
 									<?php
 								} elseif ( 'time' === $attributes['type'] ) {
 									?>
 									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses_post( $row[ $column ] ); ?></abbr>
+										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
 									</td>
 									<?php
 								} elseif ( 'datetime' === $attributes['type'] ) {
 									?>
 									<td class="date column-date">
-										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses_post( $row[ $column ] ); ?></abbr>
+										<abbr title="<?php echo esc_attr( $row[ $column ] ); ?>"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></abbr>
 									</td>
 									<?php
 								} elseif ( 'related' === $attributes['type'] && false !== $attributes['related'] ) {
 									?>
-									<td class="author column-author"><?php echo wp_kses_post( $row[ $column ] ); ?></td>
+									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
 									<?php
 								} elseif ( 'bool' === $attributes['type'] ) {
 									?>
-									<td class="author column-author"><?php echo wp_kses_post( $row[ $column ] ); ?></td>
+									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
 									<?php
 								} elseif ( 'number' === $attributes['type'] ) {
 									?>
-									<td class="author column-author"><?php echo wp_kses_post( $row[ $column ] ); ?></td>
+									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
 									<?php
 								} elseif ( 'decimal' === $attributes['type'] ) {
 									?>
-									<td class="author column-author"><?php echo wp_kses_post( $row[ $column ] ); ?></td>
+									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
 									<?php
 								} else {
 									?>
-									<td class="author column-author"><?php echo wp_kses_post( $row[ $column ] ); ?></td>
+									<td class="author column-author"><?php echo wp_kses( (string) $row[ $column ], $this->allowed_html() ); ?></td>
 									<?php
 								}
 							}
@@ -3304,20 +3304,6 @@ class Exports_Reports_Admin_UI {
 			<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
 		</form>
 	<?php } ?>
-		<script type="text/javascript">
-			jQuery( 'table.widefat tbody tr:even' ).addClass( 'alternate' );
-			<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
-			jQuery( function () {
-				jQuery( '.sortable' ).sortable( {axis : 'y', handle : '.dragme'} );
-				jQuery( '.sortable' ).on( 'sortupdate', function ( event, ui ) {
-					jQuery( 'table.widefat tbody tr' ).removeClass( 'alternate' );
-					jQuery( 'table.widefat tbody tr:even' ).addClass( 'alternate' );
-				} );
-			} );
-				<?php
-			}
-			?>
-		</script>
 		<?php
 	}
 
@@ -3357,8 +3343,7 @@ class Exports_Reports_Admin_UI {
 			$singular_label = strtolower( $this->item );
 			$plural_label   = strtolower( $this->items );
 
-			// phpcs:ignore WordPress.WP.I18n.NonSingularStringLiteralSingle, WordPress.WP.I18n.NonSingularStringLiteralPlural -- the item names are the screen's own options.
-			$label_n = _n( $singular_label, $plural_label, $total_rows, 'exports-and-reports' );
+			$label_n = 1 === (int) $total_rows ? $singular_label : $plural_label;
 			?>
 			<span class="displaying-num"><?php echo esc_html( number_format_i18n( $total_rows ) . ' ' . $label_n ); ?></span>
 			<?php
@@ -3373,18 +3358,6 @@ class Exports_Reports_Admin_UI {
 				?>
 				<span class="paging-input"><input class="current-page" title="<?php esc_attr_e( 'Current page', 'exports-and-reports' ); ?>" type="text" name="pg<?php echo esc_attr( $this->num ); ?>" value="<?php echo esc_attr( $this->page ); ?>" size="<?php echo esc_attr( (string) strlen( (string) $total_pages ) ); ?>"> <?php esc_html_e( 'of', 'exports-and-reports' ); ?>
 					<span class="total-pages"><?php echo esc_html( (string) $total_pages ); ?></span></span>
-				<script>
-
-					jQuery( function ( $ ) {
-						var pageInput = $( 'input.current-page' );
-						var currentPage = pageInput.val();
-						pageInput.closest( 'form' ).submit( function ( e ) {
-							if ( (1 > $( 'select[name="action"]' ).length || parseInt( $( 'select[name="action"]' ).val() ) === -1) && (1 > $( 'select[name="action_bulk"]' ).length || parseInt( $( 'select[name="action_bulk"]' ).val() ) === -1) && pageInput.val() === currentPage ) {
-								pageInput.val( '1' );
-							}
-						} );
-					} );
-				</script>
 				<?php
 			} else {
 				?>
