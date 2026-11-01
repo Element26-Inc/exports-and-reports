@@ -42,7 +42,9 @@ function exports_reports_uninstall_site() {
 function exports_reports_uninstall_exports() {
 	$directories = array( WP_CONTENT_DIR . '/exports' );
 
-	if ( defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
+	if ( defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ) {
+		$directories[] = EXPORTS_REPORTS_EXPORT_DIR;
+	} elseif ( defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 		$directories[] = WP_ADMIN_UI_EXPORT_DIR;
 	} else {
 		$uploads       = wp_get_upload_dir();

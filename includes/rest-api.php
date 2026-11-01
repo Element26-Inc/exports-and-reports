@@ -287,7 +287,7 @@ function exports_reports_rest_download( $request ) {
 	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own export log.
 	$logged = (int) $wpdb->get_var( $wpdb->prepare( $sql, (int) $request['id'], $file ) );
 
-	if ( 0 === $logged || ! is_file( WP_ADMIN_UI_EXPORT_DIR . '/' . $file ) ) {
+	if ( 0 === $logged || ! is_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $file ) ) {
 		return new WP_Error( 'exports_reports_file_not_found', 'No such export of this report.', array( 'status' => 404 ) );
 	}
 

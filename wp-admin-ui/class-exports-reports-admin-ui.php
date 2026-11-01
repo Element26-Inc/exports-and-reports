@@ -15,8 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
 
-if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_DIR', wp_get_upload_dir()['basedir'] . '/exports-and-reports' );
+if ( ! defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ) {
+	define( 'EXPORTS_REPORTS_EXPORT_DIR', defined( 'EXPORTS_REPORTS_EXPORT_DIR' ) ? EXPORTS_REPORTS_EXPORT_DIR : wp_get_upload_dir()['basedir'] . '/exports-and-reports' );
 }
 
 /**
@@ -120,11 +120,17 @@ class Exports_Reports_Admin_UI {
 	 * @param bool|array $options
 	 */
 	public function __construct( $options = false ) {
-		do_action( 'wp_admin_ui_pre_init', $options );
+		/**
+		 * Fires before the admin UI reads its options.
+		 *
+		 * @param bool|array $options The options as given.
+		 */
+		do_action( 'exports_reports_pre_init', $options );
+		do_action_deprecated( 'wp_admin_ui_pre_init', array( $options ), '0.9.5', 'exports_reports_pre_init' );
 		$options          = $this->do_hook( 'options', $options );
 		$this->base_dir   = __DIR__;
 		$this->base_url   = plugins_url( 'class-exports-reports-admin-ui.php', __FILE__ );
-		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=wp_admin_ui_export&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( 'wp-admin-ui-export' ) . '&exports_and_reports_export=';
+		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=exports_reports_export&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( 'exports-reports-export' ) . '&exports_and_reports_export=';
 		$this->assets_url = str_replace( '/class-exports-reports-admin-ui.php', '', $this->base_url ) . '/assets';
 		$id               = $this->get_var( 'id' );
 		if ( false !== $id ) {
@@ -235,7 +241,7 @@ class Exports_Reports_Admin_UI {
 	 * @param bool|string|array $allowed  The accepted values, or false for any.
 	 * @param bool|string|array $source   The array to read: 'post' for $_POST, an array of your own, or $_GET.
 	 *
-	 * @return mixed The value, as filtered by wp_admin_ui_get_var.
+	 * @return mixed The value, as filtered by exports_reports_get_var.
 	 */
 	public function get_var( $index, $fallback = false, $allowed = false, $source = false ) {
 		if ( ! is_array( $source ) ) {
@@ -317,8 +323,9 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * Runs the wp_admin_ui_<name> filter: do_hook( 'name', ...$args ). The callbacks receive the
+	 * Runs the exports_reports_<name> filter: do_hook( 'name', ...$args ). The callbacks receive the
 	 * arguments as an array (from index 1) and, second, an array of this instance and the hook name.
+	 * The wp_admin_ui_<name> filter of the versions before 0.9.5 runs after it, deprecated.
 	 *
 	 * @return mixed The first argument as the callbacks left it, or false when there is none.
 	 */
@@ -329,7 +336,8 @@ class Exports_Reports_Admin_UI {
 		}
 		$filter = $args[0];
 		unset( $args[0] );
-		$args = apply_filters( 'wp_admin_ui_' . $filter, $args, array( &$this, 'wp_admin_ui_' . $filter ) );
+		$args = apply_filters( 'exports_reports_' . $filter, $args, array( &$this, 'exports_reports_' . $filter ) );
+		$args = apply_filters_deprecated( 'wp_admin_ui_' . $filter, array( $args, array( &$this, 'wp_admin_ui_' . $filter ) ), '0.9.5', 'exports_reports_' . $filter );
 		if ( isset( $args[1] ) ) {
 			return $args[1];
 		}
@@ -341,7 +349,7 @@ class Exports_Reports_Admin_UI {
 	 * Whether a function named in a report definition may be called back with a value: a function
 	 * WordPress, a plugin or a theme defines. PHP's own functions are not called: none of them takes the
 	 * arguments the callbacks receive, and the variadic ones among them could reach anything. The
-	 * wp_admin_ui_allowed_callback filter decides for a name this rule does not settle the way a site needs.
+	 * exports_reports_allowed_callback filter decides for a name this rule does not settle the way a site needs.
 	 *
 	 * @param mixed $callback The function name.
 	 *
@@ -410,6 +418,30 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
+	 * The file an export writes: export_file_name() after the exports_reports_export_file filter.
+	 *
+	 * @since 0.9.5
+	 *
+	 * @param string $extension The extension, without the dot.
+	 *
+	 * @return string The file name, in the export directory.
+	 */
+	public function export_file( $extension ) {
+		/**
+		 * Filters the name of the file an export writes.
+		 *
+		 * @param string                   $export_file The name export_file_name() made.
+		 * @param string                   $export_type The export type (csv, tsv, pipe, custom, xml, xlsx, json, pdf).
+		 * @param string                   $extension   The file extension.
+		 * @param string                   $items       The report's plural label.
+		 * @param Exports_Reports_Admin_UI $admin       The report.
+		 */
+		$export_file = apply_filters( 'exports_reports_export_file', $this->export_file_name( $extension ), $this->export_type, $extension, $this->items, $this );
+
+		return apply_filters_deprecated( 'wp_admin_ui_export_file', array( $export_file, $this->export_type, $this->export_type, $this->items, $this ), '0.9.5', 'exports_reports_export_file' );
+	}
+
+	/**
 	 * The extensions export files have.
 	 *
 	 * @return string[]
@@ -440,7 +472,7 @@ class Exports_Reports_Admin_UI {
 	 * @return string
 	 */
 	public function export_link( $args ) {
-		return $this->var_update( array_merge( array( 'action' => 'export' ), $args, array( '_wpnonce' => wp_create_nonce( 'wp-admin-ui-export-request' ) ) ) );
+		return $this->var_update( array_merge( array( 'action' => 'export' ), $args, array( '_wpnonce' => wp_create_nonce( 'exports-reports-export-request' ) ) ) );
 	}
 
 	/**
@@ -452,7 +484,7 @@ class Exports_Reports_Admin_UI {
 	public function verify_export_request() {
 		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
-		if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'wp-admin-ui-export-request' ) ) {
+		if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'exports-reports-export-request' ) ) {
 			return false;
 		}
 
@@ -870,7 +902,7 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );
 		} elseif ( 'add' === $this->action && $this->add ) {
-			if ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
+			if ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 				$this->save( 1 );
 				if ( false === $this->api ) {
 					$this->manage();
@@ -879,11 +911,11 @@ class Exports_Reports_Admin_UI {
 				$this->add();
 			}
 		} elseif ( ( 'edit' === $this->action && $this->edit ) || ( 'duplicate' === $this->action && $this->duplicate ) ) {
-			if ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
+			if ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 				$this->save();
 			}
 			$this->edit( ( 'duplicate' === $this->action && $this->duplicate ? 1 : 0 ) );
-		} elseif ( 'delete' === $this->action && $this->delete && ! empty( $_GET['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wp-admin-ui-' . $this->action ) ) {
+		} elseif ( 'delete' === $this->action && $this->delete && ! empty( $_GET['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'exports-reports-' . $this->action ) ) {
 			$this->delete();
 			if ( false === $this->api ) {
 				$this->manage();
@@ -901,12 +933,12 @@ class Exports_Reports_Admin_UI {
 			if ( false === $this->api ) {
 				$this->manage( 1 );
 			}
-		} elseif ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
+		} elseif ( 'save' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 			$this->save();
 			if ( false === $this->api ) {
 				$this->manage();
 			}
-		} elseif ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
+		} elseif ( 'create' === $this->do && $this->save && ! empty( $_POST ) && ! empty( $_POST['_wpnonce'] ) && false !== wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 			$this->save( 1 );
 			if ( false === $this->api ) {
 				$this->manage();
@@ -1138,7 +1170,7 @@ class Exports_Reports_Admin_UI {
 			</table>
 			<p class="submit">
 				<input type="submit" name="Submit" class="button-primary" value="<?php echo esc_attr( $submit ); ?>" />
-				<?php wp_nonce_field( 'wp-admin-ui-form-' . $vars['do'] ); ?>
+				<?php wp_nonce_field( 'exports-reports-form-' . $vars['do'] ); ?>
 			</p>
 		</form>
 		<?php
@@ -1302,7 +1334,7 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function save( $create = 0 ) {
-		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-form-' . $this->do ) ) {
+		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
 			return $this->error( '<strong>Error:</strong> The form has expired; reload the page and try again.' );
 		}
 		$this->do_hook( 'pre_save', $create );
@@ -1402,7 +1434,7 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function reorder() {
-		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'wp-admin-ui-reorder' ) ) {
+		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-reorder' ) ) {
 			return $this->error( '<strong>Error:</strong> The order was not saved: the page has expired, reload it and try again.' );
 		}
 		$this->do_hook( 'pre_reorder' );
@@ -1555,12 +1587,18 @@ class Exports_Reports_Admin_UI {
 
 	/**
 	 * The PDF engine: tc-lib-pdf on PHP 8.2 and later, TCPDF below that (tc-lib-pdf's floor is 8.2). The
-	 * wp_admin_ui_export_pdf_engine filter may choose 'tcpdf' on a newer PHP; it cannot choose tc-lib-pdf on an older one.
+	 * exports_reports_export_pdf_engine filter may choose 'tcpdf' on a newer PHP; it cannot choose tc-lib-pdf on an older one.
 	 *
 	 * @return string 'tc-lib-pdf' or 'tcpdf'.
 	 */
 	public static function pdf_engine() {
-		$engine = apply_filters( 'wp_admin_ui_export_pdf_engine', PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' );
+		/**
+		 * Filters the PDF engine.
+		 *
+		 * @param string $engine 'tc-lib-pdf' on PHP 8.2 and later, 'tcpdf' below.
+		 */
+		$engine = apply_filters( 'exports_reports_export_pdf_engine', PHP_VERSION_ID >= 80200 ? 'tc-lib-pdf' : 'tcpdf' );
+		$engine = apply_filters_deprecated( 'wp_admin_ui_export_pdf_engine', array( $engine ), '0.9.5', 'exports_reports_export_pdf_engine' );
 
 		return ( 'tcpdf' === $engine || PHP_VERSION_ID < 80200 ) ? 'tcpdf' : 'tc-lib-pdf';
 	}
@@ -1612,23 +1650,23 @@ class Exports_Reports_Admin_UI {
 				return false;
 			}
 		}
-		$dir = dirname( WP_ADMIN_UI_EXPORT_DIR );
-		if ( ! file_exists( WP_ADMIN_UI_EXPORT_DIR ) ) {
-			if ( ! $wp_filesystem->is_writable( $dir ) || ! $wp_filesystem->mkdir( WP_ADMIN_UI_EXPORT_DIR ) ) {
-				$this->error( '<strong>Error:</strong> Your export directory (<strong>' . WP_ADMIN_UI_EXPORT_DIR . '</strong>) did not exist and couldn&#8217;t be created by the web server. Check the directory permissions and try again.' );
+		$dir = dirname( EXPORTS_REPORTS_EXPORT_DIR );
+		if ( ! file_exists( EXPORTS_REPORTS_EXPORT_DIR ) ) {
+			if ( ! $wp_filesystem->is_writable( $dir ) || ! $wp_filesystem->mkdir( EXPORTS_REPORTS_EXPORT_DIR ) ) {
+				$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) did not exist and couldn&#8217;t be created by the web server. Check the directory permissions and try again.' );
 
 				return false;
 			}
 		}
-		if ( ! $wp_filesystem->is_writable( WP_ADMIN_UI_EXPORT_DIR ) ) {
-			$this->error( '<strong>Error:</strong> Your export directory (<strong>' . WP_ADMIN_UI_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
+		if ( ! $wp_filesystem->is_writable( EXPORTS_REPORTS_EXPORT_DIR ) ) {
+			$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
 
 			return false;
 		}
 		self::protect_export_dir();
 		$remove_export = str_replace( '/', '', sanitize_file_name( (string) $this->get_var( 'remove_export', '' ) ) );
 		if ( ! $this->api && '' !== $remove_export ) {
-			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $remove_export;
+			$remove_export_path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $remove_export;
 
 			if ( ! self::is_export_file_name( $remove_export ) ) {
 				$this->error( '<strong>Error:</strong> That is not an export file.' );
@@ -1647,7 +1685,7 @@ class Exports_Reports_Admin_UI {
 					return;
 				} else {
 					$this->do_hook( 'post_remove_export', $remove_export, false, $remove_export_path );
-					$this->error( '<strong>Error:</strong> Your export directory (<strong>' . WP_ADMIN_UI_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
+					$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
 
 					return false;
 				}
@@ -1659,9 +1697,8 @@ class Exports_Reports_Admin_UI {
 		} elseif ( in_array( $this->export_type, array( 'csv', 'tsv', 'pipe', 'custom' ), true ) ) {
 			$export_file = $this->export_sv();
 		} elseif ( 'xml' === $this->export_type ) {
-			$export_file          = $this->export_file_name( $this->export_type );
-			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
-			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
+			$export_file          = $this->export_file( $this->export_type );
+			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
 
 			$wp_filesystem->touch( $export_file_location );
 
@@ -1707,9 +1744,8 @@ class Exports_Reports_Admin_UI {
 		} elseif ( 'xlsx' === $this->export_type ) {
 			$writer = new ExportsReports__Prefixed__XLSXWriter();
 
-			$export_file          = $this->export_file_name( $this->export_type );
-			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
-			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
+			$export_file          = $this->export_file( $this->export_type );
+			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
 
 			$wp_filesystem->touch( $export_file_location );
 
@@ -1774,9 +1810,8 @@ class Exports_Reports_Admin_UI {
 			);
 			echo '<script type="text/javascript">window.open("' . esc_url( $this->export_url . rawurlencode( $export_file ) ) . '");</script>';
 		} elseif ( 'json' === $this->export_type ) {
-			$export_file          = $this->export_file_name( $this->export_type );
-			$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
-			$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
+			$export_file          = $this->export_file( $this->export_type );
+			$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
 
 			$wp_filesystem->touch( $export_file_location );
 
@@ -1824,7 +1859,15 @@ class Exports_Reports_Admin_UI {
 				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF';
 			}
 
-			$export_file = apply_filters( 'wp_admin_ui_export_pdf_report_file', null, $this );
+			/**
+			 * Filters the PDF export before the plugin renders it: a callback that writes the file into the
+			 * export directory itself returns its name.
+			 *
+			 * @param string|null              $export_file Null: the plugin renders the report.
+			 * @param Exports_Reports_Admin_UI $admin       The report.
+			 */
+			$export_file = apply_filters( 'exports_reports_export_pdf_report_file', null, $this );
+			$export_file = apply_filters_deprecated( 'wp_admin_ui_export_pdf_report_file', array( $export_file, $this ), '0.9.5', 'exports_reports_export_pdf_report_file' );
 
 			if ( ! $export_file ) {
 				$export_file = $pdf_class::CreateReport( $this );
@@ -1865,7 +1908,7 @@ class Exports_Reports_Admin_UI {
 		);
 
 		foreach ( $rules as $name => $contents ) {
-			$path = WP_ADMIN_UI_EXPORT_DIR . '/' . $name;
+			$path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $name;
 
 			if ( ! $wp_filesystem->exists( $path ) ) {
 				$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
@@ -1965,9 +2008,8 @@ class Exports_Reports_Admin_UI {
 			$export_ext = $file_ext[ $this->export_type ];
 		}
 
-		$export_file          = $this->export_file_name( $export_ext );
-		$export_file          = apply_filters( 'wp_admin_ui_export_file', $export_file, $this->export_type, $this->export_type, $this->items, $this );
-		$export_file_location = WP_ADMIN_UI_EXPORT_DIR . '/' . $export_file;
+		$export_file          = $this->export_file( $export_ext );
+		$export_file_location = EXPORTS_REPORTS_EXPORT_DIR . '/' . $export_file;
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
 		$fp     = fopen( $export_file_location, 'a+' );
@@ -2169,7 +2211,7 @@ class Exports_Reports_Admin_UI {
 			if ( false !== $attributes['real_name'] ) {
 				$columnfield = $attributes['real_name'];
 			}
-			$totals[] = 'SUM(' . $columnfield . ') AS ' . $this->backtick( 'wp_admin_ui_total_' . $column );
+			$totals[] = 'SUM(' . $columnfield . ') AS ' . $this->backtick( 'exports_reports_total_' . $column );
 		}
 		if ( ! empty( $totals ) ) {
 			$select_extras .= ' ' . implode( ',', $totals ) . ', ';
@@ -2336,7 +2378,19 @@ class Exports_Reports_Admin_UI {
 				}
 
 				if ( $filter_sql ) {
-					$filter_sql = apply_filters( 'wp_admin_ui_data_filter_sql', $filter_sql, $filter, $filter_column, $filterfield, $related_filterfield, $search_value, $this );
+					/**
+					 * Filters the condition a filter value adds to the query.
+					 *
+					 * @param string                   $filter_sql          The condition, values prepared.
+					 * @param string                   $filter              The filter's column.
+					 * @param array                    $filter_column       The column's attributes.
+					 * @param string                   $filterfield         The column as an identifier.
+					 * @param string|bool              $related_filterfield The related column, or false.
+					 * @param string|array             $search_value        The value from the request.
+					 * @param Exports_Reports_Admin_UI $admin               The report.
+					 */
+					$filter_sql = apply_filters( 'exports_reports_data_filter_sql', $filter_sql, $filter, $filter_column, $filterfield, $related_filterfield, $search_value, $this );
+					$filter_sql = apply_filters_deprecated( 'wp_admin_ui_data_filter_sql', array( $filter_sql, $filter, $filter_column, $filterfield, $related_filterfield, $search_value, $this ), '0.9.5', 'exports_reports_data_filter_sql' );
 
 					$filter_field_key = str_replace( '`', '', $filterfield );
 
@@ -2537,7 +2591,7 @@ class Exports_Reports_Admin_UI {
 		$sql = $this->do_hook( 'get_data_sql', $sql, $full );
 
 		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
-			/** Filters the count query right before it runs; same arguments as wp_admin_ui_get_data_sql. */
+			/** Filters the count query right before it runs; same arguments as exports_reports_get_data_sql. */
 			$sql_count = $this->do_hook( 'get_data_sql_count', $sql_count, $full );
 		}
 
@@ -2603,7 +2657,7 @@ class Exports_Reports_Admin_UI {
 				if ( false === $this->totals ) {
 					$this->totals = array();
 				}
-				$this->totals[ $column ] = $totals[ 'wp_admin_ui_total_' . $column ];
+				$this->totals[ $column ] = $totals[ 'exports_reports_total_' . $column ];
 			}
 		}
 		if ( empty( $this->columns ) ) {
@@ -3000,7 +3054,7 @@ class Exports_Reports_Admin_UI {
 			);
 			?>
 						" method="post" class="admin_ui_reorder_form">
-			<?php wp_nonce_field( 'wp-admin-ui-reorder' ); ?>
+			<?php wp_nonce_field( 'exports-reports-reorder' ); ?>
 			<?php
 		}
 			$column_index = 'columns';
@@ -3196,7 +3250,7 @@ class Exports_Reports_Admin_UI {
 													array(
 														'action'   => 'delete',
 														'id'       => $id,
-														'_wpnonce' => wp_create_nonce( 'wp-admin-ui-delete' ),
+														'_wpnonce' => wp_create_nonce( 'exports-reports-delete' ),
 													)
 												)
 											) . '" onclick="if(confirm(\'You are about to delete this item \'' . htmlentities( $row[ $column ], ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401 ) . '\'\n \'Cancel\' to stop, \'OK\' to delete.\')){return true;}return false;">Delete</a></span>';
