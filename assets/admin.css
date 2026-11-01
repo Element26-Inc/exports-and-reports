@@ -4,13 +4,13 @@
 }
 
 .wrap .about th {
-	font-weight: bold;
+	font-weight: 700;
 }
 
 .wrap ul {
 	list-style-type: circle;
-	margin-left:     14px;
-	margin-top:      5px;
+	margin-left: 14px;
+	margin-top: 5px;
 }
 
 .wrap ul li {
@@ -18,56 +18,57 @@
 }
 
 .wrap dl dt {
-	font-weight:   bold;
+	font-weight: 700;
 	margin-bottom: 8px;
-	margin-top:    12px;
+	margin-top: 12px;
 }
 
 .wrap dl dd {
 	margin-left: 14px;
-	margin-top:  5px;
+	margin-top: 5px;
 }
+
 /* The report form's field editor. */
 .er-fields__list {
-	display:        flex;
+	display: flex;
 	flex-direction: column;
-	gap:            8px;
-	max-width:      980px;
+	gap: 8px;
+	max-width: 980px;
 }
 
 .er-field {
-	background:    #fff;
-	border:        1px solid #c3c4c7;
+	background: #fff;
+	border: 1px solid #c3c4c7;
 	border-radius: 4px;
-	padding:       10px 12px;
+	padding: 10px 12px;
 }
 
 .er-field--placeholder {
 	background: #f6f7f7;
-	border:     2px dashed #8c8f94;
+	border: 2px dashed #8c8f94;
 	min-height: 56px;
 }
 
 .er-field__bar {
 	align-items: flex-end;
-	display:     flex;
-	flex-wrap:   wrap;
-	gap:         8px 16px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
 }
 
 .er-field__handle {
-	color:         #8c8f94;
-	cursor:        move;
+	color: #8c8f94;
+	cursor: move;
 	margin-bottom: 7px;
 }
 
 .er-field__bar label,
 .er-field__grid label {
-	color:          #1d2327;
-	display:        flex;
+	color: #1d2327;
+	display: flex;
 	flex-direction: column;
-	font-size:      12px;
-	gap:            2px;
+	font-size: 12px;
+	gap: 2px;
 }
 
 .er-field__bar .regular-text {
@@ -76,14 +77,14 @@
 
 .er-field__remove {
 	margin-bottom: 6px;
-	margin-left:   auto;
+	margin-left: auto;
 }
 
 .er-field__flags {
-	display:   flex;
+	display: flex;
 	flex-wrap: wrap;
-	gap:       4px 18px;
-	margin:    10px 0 0;
+	gap: 4px 18px;
+	margin: 10px 0 0;
 }
 
 .er-field__flag {
@@ -95,15 +96,15 @@
 }
 
 .er-field__advanced summary {
-	color:  #2271b1;
+	color: #2271b1;
 	cursor: pointer;
 }
 
 .er-field__grid {
-	display:               grid;
-	gap:                   8px 16px;
-	grid-template-columns: repeat( auto-fill, minmax( 220px, 1fr ) );
-	margin-top:            8px;
+	display: grid;
+	gap: 8px 16px;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	margin-top: 8px;
 }
 
 .er-field__grid input {
@@ -112,10 +113,10 @@
 
 /* A multiple-choice column of a form (roles with access). */
 .er-choices {
-	display:               grid;
-	gap:                   4px 12px;
-	grid-template-columns: repeat( auto-fill, minmax( 180px, 1fr ) );
-	max-width:             760px;
+	display: grid;
+	gap: 4px 12px;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	max-width: 760px;
 }
 
 .er-choices label {
@@ -134,9 +135,9 @@
 /* The report selector above a report, when the user may see more than one. */
 .exports-reports-selector {
 	background-color: #e7e7e7;
-	border:           1px solid #d7d7d7;
-	margin:           15px 15px 0 5px;
-	padding:          5px 15px;
+	border: 1px solid #d7d7d7;
+	margin: 15px 15px 0 5px;
+	padding: 5px 15px;
 }
 
 .exports-reports-selector strong {
@@ -159,7 +160,7 @@
 
 table.admin_ui_totals {
 	margin: 0 auto;
-	width:  auto;
+	width: auto;
 }
 
 select.admin_ui_filter_multiple {
