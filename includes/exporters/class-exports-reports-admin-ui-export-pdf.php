@@ -688,7 +688,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	 * @return string
 	 */
 	protected static function font_dir() {
-		return dirname( __DIR__ ) . '/assets/fonts/core';
+		return dirname( __DIR__, 2 ) . '/assets/fonts/core';
 	}
 
 	/**

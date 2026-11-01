@@ -1,43 +1,41 @@
-CREATE TABLE `wp_exportsreports_groups`
-(
-	`id`          INT(10) NOT NULL AUTO_INCREMENT,
-	`name`        VARCHAR(255) NOT NULL,
-	`disabled`    INT(1) NOT NULL,
-	`role_access` mediumtext   NOT NULL,
-	`weight`      INT(10) NOT NULL,
-	`created`     datetime     NOT NULL,
-	`updated`     datetime     NOT NULL,
-	PRIMARY KEY ( `id` )
+CREATE TABLE wp_exportsreports_groups (
+	`id` int(10) NOT NULL AUTO_INCREMENT,
+	`name` varchar(255) NOT NULL,
+	`disabled` int(1) NOT NULL,
+	`role_access` mediumtext NOT NULL,
+	`weight` int(10) NOT NULL,
+	`created` datetime NOT NULL,
+	`updated` datetime NOT NULL,
+	PRIMARY KEY  (id)
 ) DEFAULT CHARSET=utf8;
 
-CREATE TABLE `wp_exportsreports_reports`
-(
-	`id`               INT(10) NOT NULL AUTO_INCREMENT,
-	`name`             VARCHAR(255) NOT NULL,
-	`group`            INT(10) NOT NULL,
-	`disabled`         INT(1) NOT NULL,
-	`disable_export`   INT(1) NOT NULL,
-	`default_none`     INT(1) NOT NULL,
-	`role_access`      mediumtext   NOT NULL,
-	`sql_query`        longtext     NOT NULL,
-	`sql_query_count`  longtext     NOT NULL,
-	`page_orientation` MEDIUMTEXT,
-	`field_data`       longtext     NOT NULL,
-	`weight`           INT(10) NOT NULL,
-	`created`          datetime     NOT NULL,
-	`updated`          datetime     NOT NULL,
-	PRIMARY KEY ( `id` )
+CREATE TABLE wp_exportsreports_reports (
+	`id` int(10) NOT NULL AUTO_INCREMENT,
+	`name` varchar(255) NOT NULL,
+	`group` int(10) NOT NULL,
+	`disabled` int(1) NOT NULL,
+	`disable_export` int(1) NOT NULL,
+	`default_none` int(1) NOT NULL,
+	`role_access` mediumtext NOT NULL,
+	`sql_query` longtext NOT NULL,
+	`sql_query_count` longtext NOT NULL,
+	`page_orientation` mediumtext,
+	`field_data` longtext NOT NULL,
+	`weight` int(10) NOT NULL,
+	`created` datetime NOT NULL,
+	`updated` datetime NOT NULL,
+	PRIMARY KEY  (id)
 ) DEFAULT CHARSET=utf8;
 
-CREATE TABLE `wp_exportsreports_log`
-(
-	`id`        INT(10) NOT NULL AUTO_INCREMENT,
-	`report_id` INT(10) NOT NULL,
-	`filename`  VARCHAR(255) NOT NULL,
-	`created`   datetime     NOT NULL,
-	`updated`   datetime     NOT NULL,
-	PRIMARY KEY ( `id` )
+CREATE TABLE wp_exportsreports_log (
+	`id` int(10) NOT NULL AUTO_INCREMENT,
+	`report_id` int(10) NOT NULL,
+	`filename` varchar(255) NOT NULL,
+	`created` datetime NOT NULL,
+	`updated` datetime NOT NULL,
+	PRIMARY KEY  (id)
 ) DEFAULT CHARSET=utf8;
+
 
 INSERT INTO `wp_exportsreports_groups`
 VALUES ( '1', 'WordPress', '0', '', '0', NOW( ), NOW( ) );
