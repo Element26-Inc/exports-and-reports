@@ -332,6 +332,34 @@ er_report(
 	'total ' . $er_paged->total . ' of ' . $er_rows_in_table . ' rows, ' . count( $er_paged->data ) . ' on the page, sum_data ' . wp_json_encode( $er_paged->sum_data )
 );
 
+// --- a search on an aliased column of a report with a totals query: the alias map must not carry the row-count modifier ---
+$er_errors            = array();
+$wpdb->last_error     = '';
+$_GET['search_query'] = 'alpha';
+$er_alias             = er_admin(
+	"SELECT channel AS chan, revenue FROM `{$er_table}` ORDER BY id",
+	'Alias search',
+	array(
+		'search'    => true,
+		'columns'   => array( 'chan' ),
+		'sql_count' => "SELECT SUM(revenue) AS revenue FROM `{$er_table}` WHERE %%WHERE%% 1=1",
+	)
+);
+ob_start();
+$er_alias->get_data( false );
+ob_end_clean();
+unset( $_GET['search_query'] );
+if ( '' !== (string) $wpdb->last_error ) {
+	$er_errors[] = $wpdb->last_error;
+}
+$er_alias_error = implode( ' | ', array_unique( $er_errors ) );
+$er_alpha_rows  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `{$er_table}` WHERE channel = 'alpha'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'search on an aliased column of a report with a totals query',
+	'' === $er_alias_error && 0 < $er_alpha_rows && count( $er_alias->data ) === $er_alpha_rows && (int) $er_alias->total === $er_alpha_rows,
+	'' !== $er_alias_error ? $er_alias_error : count( $er_alias->data ) . ' rows, total ' . $er_alias->total . ', expected ' . $er_alpha_rows
+);
+
 // --- a declined query: the callback returns false once it has reported why ---
 $er_decline = static function ( $args ) {
 	global $wpdb;

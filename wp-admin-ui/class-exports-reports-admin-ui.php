@@ -2115,40 +2115,16 @@ class Exports_Reports_Admin_UI {
 			$this->sql_count = false;
 		}
 		if ( false === $this->sql ) {
-			$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
-			if ( $full ) {
-				$calc_found_sql = '';
-			}
-			$totals = array();
-			foreach ( $this->columns as $key => $column ) {
-				$attributes = $column;
-				if ( ! is_array( $attributes ) ) {
-					$attributes = $this->setup_column( $column );
-				}
-				if ( true !== $attributes['total_field'] ) {
-					continue;
-				}
-				if ( is_array( $column ) ) {
-					$column = $key;
-				}
-				$columnfield = '`' . $column . '`';
-				if ( false !== $attributes['real_name'] ) {
-					$columnfield = $attributes['real_name'];
-				}
-				$totals[] = 'SUM(' . $columnfield . ') AS `wp_admin_ui_total_' . $this->sanitize( $column ) . '`';
-			}
-			if ( ! empty( $totals ) ) {
-				$calc_found_sql .= ' ' . implode( ',', $totals ) . ', ';
-			}
-			$this->sql = "SELECT {$calc_found_sql} * FROM $this->table";
+			$this->sql = "SELECT * FROM $this->table";
 		}
 		$sql = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $this->sql ) . ' ';
-		// The row count of the page view; a totals query (sql_count) feeds the sum row, not the count.
-		$calc_found_sql = 'SQL_CALC_FOUND_ROWS';
-		if ( $full ) {
-			$calc_found_sql = '';
-		}
-		$totals = array();
+		// The author's own SQL_CALC_FOUND_ROWS, if any, comes off; the select list is read before anything is added to it.
+		$sql = preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 );
+		preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
+		// What goes after the first SELECT: the row count for the page view (an export reads every row and needs
+		// none; a totals query feeds the sum row, not the count), then a SUM() per total field.
+		$select_extras = $full ? '' : 'SQL_CALC_FOUND_ROWS';
+		$totals        = array();
 		foreach ( $this->columns as $key => $column ) {
 			$attributes = $column;
 			if ( ! is_array( $attributes ) ) {
@@ -2167,9 +2143,9 @@ class Exports_Reports_Admin_UI {
 			$totals[] = 'SUM(' . $columnfield . ') AS `wp_admin_ui_total_' . $this->sanitize( $column ) . '`';
 		}
 		if ( ! empty( $totals ) ) {
-			$calc_found_sql .= ' ' . implode( ',', $totals ) . ', ';
+			$select_extras .= ' ' . implode( ',', $totals ) . ', ';
 		}
-		$sql               = preg_replace( '/ SELECT /i', " SELECT {$calc_found_sql} ", preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 ), 1 );
+		$sql               = preg_replace( '/ SELECT /i', " SELECT {$select_extras} ", $sql, 1 );
 		$wheresql          = '';
 		$havingsql         = '';
 		$ordersql          = '';
@@ -2177,12 +2153,7 @@ class Exports_Reports_Admin_UI {
 		$other_sql         = array();
 		$having_sql        = array();
 		$replace_variables = array();
-		if ( $full || false !== $this->sql_count ) {
-			preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
-		} else {
-			preg_match( '/SELECT SQL_CALC_FOUND_ROWS (.*) FROM/i', $sql, $selectmatches );
-		}
-		$selects = array();
+		$selects           = array();
 		if ( isset( $selectmatches[1] ) && ! empty( $selectmatches[1] ) && stripos( $selectmatches[1], ' AS ' ) !== false ) {
 			$theselects = explode( ', ', $selectmatches[1] );
 			if ( 1 === count( $theselects ) ) {
@@ -2450,13 +2421,12 @@ class Exports_Reports_Admin_UI {
 		$sql = str_replace( '``', '`', $sql );
 		$sql = str_replace( '  ', ' ', $sql );
 		if ( false !== $this->sql_count ) {
-			$wheresql       = '';
-			$havingsql      = '';
-			$ordersql       = '';
-			$limitsql       = '';
-			$sql_count      = ' ' . preg_replace( '/\s+/', ' ', ' ' . $this->sql_count ) . ' ';
-			$calc_found_sql = '';
-			$sql_count      = str_ireplace( ' SELECT ', " SELECT {$calc_found_sql} ", str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count ) );
+			$wheresql  = '';
+			$havingsql = '';
+			$ordersql  = '';
+			$limitsql  = '';
+			$sql_count = ' ' . preg_replace( '/\s+/', ' ', ' ' . $this->sql_count ) . ' ';
+			$sql_count = str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count );
 			if ( false !== $this->search && ! empty( $this->search_columns ) ) {
 				if ( ! empty( $other_sql ) ) {
 					if ( false === stripos( $sql, ' WHERE ' ) ) {
