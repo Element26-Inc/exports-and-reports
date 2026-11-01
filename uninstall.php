@@ -36,10 +36,18 @@ function exports_reports_uninstall_site() {
 }
 
 /**
- * Deletes the export files and the directory when it is empty afterwards.
+ * Deletes the export files, in the configured directory (the uploads folder by default) and in the one the
+ * plugin used before 0.9.5, and each directory when nothing else is left in it.
  */
 function exports_reports_uninstall_exports() {
-	$directory = defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ? WP_ADMIN_UI_EXPORT_DIR : WP_CONTENT_DIR . '/exports';
+	$directories = array( WP_CONTENT_DIR . '/exports' );
+
+	if ( defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
+		$directories[] = WP_ADMIN_UI_EXPORT_DIR;
+	} else {
+		$uploads       = wp_get_upload_dir();
+		$directories[] = $uploads['basedir'] . '/exports-and-reports';
+	}
 
 	require_once ABSPATH . 'wp-admin/includes/file.php';
 
@@ -47,6 +55,17 @@ function exports_reports_uninstall_exports() {
 		return;
 	}
 
+	foreach ( array_unique( $directories ) as $directory ) {
+		exports_reports_uninstall_export_dir( $directory );
+	}
+}
+
+/**
+ * Deletes the export files of one directory, and the directory when nothing else is left in it.
+ *
+ * @param string $directory The directory.
+ */
+function exports_reports_uninstall_export_dir( $directory ) {
 	/** @var WP_Filesystem_Base $wp_filesystem */ global $wp_filesystem;
 
 	if ( ! $wp_filesystem->is_dir( $directory ) ) {
@@ -54,14 +73,14 @@ function exports_reports_uninstall_exports() {
 	}
 
 	// Export files only, in case the directory is shared.
-	foreach ( (array) $wp_filesystem->dirlist( $directory, false ) as $file ) {
+	foreach ( (array) $wp_filesystem->dirlist( $directory, true ) as $file ) {
 		if ( 'f' === $file['type'] && in_array( strtolower( (string) pathinfo( $file['name'], PATHINFO_EXTENSION ) ), array( 'csv', 'tsv', 'txt', 'xlsx', 'xml', 'json', 'pdf' ), true ) ) {
 			$wp_filesystem->delete( $directory . '/' . $file['name'] );
 		}
 	}
 
 	// The files that kept the directory from being served go with it when nothing else is left.
-	$left = array_keys( (array) $wp_filesystem->dirlist( $directory, false ) );
+	$left = array_keys( (array) $wp_filesystem->dirlist( $directory, true ) );
 
 	if ( array() === array_diff( $left, array( '.htaccess', 'index.php' ) ) ) {
 		foreach ( $left as $file ) {

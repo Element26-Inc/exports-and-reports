@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
 
 if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
+	define( 'WP_ADMIN_UI_EXPORT_DIR', wp_get_upload_dir()['basedir'] . '/exports-and-reports' );
 }
 
 /**
@@ -1596,7 +1596,7 @@ class Exports_Reports_Admin_UI {
 
 			return false;
 		}
-		$this->protect_export_dir();
+		self::protect_export_dir();
 		$remove_export = str_replace( '/', '', sanitize_file_name( (string) $this->get_var( 'remove_export', '' ) ) );
 		if ( ! $this->api && '' !== $remove_export ) {
 			$remove_export_path = WP_ADMIN_UI_EXPORT_DIR . '/' . $remove_export;
@@ -1826,7 +1826,7 @@ class Exports_Reports_Admin_UI {
 	 *
 	 * @since 0.9.5
 	 */
-	protected function protect_export_dir() {
+	public static function protect_export_dir() {
 		/** @var WP_Filesystem_Base $wp_filesystem */
 		global $wp_filesystem;
 

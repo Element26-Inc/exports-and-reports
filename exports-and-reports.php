@@ -33,12 +33,19 @@ define( 'EXPORTS_REPORTS_VERSION', '095' );
 define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
 define( 'EXPORTS_REPORTS_DIR', plugin_dir_path( __FILE__ ) );
 
-if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_URL', content_url( 'exports' ) );
-}
+// The export directory: a folder of the uploads directory, unless wp-config.php defines the constants.
+if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) || ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
+	$exports_reports_uploads = wp_get_upload_dir();
 
-if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
-	define( 'WP_ADMIN_UI_EXPORT_DIR', WP_CONTENT_DIR . '/exports' );
+	if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
+		define( 'WP_ADMIN_UI_EXPORT_DIR', $exports_reports_uploads['basedir'] . '/exports-and-reports' );
+	}
+
+	if ( ! defined( 'WP_ADMIN_UI_EXPORT_URL' ) ) {
+		define( 'WP_ADMIN_UI_EXPORT_URL', $exports_reports_uploads['baseurl'] . '/exports-and-reports' );
+	}
+
+	unset( $exports_reports_uploads );
 }
 
 register_activation_hook( __FILE__, 'exports_reports_install_upgrade' );
@@ -46,6 +53,7 @@ register_deactivation_hook( __FILE__, 'exports_reports_deactivate' );
 
 add_action( 'admin_init', 'exports_reports_init' );
 add_action( 'admin_init', 'exports_reports_ensure_cleanup_scheduled' );
+add_action( 'admin_init', 'exports_reports_move_legacy_export_dir' );
 add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
@@ -155,6 +163,7 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	if ( $upgrade ) {
 		exports_reports_convert_tables_charset();
+		exports_reports_move_legacy_export_dir();
 	}
 
 	delete_option( 'exports_reports_version' );
@@ -564,7 +573,7 @@ function exports_reports_settings() {
 							<?php else : ?>
 								Apache: the plugin writes an .htaccess that denies direct requests with the first export.
 							<?php endif; ?>
-							nginx ignores .htaccess; add <code>location ~* /wp-content/exports/ { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
+							nginx ignores .htaccess; add <code>location ~* <?php echo esc_html( trailingslashit( (string) wp_parse_url( WP_ADMIN_UI_EXPORT_URL, PHP_URL_PATH ) ) ); ?> { deny all; }</code> to the server block, or define <code>WP_ADMIN_UI_EXPORT_DIR</code> in wp-config.php with a directory outside the web root, which works on any server.
 						</span>
 					</td>
 				</tr>
@@ -1645,6 +1654,56 @@ function exports_reports_schedule_cleanup() {
 }
 
 /**
+ * Moves export files from the directory the plugin used before 0.9.5, wp-content/exports, into the current
+ * one, when the two differ and the old one is still there. The log keeps file names only, so downloads
+ * follow the move. Runs on upgrade and, in case the old directory turns up again, on admin requests.
+ *
+ * @since 0.9.5
+ */
+function exports_reports_move_legacy_export_dir() {
+	$legacy = WP_CONTENT_DIR . '/exports';
+
+	if ( WP_ADMIN_UI_EXPORT_DIR === $legacy || ! is_dir( $legacy ) ) {
+		return;
+	}
+
+	require_once ABSPATH . 'wp-admin/includes/file.php';
+
+	if ( ! WP_Filesystem() || ! wp_mkdir_p( WP_ADMIN_UI_EXPORT_DIR ) ) {
+		return;
+	}
+
+	/** @var WP_Filesystem_Base|null $wp_filesystem */ global $wp_filesystem;
+
+	if ( ! $wp_filesystem ) {
+		return;
+	}
+
+	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
+	Exports_Reports_Admin_UI::protect_export_dir();
+
+	$left = array();
+
+	foreach ( (array) $wp_filesystem->dirlist( $legacy, true ) as $file ) {
+		$path     = $legacy . '/' . $file['name'];
+		$contents = 'f' === $file['type'] && in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ? (string) $wp_filesystem->get_contents( $path ) : '';
+
+		if ( 'f' === $file['type'] && exports_reports_is_export_file( $file['name'] ) ) {
+			$wp_filesystem->move( $path, WP_ADMIN_UI_EXPORT_DIR . '/' . $file['name'], true );
+		} elseif ( false !== strpos( $contents, 'Exports and Reports' ) || false !== strpos( $contents, 'Silence is golden' ) ) {
+			// The protection files the plugin wrote there.
+			$wp_filesystem->delete( $path );
+		} else {
+			$left[] = $file['name'];
+		}
+	}
+
+	if ( array() === $left ) {
+		$wp_filesystem->rmdir( $legacy );
+	}
+}
+
+/**
  * Puts the daily cleanup event back when it is missing, as after a site has cleared its cron table.
  *
  * @since 0.9.5
@@ -1878,7 +1937,7 @@ function exports_reports_has_role( $role ) {
 }
 
 /**
- * Filter the robots.txt contents and add the /exports/ directory to the list of disallowed folders.
+ * Filter the robots.txt contents and add the export directory to the list of disallowed folders.
  *
  * @since 0.9.0
  *
@@ -1887,11 +1946,13 @@ function exports_reports_has_role( $role ) {
  * @return string The robots.txt contents.
  */
 function exports_reports_robots_txt( $robots_txt ) {
-	$exclude_path = str_replace( ABSPATH, '', WP_ADMIN_UI_EXPORT_DIR );
-	$exclude_path = str_replace( DIRECTORY_SEPARATOR, '/', $exclude_path );
-	$exclude_path = trim( $exclude_path, '/' );
+	$exclude_path = trim( (string) wp_parse_url( WP_ADMIN_UI_EXPORT_URL, PHP_URL_PATH ), '/' );
 
-	return $robots_txt . "\n" . 'Disallow: */' . $exclude_path . '/*';
+	if ( '' === $exclude_path ) {
+		return $robots_txt;
+	}
+
+	return $robots_txt . "\nDisallow: /" . $exclude_path . '/';
 }
 
 add_filter( 'robots_txt', 'exports_reports_robots_txt' );
