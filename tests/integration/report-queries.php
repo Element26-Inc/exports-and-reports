@@ -1050,6 +1050,39 @@ er_report(
 	'search ' . var_export( $er_req_admin->search_query, true ) . ', page ' . var_export( $er_req_admin->page, true ) . ', order_dir ' . var_export( $er_req_admin->order_dir, true ) . ', hidden ' . strlen( $er_hidden_html ) . ' bytes'
 );
 
+// --- a sort column the request names must be one of the report's columns; anything else keeps the report's own order ---
+$_GET['order']     = 'no_such_column';
+$_GET['order_dir'] = 'ASC';
+$er_sort_bad       = er_admin(
+	"SELECT id, revenue FROM `{$er_table}`",
+	'Sort check',
+	array(
+		'order'     => '`id`',
+		'order_dir' => 'DESC',
+	)
+);
+ob_start();
+$er_sort_bad->get_data( false );
+ob_end_clean();
+$_GET['order'] = 'revenue';
+$er_sort_ok    = er_admin(
+	"SELECT id, revenue FROM `{$er_table}`",
+	'Sort check',
+	array(
+		'order'     => '`id`',
+		'order_dir' => 'DESC',
+	)
+);
+ob_start();
+$er_sort_ok->get_data( false );
+ob_end_clean();
+unset( $_GET['order'], $_GET['order_dir'] );
+er_report(
+	'the sort column must be one of the report\'s columns',
+	isset( $er_sort_bad->data[0]['id'], $er_sort_ok->data[0]['revenue'], $er_sort_ok->data[1]['revenue'] ) && $er_rows === (int) $er_sort_bad->data[0]['id'] && (float) $er_sort_ok->data[0]['revenue'] <= (float) $er_sort_ok->data[1]['revenue'],
+	'unknown column: first id ' . ( isset( $er_sort_bad->data[0]['id'] ) ? $er_sort_bad->data[0]['id'] : 'none' ) . ' (report order id DESC); revenue ASC: ' . ( isset( $er_sort_ok->data[0]['revenue'] ) ? $er_sort_ok->data[0]['revenue'] . ', ' . $er_sort_ok->data[1]['revenue'] : 'none' )
+);
+
 // --- the pre-0.9.5 api.php answers through the REST routes with its old response shape ---
 $er_api_capture = static function ( array $query ) use ( $er_report_id ) {
 	$_GET = array_merge(
