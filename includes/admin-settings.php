@@ -57,8 +57,6 @@ function exports_reports_settings() {
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
 	<div class="wrap exports-reports-settings">
-		<div id="icon-edit-pages" class="icon32" style="background-image:url(<?php echo esc_url( EXPORTS_REPORTS_URL . 'assets/images/32.png' ); ?>)">
-			<br /></div>
 		<h2><?php esc_html_e( 'Exports and Reports - Settings', 'exports-and-reports' ); ?></h2>
 
 		<?php if ( $cleared ) : ?>

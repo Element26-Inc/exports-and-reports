@@ -148,12 +148,7 @@
 	vertical-align: baseline;
 }
 
-/* The report screens' icon and totals table. */
-.wp-admin-ui-wrap .icon32,
-.exports-reports-settings .icon32 {
-	background-position: 0 0;
-}
-
+/* The report screens' totals table. */
 .admin_ui_totals_heading {
 	text-align: center;
 }
@@ -173,11 +168,16 @@ select.admin_ui_filter_multiple {
 }
 
 .dragme {
-	background: url(../images/move.png) no-repeat;
-	background-position: 8px 5px;
-	cursor: pointer;
+	cursor: move;
 }
 
-.dragme strong {
-	margin-left: 30px;
+/* The handle is a Dashicon: an icon font has no generic fallback. */
+/* stylelint-disable font-family-no-missing-generic-family-keyword */
+.dragme::before {
+	color: #787c82;
+	content: "\f545";
+	float: left;
+	font: 400 20px/1 dashicons;
+	margin: 1px 8px 0 0;
 }
+/* stylelint-enable font-family-no-missing-generic-family-keyword */

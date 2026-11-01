@@ -71,7 +71,6 @@ function exports_reports_report_options( $report ) {
 	$options['page_orientation'] = $report->page_orientation;
 	$options['item']             = __( 'item', 'exports-and-reports' );
 	$options['items']            = $report->name;
-	$options['icon']             = EXPORTS_REPORTS_URL . 'assets/images/32.png';
 	$options['heading']          = array(
 		'manage' => __( 'View Report:', 'exports-and-reports' ),
 	);

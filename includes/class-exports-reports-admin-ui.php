@@ -71,7 +71,6 @@ class Exports_Reports_Admin_UI {
 		'view'      => 'View',
 		'reorder'   => 'Reorder',
 	);
-	public $icon    = false;
 	public $css     = false;
 
 	// actions
