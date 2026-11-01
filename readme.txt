@@ -41,9 +41,9 @@ The plugin places its paging and its row count into statements that begin with S
 
 = Where do the export files go, and who can download them? =
 
-In wp-content/exports by default. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
+In `wp-content/uploads/exports-and-reports` by default, a folder of the uploads directory; define `WP_ADMIN_UI_EXPORT_DIR` and `WP_ADMIN_UI_EXPORT_URL` in wp-config.php to move it, for example outside the web root. Every download goes through the plugin after a nonce or API token check, so the directory never needs to be reachable by URL. The plugin writes an .htaccess that keeps Apache from serving it; nginx ignores .htaccess, so either add the rule to the server block:
 
-`location ~* /wp-content/exports/ { deny all; }`
+`location ~* /wp-content/uploads/exports-and-reports/ { deny all; }`
 
 or define WP_ADMIN_UI_EXPORT_DIR in wp-config.php with a writable directory outside the web root, which needs no server rule at all. The Settings page shows the directory in use.
 
@@ -114,6 +114,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * Added uninstall.php. The capabilities filter is `exports_reports_capabilities`; the misspelled `export_reports_capabilites` still works with a deprecation notice.
 * The report form's field editor is rebuilt (one card per field with a drag handle, advanced options folded), the query fields use the WordPress code editor with SQL highlighting, and multiple-choice settings are checkbox lists.
 * The daily cleanup event has its handler, is cleared on deactivation and is put back when it is missing.
+* Export files live in the uploads directory (`wp-content/uploads/exports-and-reports` by default); files in the old `wp-content/exports` move over on upgrade. `WP_ADMIN_UI_EXPORT_DIR` and `WP_ADMIN_UI_EXPORT_URL` still relocate it.
 * The page view of a report with a count query (the totals row) counts every row again; it had stopped at the first page.
 * Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
 
