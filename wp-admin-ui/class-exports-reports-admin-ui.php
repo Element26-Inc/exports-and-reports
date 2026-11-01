@@ -28,24 +28,27 @@ if ( ! defined( 'WP_ADMIN_UI_EXPORT_DIR' ) ) {
 class Exports_Reports_Admin_UI {
 
 	// base
-	public $table             = false;
-	public $identifier        = 'id';
-	public $sql               = false;
-	public $sql_count         = false;
-	public $id                = false;
-	public $action            = 'manage';
-	public $do                = false;
-	public $search            = true;
-	public $filters           = array();
-	public $search_query      = false;
-	public $pagination        = true;
-	public $page              = 1;
-	public $limit             = 25;
-	public $order             = false;
-	public $order_dir         = 'DESC';
-	public $reorder_order     = false;
-	public $reorder_order_dir = 'ASC';
-	public $api               = false;
+	public $table              = false;
+	public $identifier         = 'id';
+	public $sql                = false;
+	public $sql_count          = false;
+	public $id                 = false;
+	public $action             = 'manage';
+	public $do                 = false;
+	public $search             = true;
+	public $filters            = array();
+	public $search_query       = false;
+	public $pagination         = true;
+	public $page               = 1;
+	public $limit              = 25;
+	public $order              = false;
+	public $order_dir          = 'DESC';
+	public $order_default      = false;
+	public $order_dir_default  = 'DESC';
+	public $order_from_request = false;
+	public $reorder_order      = false;
+	public $reorder_order_dir  = 'ASC';
+	public $api                = false;
 	/** @var int The report the instance shows: Exports and Reports sets it; 0 for an instance without one. */
 	public $report_id = 0;
 	public $num       = '';
@@ -158,13 +161,16 @@ class Exports_Reports_Admin_UI {
 		if ( false !== $this->get_var( 'limit' ) ) {
 			$this->limit = absint( $this->get_var( 'limit' ) );
 		}
-		$order = $this->get_var( 'order' );
+		$this->order_default     = $this->order;
+		$this->order_dir_default = $this->order_dir;
+		$order                   = $this->get_var( 'order' );
 		if ( is_string( $order ) && '' !== $order ) {
 			$order = preg_replace( '/([- ])/', '_', trim( $order ) );
 			$order = preg_replace( '/([^0-9a-z_])/', '', strtolower( $order ) );
 			$order = preg_replace( '/(_){2,}/', '_', $order );
 
-			$this->order = $order;
+			$this->order              = $order;
+			$this->order_from_request = true;
 		}
 		$order_dir = $this->get_var( 'order_dir', false, array( 'ASC', 'DESC' ) );
 		if ( false !== $order_dir ) {
@@ -544,6 +550,21 @@ class Exports_Reports_Admin_UI {
 	 */
 	public function backtick( $name ) {
 		return '`' . str_replace( '`', '``', (string) $name ) . '`';
+	}
+
+	/**
+	 * The names of the report's columns, whether they are set up already (keyed arrays) or still a list of names.
+	 *
+	 * @return string[]
+	 */
+	public function column_names() {
+		$names = array();
+
+		foreach ( (array) $this->columns as $key => $column ) {
+			$names[] = (string) ( is_array( $column ) ? $key : $column );
+		}
+
+		return $names;
 	}
 
 	public function unsanitize( $input ) {
@@ -2362,6 +2383,11 @@ class Exports_Reports_Admin_UI {
 					$havingsql .= ' AND (' . implode( ' AND ', $having_sql ) . ') ';
 				}
 			}
+		}
+		if ( $this->order_from_request && ! in_array( $this->order, $this->column_names(), true ) && ! isset( $selects[ $this->order ] ) ) {
+			// The request named a column the report does not have: the report's own order applies.
+			$this->order     = $this->order_default;
+			$this->order_dir = $this->order_dir_default;
 		}
 		if ( false !== $this->order && ( false === $this->reorder || 'reorder' !== $this->action ) ) {
 			$ordersql = trim( $this->order . ' ' . $this->order_dir );
