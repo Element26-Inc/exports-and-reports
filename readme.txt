@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -118,6 +118,11 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.0.1 =
+* The release zip is built into a draft release and published with the file attached: the repository's releases are immutable, so a published release takes no asset. The packaging checks know the PDF engine's path under `includes/exporters/`.
+* The menu icons and the reorder screen's drag handle are Dashicons; the PNG icons and the page icon of the old admin design, which WordPress has hidden since 3.8, are gone.
+* The report list's search form compares its values with the page's query string through `URLSearchParams`, so a search that repeats the current values keeps its page and one that changes them starts on page 1.
 
 = 1.0.0 =
 * The capabilities (`exports_reports_full_access`, `exports_reports_settings`, `exports_reports_view`) sit on the administrator role: added on activation and on this upgrade, each site of a network on its own, and removed on uninstall. The filter that granted administrators full access on every request is gone (with the `exports_reports_full_access` filter it ran), so a site can take the capabilities away from a role. A network activation installs every site; a site added later installs on its first admin request.
