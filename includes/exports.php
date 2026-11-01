@@ -140,18 +140,18 @@ function exports_reports_user_can_download_export( $filename ) {
 /**
  * Logs a written export file against its report (the exports_reports_post_export action).
  *
- * @param array $args The arguments do_hook() passes, from index 1: the file name first.
- * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
+ * @since 1.0.0 Takes the file name and the screen, as the action passes them.
+ *
+ * @param string                  $filename The file name.
+ * @param Exports_Reports_Admin_UI $admin    The report screen that wrote it.
  */
-function exports_reports_log( $args, $obj ) {
+function exports_reports_log( $filename, $admin ) {
 	/** @var wpdb $wpdb */ global $wpdb;
-
-	$filename = $args[1];
 
 	$wpdb->insert(
 		$wpdb->exports_reports_log,
 		array(
-			'report_id' => $obj[0]->report_id,
+			'report_id' => $admin->report_id,
 			'filename'  => $filename,
 			'created'   => date_i18n( 'Y-m-d H:i:s' ),
 		),
@@ -166,16 +166,18 @@ function exports_reports_log( $args, $obj ) {
 /**
  * Removes the log row of a deleted export file (the exports_reports_post_remove_export action).
  *
- * @param array $args The arguments do_hook() passes, from index 1: the file name, then whether it was removed.
- * @param array $obj  The admin UI instance and the hook name, as do_hook() passes them.
+ * @since 1.0.0 Takes the file name, whether it is gone, its path and the screen, as the action passes them.
+ *
+ * @param string                  $filename The file name.
+ * @param bool                    $removed  Whether the file is gone.
+ * @param string                  $path     Its path.
+ * @param Exports_Reports_Admin_UI $admin    The report screen.
  */
-function exports_reports_delete_log( $args, $obj ) {
+function exports_reports_delete_log( $filename, $removed, $path, $admin ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	$filename = $args[1];
-
-	if ( false !== $args[2] ) {
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->exports_reports_log} WHERE `report_id` = %d AND `filename` = %s", $obj[0]->report_id, $filename ) );
+	if ( $removed ) {
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->exports_reports_log} WHERE `report_id` = %d AND `filename` = %s", $admin->report_id, $filename ) );
 	}
 }
 

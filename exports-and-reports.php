@@ -76,7 +76,7 @@ add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
 add_action( 'admin_enqueue_scripts', 'exports_reports_assets' );
 add_action( 'admin_notices', 'exports_reports_charset_errors_notice' );
 add_action( 'exports_reports_post_export', 'exports_reports_log', 10, 2 );
-add_action( 'exports_reports_post_remove_export', 'exports_reports_delete_log', 10, 2 );
+add_action( 'exports_reports_post_remove_export', 'exports_reports_delete_log', 10, 4 );
 add_filter( 'robots_txt', 'exports_reports_robots_txt' );
 
 require_once EXPORTS_REPORTS_DIR . 'vendor/autoload.php';
