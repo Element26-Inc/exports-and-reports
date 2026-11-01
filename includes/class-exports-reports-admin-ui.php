@@ -129,9 +129,9 @@ class Exports_Reports_Admin_UI {
 		do_action_deprecated( 'wp_admin_ui_pre_init', array( $options ), '0.9.5', 'exports_reports_pre_init' );
 		$options          = $this->do_hook( 'options', $options );
 		$this->base_dir   = __DIR__;
-		$this->base_url   = plugins_url( 'class-exports-reports-admin-ui.php', __FILE__ );
+		$this->base_url   = EXPORTS_REPORTS_URL;
 		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=' . EXPORTS_REPORTS_EXPORT_ACTION . '&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( EXPORTS_REPORTS_EXPORT_NONCE ) . '&exports_and_reports_export=';
-		$this->assets_url = str_replace( '/class-exports-reports-admin-ui.php', '', $this->base_url ) . '/assets';
+		$this->assets_url = EXPORTS_REPORTS_URL . 'assets';
 		$this->item       = __( 'Item', 'exports-and-reports' );
 		$this->items      = __( 'Items', 'exports-and-reports' );
 		$this->heading    = array(
@@ -1057,7 +1057,7 @@ class Exports_Reports_Admin_UI {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
 		}
 
-		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/admin-ui.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
+		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/js/admin-ui.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
 
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );
@@ -1936,10 +1936,10 @@ class Exports_Reports_Admin_UI {
 			$this->export_ready( $export_file, $this->export_type );
 		} elseif ( 'pdf' === $this->export_type ) {
 			if ( 'tcpdf' === self::pdf_engine() ) {
-				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf-legacy.php';
+				require_once $this->base_dir . '/class-exports-reports-admin-ui-export-pdf-legacy.php';
 				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF_Legacy';
 			} else {
-				require_once $this->base_dir . '/includes/class-exports-reports-admin-ui-export-pdf.php';
+				require_once $this->base_dir . '/class-exports-reports-admin-ui-export-pdf.php';
 				$pdf_class = 'Exports_Reports_Admin_UI_Export_PDF';
 			}
 
@@ -3086,21 +3086,6 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( 1 === $reorder && $this->reorder ) {
 			?>
-		<style type="text/css">
-			table.widefat.fixed tbody.sortable tr {
-				height: 50px;
-			}
-
-			.dragme {
-				background:          url(<?php echo esc_url( $this->assets_url . '/move.png' ); ?>) no-repeat;
-				background-position: 8px 5px;
-				cursor:              pointer;
-			}
-
-			.dragme strong {
-				margin-left: 30px;
-			}
-		</style>
 		<form action="
 			<?php
 			echo esc_url(
