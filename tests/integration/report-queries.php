@@ -539,8 +539,9 @@ er_report(
 
 // --- a multiple-select filter sends an array: the SQL takes every value, and the page does not fail ---
 $er_filter_sql     = array();
-$er_capture_filter = static function ( $filter_sql ) use ( &$er_filter_sql ) {
-	$er_filter_sql[] = $filter_sql;
+$er_capture_filter = static function ( $filter_sql ) use ( &$er_filter_sql, $wpdb ) {
+	// prepare() keeps a literal % behind its placeholder escape until the query runs.
+	$er_filter_sql[] = $wpdb->remove_placeholder_escape( $filter_sql );
 	return $filter_sql;
 };
 add_filter( 'exports_reports_data_filter_sql', $er_capture_filter );
