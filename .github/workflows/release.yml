@@ -1,15 +1,33 @@
 name: Release zip
+# Builds the plugin zip from the branch or tag the run is started on and puts it on a draft release for
+# the tag given, creating the draft when there is none, so that the file is attached before the release
+# is published: the repository's releases are immutable, and an immutable release takes no asset once it
+# is published. With publish set, the run publishes the draft itself; otherwise the draft waits for a
+# look at https://github.com/Element26-Inc/exports-and-reports/releases.
+#
+#   gh workflow run release.yml --ref main -f tag=v1.0.1                   # build, attach to the draft
+#   gh workflow run release.yml --ref main -f tag=v1.0.1 -f publish=true   # and publish it
+#
+# The release notes are the version's section of the readme's changelog, with its upgrade notice.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The release tag (v1.0.1); its version must be the one the plugin declares'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the draft once the zip is attached'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   zip:
-    name: Build and attach the plugin zip
+    name: Build the plugin zip and attach it to the draft release
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout the repository
@@ -21,33 +39,17 @@ jobs:
           php-version: '8.2'
           coverage: none
 
-      # ------------------------------------------------------------------------------
-      # A release is built for its tag; a manual run packages whatever the header says.
-      # Either way the header, readme.txt, package.json and the version constant must agree.
-      # ------------------------------------------------------------------------------
       - name: Determine the version
         id: version
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            version="${{ github.event.release.tag_name }}"
-            version="${version#v}"
-          else
-            version="$(sed -n 's/^ \* Version:[[:space:]]*//p' exports-and-reports.php | head -n1 | tr -d '[:space:]')"
-          fi
+          tag="${{ inputs.tag }}"
+          version="${tag#v}"
           bin/check-version.sh "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      # ------------------------------------------------------------------------------
-      # The committed vendor tree is what composer.lock and Strauss produce (bin/check-vendor.sh);
-      # the zip is built from the commit, so the tools this installs stay out of it.
-      # ------------------------------------------------------------------------------
       - name: Check the vendor tree
         run: bin/check-vendor.sh
 
-      # ------------------------------------------------------------------------------
-      # git archive applies the export-ignore entries of .gitattributes, the same list the
-      # wordpress.org deploy uses, so the zip holds exactly what the directory receives.
-      # ------------------------------------------------------------------------------
       - name: Build the zip
         run: |
           zip="exports-and-reports-${{ steps.version.outputs.version }}.zip"
@@ -57,16 +59,11 @@ jobs:
           unzip -l "$zip" | tail -n1
           cat "$zip.sha256"
 
-      # ------------------------------------------------------------------------------
-      # Nothing from the development tree, every PHP file parses on the plugin's PHP floor, the
-      # version the zip declares is the one being released, and the two autoloaders resolve the
-      # bundled libraries from the packaged paths.
-      # ------------------------------------------------------------------------------
       - name: Check the packaged tree
         run: |
           rm -rf build && mkdir build && unzip -q "$ZIP" -d build
           cd build/exports-and-reports
-          for f in tests .github bin phpcs.xml .phpcs.compat.xml .phpcs.compat-pdf.xml phpstan.neon phpstan-legacy.neon composer.lock .gitattributes .gitignore; do
+          for f in tests .github bin phpcs.xml .phpcs.compat.xml .phpcs.compat-pdf.xml phpstan.neon phpstan-legacy.neon phpunit.xml.dist composer.lock package.json package-lock.json .gitattributes .gitignore; do
             if [ -e "$f" ]; then echo "::error::$f is in the zip"; exit 1; fi
           done
           lint="$(find . -name '*.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
@@ -76,11 +73,6 @@ jobs:
           php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports\\Prefixed\\Com\\Tecnick\\Pdf\\Tcpdf" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) && class_exists( "ExportsReports__Prefixed__XLSXWriter" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the bundled libraries"; exit 1; }
           echo "packaged tree ok: $(find . -type f | wc -l) files"
 
-      # ------------------------------------------------------------------------------
-      # The same tree on the plugin's PHP floor: everything parses except what the plugin only loads
-      # on 8.2 (the tc-lib-pdf export class and that library; TCPDF serves there), and the autoloaders
-      # load without the Composer platform check.
-      # ------------------------------------------------------------------------------
       - name: Configure PHP 7.2
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
@@ -88,9 +80,10 @@ jobs:
           coverage: none
 
       - name: Check the packaged tree on PHP 7.2
+        # The tc-lib-pdf engine and its library load on PHP 8.2 and later only; everything else must parse on the floor.
         run: |
           cd build/exports-and-reports
-          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -path './includes/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
+          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -path './includes/exporters/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
           if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file the plugin loads on 7.2 does not parse there"; exit 1; fi
           php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the libraries the plugin uses on PHP 7.2"; exit 1; }
           echo "packaged tree ok on PHP $(php -r 'echo PHP_VERSION;')"
@@ -104,8 +97,42 @@ jobs:
             ${{ env.ZIP }}.sha256
           if-no-files-found: error
 
-      - name: Attach the zip to the release
-        if: github.event_name == 'release'
+      - name: Write the release notes from the readme
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            /^== / { section = $0; on = 0 }
+            section == "== Changelog ==" && $0 == "= " v " =" { on = 1; next }
+            section == "== Changelog ==" && on && /^= / { on = 0 }
+            section == "== Changelog ==" && on { print }
+            section == "== Upgrade Notice ==" && $0 == "= " v " =" { on = 1; next }
+            section == "== Upgrade Notice ==" && on && /^= / { on = 0 }
+            section == "== Upgrade Notice ==" && on && NF { print ""; print "**Upgrade notice:** " $0 }
+          ' readme.txt > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::readme.txt has no changelog section for ${{ steps.version.outputs.version }}"
+            exit 1
+          fi
+          cat notes.md
+
+      - name: Put the zip on the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "$ZIP" "$ZIP.sha256" --clobber
+        run: |
+          tag="${{ inputs.tag }}"
+          if state="$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "$state" != "true" ]; then
+              echo "::error::$tag is published already; a published release here is immutable and takes no asset. Release the next version instead."
+              exit 1
+            fi
+            gh release upload "$tag" "$ZIP" "$ZIP.sha256" --clobber
+            gh release edit "$tag" --title "${{ steps.version.outputs.version }}" --notes-file notes.md
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
+          fi
+          gh release view "$tag" --json isDraft,assets --jq '"draft: \(.isDraft), assets: \([.assets[].name] | join(", "))"'
+
+      - name: Publish the release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ inputs.tag }}" --draft=false --latest
