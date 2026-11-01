@@ -1,6 +1,6 @@
 <?php
 /**
- * Serves an export file to the user who asked for it: the admin-ajax action exports_reports_export,
+ * Serves an export file to the user who asked for it: the admin-ajax action EXPORTS_REPORTS_EXPORT_ACTION,
  * reached from the link and the window the export page opens.
  *
  * @package Exports_And_Reports
@@ -14,7 +14,7 @@ if ( ! isset( $_GET['exports_and_reports_download'], $_GET['_wpnonce'], $_GET['e
 	return;
 }
 
-if ( false === wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'exports-reports-export' ) ) {
+if ( false === wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), EXPORTS_REPORTS_EXPORT_NONCE ) ) {
 	wp_die( 'Access denied', '', array( 'response' => 403 ) );
 }
 

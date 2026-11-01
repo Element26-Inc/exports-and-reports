@@ -2,7 +2,7 @@
 Contributors: sc0ttkclark
 Donate link: https://github.com/sponsors/sc0ttkclark
 Tags: exporting, reporting, csv, pdf, xml
-Requires at least: 6.0
+Requires at least: 5.8
 Tested up to: 7.1
 Requires PHP: 7.2
 Stable tag: 0.9.5
@@ -17,7 +17,7 @@ Define custom exports / reports for users, based off of any MySQL SELECT query y
 
 All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XLSX, XML, JSON, PDF and custom delimiter separated formats, from the admin screens or through the REST API with a token, for cronjobs.
 
-Requires PHP 7.2 and WordPress 6.0 or later. PDF exports render with tc-lib-pdf on PHP 8.2 and later and with TCPDF below that.
+Requires PHP 7.2 and WordPress 5.8 or later. PDF exports render with tc-lib-pdf on PHP 8.2 and later and with TCPDF below that.
 
 Report queries are written by administrators and run as written: only users with the plugin's settings capability (administrators by default) can create or edit a report. The plugin adds its paging, sorting and filters around the query, with every request value passed as a prepared placeholder and the sort column checked against the report's columns; readers of a report cannot change its SQL.
 
@@ -120,7 +120,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * The page view of a report with a count query (the totals row) counts every row again; it had stopped at the first page.
 * Every hook carries the plugin's prefix: `exports_reports_` replaces `wp_admin_ui_` in the filter and action names (`exports_reports_get_data_sql`, `exports_reports_export_file`, `exports_reports_post_export`, ...), and the download link's admin-ajax action is `exports_reports_export`. The old names still run their callbacks, with a deprecation notice.
 * The report screens escape the output of display, view and header callbacks with the post-content HTML rules (the `exports_reports_allowed_html` filter extends them), the screens' scripts are in an enqueued file with no inline handlers, and the table rows are striped by the admin styles. The window the export page opens carries the file again, and the delete links ask for confirmation again.
-* Requires WordPress 6.0 and PHP 7.2, down from 8.0; tested up to WordPress 7.1.
+* Requires WordPress 5.8 (4.9 before) and PHP 7.2 (down from 8.0); tested up to WordPress 7.1.
 
 = 0.9.4 =
 * Fixed PHP compatibility issues.

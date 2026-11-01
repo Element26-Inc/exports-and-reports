@@ -16,7 +16,7 @@
  * Text Domain:       exports-and-reports
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Requires at least: 6.0
+ * Requires at least: 5.8
  * Requires PHP:      7.2
  * GitHub Plugin URI: https://github.com/sc0ttkclark/exports-and-reports
  * Primary Branch:    main
@@ -43,6 +43,27 @@ if ( ! defined( 'EXPORTS_REPORTS_EXPORT_URL' ) ) {
 	define( 'EXPORTS_REPORTS_EXPORT_URL', defined( 'WP_ADMIN_UI_EXPORT_URL' ) ? WP_ADMIN_UI_EXPORT_URL : wp_get_upload_dir()['baseurl'] . '/exports-and-reports' );
 }
 
+// The admin-ajax action that serves an export file, and the nonce action of its link.
+define( 'EXPORTS_REPORTS_EXPORT_ACTION', 'exports_reports_export' );
+define( 'EXPORTS_REPORTS_EXPORT_NONCE', 'exports-reports-export' );
+
+/**
+ * The plugin's tables as properties of $wpdb ($wpdb->exports_reports_groups, $wpdb->exports_reports_reports and
+ * $wpdb->exports_reports_log), named the way core names its own, so a statement writes them in place. Set again
+ * when the site switches, as the prefix does.
+ *
+ * @since 0.9.5
+ */
+function exports_reports_tables() {
+	global $wpdb;
+
+	foreach ( array( 'groups', 'reports', 'log' ) as $table ) {
+		$wpdb->{'exports_reports_' . $table} = $wpdb->prefix . EXPORTS_REPORTS_TBL . $table;
+	}
+}
+exports_reports_tables();
+add_action( 'switch_blog', 'exports_reports_tables' );
+
 register_activation_hook( __FILE__, 'exports_reports_install_upgrade' );
 register_deactivation_hook( __FILE__, 'exports_reports_deactivate' );
 
@@ -52,7 +73,7 @@ add_action( 'admin_init', 'exports_reports_move_legacy_export_dir' );
 add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
-add_action( 'wp_ajax_exports_reports_export', 'exports_reports_export_download' );
+add_action( 'wp_ajax_' . EXPORTS_REPORTS_EXPORT_ACTION, 'exports_reports_export_download' );
 add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_export_download' ); // The action name before 0.9.5.
 add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
 add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
@@ -63,7 +84,7 @@ require_once EXPORTS_REPORTS_DIR . 'vendor/vendor-prefixed/autoload.php';
 require_once EXPORTS_REPORTS_DIR . 'includes/rest-api.php';
 
 /**
- * The admin-ajax action exports_reports_export: wp-admin-ui/export.php sends the file and exits, so a
+ * The admin-ajax action EXPORTS_REPORTS_EXPORT_ACTION: wp-admin-ui/export.php sends the file and exits, so a
  * request that names no export ends here.
  */
 function exports_reports_export_download() {
@@ -72,14 +93,18 @@ function exports_reports_export_download() {
 	die( 'Invalid request' );
 }
 
-function exports_reports_assets() {
-	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/admin.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, array( 'in_footer' => true ) );
+/**
+ * Registers the admin script and style, and enqueues the report form's editor assets on the Manage Reports page.
+ *
+ * @param string $hook_suffix The admin page, as admin_enqueue_scripts passes it.
+ */
+function exports_reports_assets( $hook_suffix ) {
+	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/admin.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
 	wp_register_style( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/admin.css', array(), EXPORTS_REPORTS_VERSION );
 
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only the admin page slug is read.
-	if ( isset( $_GET['page'] ) && 'exports-reports-admin-reports' === $_GET['page'] ) {
+	if ( get_plugin_page_hookname( 'exports-reports-admin-reports', 'exports-reports-admin' ) === $hook_suffix ) {
 		wp_enqueue_style( 'dashicons' );
-		wp_enqueue_script( 'exports-reports-report-fields', EXPORTS_REPORTS_URL . 'assets/report-fields.js', array( 'jquery', 'jquery-ui-sortable' ), EXPORTS_REPORTS_VERSION, array( 'in_footer' => true ) );
+		wp_enqueue_script( 'exports-reports-report-fields', EXPORTS_REPORTS_URL . 'assets/report-fields.js', array( 'jquery', 'jquery-ui-sortable' ), EXPORTS_REPORTS_VERSION, true );
 		exports_reports_sql_editor();
 	}
 }
@@ -414,30 +439,11 @@ function exports_reports_menu() {
 
 	$init = false;
 
-	$sql = '
-		SELECT `id`, `role_access`, `name`
-		FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups`
-		WHERE `disabled` = 0
-		ORDER BY `weight`, `name`	
-	';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-	$groups = $wpdb->get_results( $sql );
+	$groups = $wpdb->get_results( "SELECT `id`, `role_access`, `name` FROM {$wpdb->exports_reports_groups} WHERE `disabled` = 0 ORDER BY `weight`, `name`" );
 
 	if ( ! empty( $groups ) ) {
 		foreach ( $groups as $group ) {
-			$sql = '
-				SELECT `id`, `role_access`
-				FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports`
-				WHERE `disabled` = 0 AND `group` = %d
-				ORDER BY `weight`, `name`
-			';
-
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			$sql = $wpdb->prepare( $sql, array( $group->id ) );
-
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-			$reports = $wpdb->get_results( $sql );
+			$reports = $wpdb->get_results( $wpdb->prepare( "SELECT `id`, `role_access` FROM {$wpdb->exports_reports_reports} WHERE `disabled` = 0 AND `group` = %d ORDER BY `weight`, `name`", $group->id ) );
 
 			if ( ! empty( $reports ) ) {
 				foreach ( $reports as $report ) {
@@ -671,7 +677,7 @@ function exports_reports_groups() {
 		'css'          => EXPORTS_REPORTS_URL . 'assets/admin.css',
 		'item'         => 'Report Group',
 		'items'        => 'Report Groups',
-		'table'        => $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups',
+		'table'        => $wpdb->exports_reports_groups,
 		'columns'      => $columns,
 		'form_columns' => $form_columns,
 		'icon'         => EXPORTS_REPORTS_URL . 'assets/icons/32.png',
@@ -697,7 +703,7 @@ function exports_reports_reports() {
 		'group'    => array(
 			'label'   => 'Group',
 			'type'    => 'related',
-			'related' => $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups',
+			'related' => $wpdb->exports_reports_groups,
 		),
 		'disabled' => array(
 			'label' => 'Disabled',
@@ -787,7 +793,7 @@ function exports_reports_reports() {
 		'css'           => EXPORTS_REPORTS_URL . 'assets/admin.css',
 		'item'          => 'Report',
 		'items'         => 'Reports',
-		'table'         => $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports',
+		'table'         => $wpdb->exports_reports_reports,
 		'columns'       => $columns,
 		'form_columns'  => $form_columns,
 		'icon'          => EXPORTS_REPORTS_URL . 'assets/icons/32.png',
@@ -931,10 +937,12 @@ function exports_reports_report_field_row( $index, $field, $types ) {
  *
  * @return string JSON: the list of fields, empty when none was posted.
  */
-// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- the custom_save callback signature.
 function exports_reports_report_field_save( $value, $column, $attributes, $obj ) {
-	// Exports_Reports_Admin_UI::save() verifies the form nonce before it calls this custom_save callback, and has unslashed the request.
-	// phpcs:disable WordPress.Security.NonceVerification.Missing
+	// Exports_Reports_Admin_UI::save() verified the form nonce before calling this custom_save callback; checked again so the function stands on its own.
+	if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $obj->do ) ) {
+		return $value;
+	}
+
 	$value = array();
 
 	if ( empty( $_POST['field_name'] ) || ! is_array( $_POST['field_name'] ) ) {
@@ -985,12 +993,11 @@ function exports_reports_report_field_save( $value, $column, $attributes, $obj )
 		$field['type']        = in_array( $type, $types, true ) ? $type : 'text';
 		$field['total_field'] = '';
 		// A query fragment written by the administrator; stored as typed, like the report's own queries.
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- a SQL fragment the administrator wrote for the lookup, kept as written; the report's own query is stored the same way.
 		$field['related_sql'] = isset( $_POST['field_related_sql'][ $key ] ) ? trim( (string) wp_unslash( $_POST['field_related_sql'][ $key ] ) ) : '';
 
 		$value[] = $field;
 	}
-	// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 	return wp_json_encode( $value );
 }
@@ -1046,10 +1053,7 @@ function exports_reports_field_defaults( $field = null ) {
 function exports_reports_get_report( $report_id ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
-	$report = $wpdb->get_row( $wpdb->prepare( $sql, absint( $report_id ) ) );
+	$report = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->exports_reports_reports} WHERE `id` = %d AND `disabled` = 0 LIMIT 1", absint( $report_id ) ) );
 
 	return empty( $report ) ? null : $report;
 }
@@ -1065,10 +1069,7 @@ function exports_reports_get_report( $report_id ) {
 function exports_reports_get_group( $group_id ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	$sql = 'SELECT * FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups` WHERE `id` = %d AND `disabled` = 0 LIMIT 1';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
-	$group = $wpdb->get_row( $wpdb->prepare( $sql, absint( $group_id ) ) );
+	$group = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->exports_reports_groups} WHERE `id` = %d AND `disabled` = 0 LIMIT 1", absint( $group_id ) ) );
 
 	return empty( $group ) ? null : $group;
 }
@@ -1250,8 +1251,9 @@ function exports_reports_report_options( $report ) {
  * @return bool False when there is nothing to show.
  */
 function exports_reports_view( $group_id = false, $has_full_access = null ) {
-	// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- the admin page slug and the chosen report; nothing is written from them.
-	$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+	/** @var string|null $plugin_page The admin page slug, as the admin sets it. */ global $plugin_page;
+
+	$page = isset( $plugin_page ) ? sanitize_key( (string) $plugin_page ) : '';
 
 	if ( '' === $page ) {
 		return false;
@@ -1274,19 +1276,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 			$group_id = (int) str_replace( 'exports-reports-group-', '', $page );
 		}
 
-		$sql = '
-			SELECT `id`, `role_access`
-			FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups`
-			WHERE `disabled` = 0 AND `id` = %d
-			ORDER BY `weight`, `name`
-			LIMIT 1
-		';
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = $wpdb->prepare( $sql, array( $group_id ) );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
-		$group = $wpdb->get_row( $sql );
+		$group = $wpdb->get_row( $wpdb->prepare( "SELECT `id`, `role_access` FROM {$wpdb->exports_reports_groups} WHERE `disabled` = 0 AND `id` = %d ORDER BY `weight`, `name` LIMIT 1", $group_id ) );
 
 		if ( empty( $group ) ) {
 			return false;
@@ -1296,30 +1286,11 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		$group_id    = 0;
 		$group_roles = array();
 
-		$sql = '
-			SELECT `id`, `role_access`
-			FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'groups`
-			WHERE `disabled` = 0
-			ORDER BY `weight`, `name`
-		';
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
-		$groups = $wpdb->get_results( $sql );
+		$groups = $wpdb->get_results( "SELECT `id`, `role_access` FROM {$wpdb->exports_reports_groups} WHERE `disabled` = 0 ORDER BY `weight`, `name`" );
 
 		if ( ! empty( $groups ) ) {
 			foreach ( $groups as $group ) {
-				$sql = '
-					SELECT `id`, `role_access`
-					FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports`
-					WHERE `disabled` = 0 AND `group` = %d
-					ORDER BY `weight`, `name`
-				';
-
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				$sql = $wpdb->prepare( $sql, array( $group->id ) );
-
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
-				$reports = $wpdb->get_results( $sql );
+				$reports = $wpdb->get_results( $wpdb->prepare( "SELECT `id`, `role_access` FROM {$wpdb->exports_reports_reports} WHERE `disabled` = 0 AND `group` = %d ORDER BY `weight`, `name`", $group->id ) );
 
 				if ( ! empty( $reports ) ) {
 					foreach ( $reports as $report ) {
@@ -1354,18 +1325,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 		return false;
 	}
 
-	$sql = '
-		SELECT *
-		FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'reports`
-		WHERE `disabled` = 0 AND `group` = %d
-		ORDER BY `weight`, `name`
-	';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-	$sql = $wpdb->prepare( $sql, array( $group_id ) );
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-	$reports = $wpdb->get_results( $sql );
+	$reports = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->exports_reports_reports} WHERE `disabled` = 0 AND `group` = %d ORDER BY `weight`, `name`", $group_id ) );
 
 	if ( empty( $reports ) ) {
 		return false;
@@ -1563,10 +1523,7 @@ function exports_reports_user_can_download_export( $filename ) {
 		return false;
 	}
 
-	$sql = 'SELECT `report_id` FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table.
-	$report_id = $wpdb->get_var( $wpdb->prepare( $sql, $filename ) );
+	$report_id = $wpdb->get_var( $wpdb->prepare( "SELECT `report_id` FROM {$wpdb->exports_reports_log} WHERE `filename` = %s ORDER BY `id` DESC LIMIT 1", $filename ) );
 
 	if ( null === $report_id ) {
 		return false;
@@ -1590,7 +1547,7 @@ function exports_reports_log( $args, $obj ) {
 	$filename = $args[1];
 
 	$wpdb->insert(
-		$wpdb->prefix . EXPORTS_REPORTS_TBL . 'log',
+		$wpdb->exports_reports_log,
 		array(
 			'report_id' => $obj[0]->report_id,
 			'filename'  => $filename,
@@ -1616,22 +1573,7 @@ function exports_reports_delete_log( $args, $obj ) {
 	$filename = $args[1];
 
 	if ( false !== $args[2] ) {
-		$sql = '
-			DELETE FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log`
-			WHERE `report_id` = %d AND `filename` = %s
-		';
-
-		$sql = $wpdb->prepare(
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the plugin's own table.
-			$sql,
-			array(
-				$obj[0]->report_id,
-				$filename,
-			)
-		);
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
-		$wpdb->query( $sql );
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->exports_reports_log} WHERE `report_id` = %d AND `filename` = %s", $obj[0]->report_id, $filename ) );
 	}
 }
 
@@ -1758,24 +1700,13 @@ function exports_reports_cleanup( $full = false ) {
 	/** @var wpdb $wpdb */ global $wpdb;
 
 	if ( $full ) {
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$wpdb->query( 'TRUNCATE ' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log' );
+		$wpdb->query( "TRUNCATE {$wpdb->exports_reports_log}" );
 
 		exports_reports_delete_dir_files( EXPORTS_REPORTS_EXPORT_DIR );
 	} else {
 		$purge_age = 1; // day(s) in age to purge
 
-		$sql = '
-			SELECT *
-			FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log`
-			WHERE `created` < DATE_ADD( NOW(), INTERVAL -%d DAY )
-		';
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = $wpdb->prepare( $sql, array( $purge_age ) );
-
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
-		$cleanup = $wpdb->get_results( $sql );
+		$cleanup = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->exports_reports_log} WHERE `created` < DATE_ADD( NOW(), INTERVAL -%d DAY )", $purge_age ) );
 
 		if ( ! empty( $cleanup ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -1791,16 +1722,7 @@ function exports_reports_cleanup( $full = false ) {
 					$wp_filesystem->delete( $file );
 				}
 
-				$sql = '
-					DELETE FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log`
-					WHERE `id` = %d
-				';
-
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				$sql = $wpdb->prepare( $sql, array( $export->id ) );
-
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, prepared above.
-				$wpdb->query( $sql );
+				$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->exports_reports_log} WHERE `id` = %d", $export->id ) );
 			}
 
 			return true;
