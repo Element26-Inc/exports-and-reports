@@ -13,13 +13,15 @@ code is non-zero when a case fails) and removes the table and the files it wrote
   `exports_reports_get_data_sql` filter, the count query through `exports_reports_get_data_sql_count`, and
   a query the callback declines (nothing runs, no export is written).
 - Delimited exports: CSV and TSV streamed from an unbuffered result and buffered byte for byte the
-  same, every value quoted, the byte order mark first, formula-like text neutralised unless
+  same, with and without a search term (over a column expression containing `%d`), every value
+  quoted, the byte order mark first, formula-like text neutralised unless
   `exports_reports_export_escape_formulas` says otherwise; streaming only with plain columns, a custom
   display column through the buffered path.
 - Writers: XLSX, XML and JSON exports checked for their labels and rows; a two-page PDF with each
   engine the PHP version allows (tc-lib-pdf on 8.2 and later, TCPDF below), the producer string
   telling them apart, and the default engine following the PHP version.
-- Export files, in the uploads directory: ASCII file names for a report named outside ASCII; the export directory carries
+- Export files, in the uploads directory: the files the site logged move over from `wp-content/exports` on
+  upgrade and other files stay, the old directory going once empty; ASCII file names for a report named outside ASCII; the export directory carries
   `.htaccess` and `index.php`; downloads go through the plugin after the link nonce, or the log
   row and the report access rules, and refuse anything else; `.txt` exports are served; clearing
   the directory removes export files only; the daily cleanup has a handler, deactivation clears
@@ -35,7 +37,7 @@ code is non-zero when a case fails) and removes the table and the files it wrote
   in order, unslashed and sanitised; `save()`, `reorder()` and the settings form carrying and
   verifying their nonces; an empty token saved from the settings page turning token access off;
   request values unslashed and sanitised on the way in; a search term's LIKE wildcards escaped; a sort
-  column the request names kept only when the report has it.
+  column the request names kept only when the report has it, matched whatever its case.
 - Uninstall: tables, options, the cleanup event and export files removed.
 
 Locally, on any WordPress with the plugin active:

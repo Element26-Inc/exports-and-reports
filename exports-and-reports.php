@@ -69,12 +69,10 @@ register_deactivation_hook( __FILE__, 'exports_reports_deactivate' );
 
 add_action( 'admin_init', 'exports_reports_init' );
 add_action( 'admin_init', 'exports_reports_ensure_cleanup_scheduled' );
-add_action( 'admin_init', 'exports_reports_move_legacy_export_dir' );
 add_action( 'admin_menu', 'exports_reports_menu' );
 add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_' . EXPORTS_REPORTS_EXPORT_ACTION, 'exports_reports_export_download' );
-add_action( 'wp_ajax_wp_admin_ui_export', 'exports_reports_export_download' ); // The action name before 0.9.5.
 add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
 add_filter( 'user_has_cap', 'exports_reports_user_has_cap', 10, 4 );
 
@@ -1591,13 +1589,17 @@ function exports_reports_schedule_cleanup() {
 }
 
 /**
- * Moves export files from the directory the plugin used before 0.9.5, wp-content/exports, into the current
- * one, when the two differ and the old one is still there. The log keeps file names only, so downloads
- * follow the move. Runs on upgrade and, in case the old directory turns up again, on admin requests.
+ * Moves this site's export files from the directory the plugin used before 0.9.5, wp-content/exports, into
+ * the current one, when the two differ and the old one is still there: the files the site's export log
+ * names, so on a network each site takes its own. The log keeps file names only, so downloads follow the
+ * move. The protection files the plugin wrote there, and the directory, go once nothing else is left.
+ * Runs on upgrade.
  *
  * @since 0.9.5
  */
 function exports_reports_move_legacy_export_dir() {
+	global $wpdb;
+
 	$legacy = WP_CONTENT_DIR . '/exports';
 
 	if ( EXPORTS_REPORTS_EXPORT_DIR === $legacy || ! is_dir( $legacy ) ) {
@@ -1619,23 +1621,28 @@ function exports_reports_move_legacy_export_dir() {
 	require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
 	Exports_Reports_Admin_UI::protect_export_dir();
 
-	$left = array();
+	$logged     = array_map( 'strval', (array) $wpdb->get_col( "SELECT `filename` FROM {$wpdb->exports_reports_log}" ) );
+	$protection = array();
+	$left       = array();
 
 	foreach ( (array) $wp_filesystem->dirlist( $legacy, true ) as $file ) {
 		$path     = $legacy . '/' . $file['name'];
 		$contents = 'f' === $file['type'] && in_array( $file['name'], array( '.htaccess', 'index.php' ), true ) ? (string) $wp_filesystem->get_contents( $path ) : '';
 
-		if ( 'f' === $file['type'] && exports_reports_is_export_file( $file['name'] ) ) {
+		if ( 'f' === $file['type'] && in_array( $file['name'], $logged, true ) && exports_reports_is_export_file( $file['name'] ) ) {
 			$wp_filesystem->move( $path, EXPORTS_REPORTS_EXPORT_DIR . '/' . $file['name'], true );
 		} elseif ( false !== strpos( $contents, 'Exports and Reports' ) || false !== strpos( $contents, 'Silence is golden' ) ) {
-			// The protection files the plugin wrote there.
-			$wp_filesystem->delete( $path );
+			$protection[] = $path;
 		} else {
 			$left[] = $file['name'];
 		}
 	}
 
 	if ( array() === $left ) {
+		foreach ( $protection as $path ) {
+			$wp_filesystem->delete( $path );
+		}
+
 		$wp_filesystem->rmdir( $legacy );
 	}
 }

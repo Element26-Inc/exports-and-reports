@@ -35,8 +35,8 @@ function exports_reports_uninstall_site() {
 }
 
 /**
- * Deletes the export files, in the configured directory (the uploads folder by default) and in the one the
- * plugin used before 0.9.5, and each directory when nothing else is left in it.
+ * Deletes the current site's export files, in the configured directory (the site's uploads folder by default)
+ * and in the one the plugin used before 0.9.5, and each directory when nothing else is left in it.
  */
 function exports_reports_uninstall_exports() {
 	$directories = array( WP_CONTENT_DIR . '/exports' );
@@ -103,10 +103,10 @@ if ( is_multisite() ) {
 	foreach ( $exports_reports_sites as $exports_reports_site_id ) {
 		switch_to_blog( $exports_reports_site_id );
 		exports_reports_uninstall_site();
+		exports_reports_uninstall_exports();
 		restore_current_blog();
 	}
 } else {
 	exports_reports_uninstall_site();
+	exports_reports_uninstall_exports();
 }
-
-exports_reports_uninstall_exports();
