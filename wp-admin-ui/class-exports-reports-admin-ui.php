@@ -132,6 +132,16 @@ class Exports_Reports_Admin_UI {
 		$this->base_url   = plugins_url( 'class-exports-reports-admin-ui.php', __FILE__ );
 		$this->export_url = admin_url( 'admin-ajax.php' ) . '?action=' . EXPORTS_REPORTS_EXPORT_ACTION . '&exports_and_reports_download=1&_wpnonce=' . wp_create_nonce( EXPORTS_REPORTS_EXPORT_NONCE ) . '&exports_and_reports_export=';
 		$this->assets_url = str_replace( '/class-exports-reports-admin-ui.php', '', $this->base_url ) . '/assets';
+		$this->item       = __( 'Item', 'exports-and-reports' );
+		$this->items      = __( 'Items', 'exports-and-reports' );
+		$this->heading    = array(
+			'manage'    => __( 'Manage', 'exports-and-reports' ),
+			'add'       => __( 'Add New', 'exports-and-reports' ),
+			'edit'      => __( 'Edit', 'exports-and-reports' ),
+			'duplicate' => __( 'Duplicate', 'exports-and-reports' ),
+			'view'      => __( 'View', 'exports-and-reports' ),
+			'reorder'   => __( 'Reorder', 'exports-and-reports' ),
+		);
 		// The options first: what the request names below (the action, the page, the sort column) stands above them.
 		if ( false !== $options && ! empty( $options ) ) {
 			if ( ! is_array( $options ) ) {
@@ -506,7 +516,13 @@ class Exports_Reports_Admin_UI {
 		$download = $this->export_url . rawurlencode( $export_file );
 
 		$this->message(
-			'<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it doesn\'t, <a href="' . esc_url( $download ) . '" target="_blank">click here to download your ' . esc_html( strtoupper( $format ) ) . ' export file</a>.<br /><br />When you are done with your export, <a href="' . esc_url( $this->export_link( array( 'remove_export' => $export_file ) ) ) . '">click here to remove it</a>, otherwise the export will be deleted within 24 hours of generation.'
+			sprintf(
+				/* translators: 1: a link to the export file, 2: a link that removes it. */
+				__( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it does not, %1$s.<br /><br />When you are done with your export, %2$s; otherwise the export will be deleted within 24 hours of generation.', 'exports-and-reports' ),
+				/* translators: %s: the export format (CSV, PDF, ...). */
+				'<a href="' . esc_url( $download ) . '" target="_blank">' . esc_html( sprintf( __( 'click here to download your %s export file', 'exports-and-reports' ), strtoupper( $format ) ) ) . '</a>',
+				'<a href="' . esc_url( $this->export_link( array( 'remove_export' => $export_file ) ) ) . '">' . esc_html__( 'click here to remove it', 'exports-and-reports' ) . '</a>'
+			)
 		);
 		wp_print_inline_script_tag( 'window.open( ' . wp_json_encode( $download ) . ' );' );
 	}
@@ -1066,10 +1082,10 @@ class Exports_Reports_Admin_UI {
 			}
 		} elseif ( 'reorder' === $this->action && $this->reorder ) {
 			if ( false === $this->table ) {
-				return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+				return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 			}
 			if ( false === $this->identifier ) {
-				return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "identifier" definition.' );
+				return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "identifier" definition.', 'exports-and-reports' ) );
 			}
 			if ( 'save' === $this->do ) {
 				$this->reorder();
@@ -1102,7 +1118,7 @@ class Exports_Reports_Admin_UI {
 				<?php
 				if ( false !== $this->icon ) {
 					?>
-					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
+					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $this->heading['add'] ); ?> <?php echo esc_html( $this->item ); ?>
 				<small>(<a href="
@@ -1116,7 +1132,7 @@ class Exports_Reports_Admin_UI {
 						)
 					);
 				?>
-									">&laquo; Back to Manage</a>) </small>
+									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
 			</h2>
 			<?php $this->form( 1 ); ?>
 		</div>
@@ -1137,7 +1153,7 @@ class Exports_Reports_Admin_UI {
 				<?php
 				if ( false !== $this->icon ) {
 					?>
-					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
+					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $duplicate ? $this->heading['duplicate'] : $this->heading['edit'] ); ?> <?php echo esc_html( $this->item ); ?>
 				<small>(<a href="
@@ -1151,7 +1167,7 @@ class Exports_Reports_Admin_UI {
 						)
 					);
 				?>
-									">&laquo; Back to Manage</a>) </small>
+									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
 			</h2>
 			<?php $this->form( 0, $duplicate ); ?>
 		</div>
@@ -1164,7 +1180,7 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['form'], $this, $create );
 		}
 		if ( false === $this->table && false === $this->sql ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 		global $wpdb;
 		if ( empty( $this->form_columns ) ) {
@@ -1182,7 +1198,8 @@ class Exports_Reports_Admin_UI {
 				$this->get_row();
 			}
 			if ( empty( $this->row ) ) {
-				return $this->error( "<strong>Error:</strong> $this->item not found." );
+				/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+				return $this->error( sprintf( __( '<strong>Error:</strong> %s not found.', 'exports-and-reports' ), $this->item ) );
 			}
 			if ( 0 === $duplicate ) {
 				$submit = 'Save Changes';
@@ -1325,14 +1342,15 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['view'], $this );
 		}
 		if ( false === $this->table && false === $this->sql ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 		global $wpdb;
 		if ( empty( $this->row ) ) {
 			$this->get_row();
 		}
 		if ( empty( $this->row ) ) {
-			return $this->error( "<strong>Error:</strong> $this->item not found." );
+			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+				return $this->error( sprintf( __( '<strong>Error:</strong> %s not found.', 'exports-and-reports' ), $this->item ) );
 		}
 		?>
 		<div class="wrap wp-admin-ui-wrap">
@@ -1340,7 +1358,7 @@ class Exports_Reports_Admin_UI {
 				<?php
 				if ( false !== $this->icon ) {
 					?>
-					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
+					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( $this->heading['view'] ); ?> <?php echo esc_html( $this->item ); ?>
 				<small>(<a href="
@@ -1354,7 +1372,7 @@ class Exports_Reports_Admin_UI {
 						)
 					);
 				?>
-									">&laquo; Back to Manage</a>) </small>
+									">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>) </small>
 			</h2>
 			<table class="form-table">
 				<?php
@@ -1391,7 +1409,7 @@ class Exports_Reports_Admin_UI {
 					} elseif ( 'datetime' === $attributes['type'] ) {
 						$this->row[ $column ] = date_i18n( 'Y/m/d g:i:s A', strtotime( $this->row[ $column ] ) );
 					} elseif ( 'bool' === $attributes['type'] ) {
-						$this->row[ $column ] = ( 1 === (int) $this->row[ $column ] ? 'Yes' : 'No' );
+						$this->row[ $column ] = ( 1 === (int) $this->row[ $column ] ? __( 'Yes', 'exports-and-reports' ) : __( 'No', 'exports-and-reports' ) );
 					} elseif ( 'number' === $attributes['type'] ) {
 						$this->row[ $column ] = (int) ( $this->row[ $column ] );
 					} elseif ( 'decimal' === $attributes['type'] ) {
@@ -1446,10 +1464,10 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['delete'], $this );
 		}
 		if ( false === $this->table && false === $this->sql ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 		if ( false === $this->id && false === $id ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "id" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "id" definition.', 'exports-and-reports' ) );
 		}
 		if ( false === $id ) {
 			$id = $this->id;
@@ -1457,16 +1475,18 @@ class Exports_Reports_Admin_UI {
 		global $wpdb;
 		$check = $this->execute( "DELETE FROM $this->table WHERE `id` = " . (int) $id );
 		if ( $check ) {
-			$this->message( "<strong>Deleted:</strong> $this->item has been deleted." );
+			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+			$this->message( sprintf( __( '<strong>Deleted:</strong> %s has been deleted.', 'exports-and-reports' ), $this->item ) );
 		} else {
-			$this->error( "<strong>Error:</strong> $this->item has not been deleted." );
+			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+			$this->error( sprintf( __( '<strong>Error:</strong> %s has not been deleted.', 'exports-and-reports' ), $this->item ) );
 		}
 		$this->do_hook( 'post_delete', $id );
 	}
 
 	public function save( $create = 0 ) {
 		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-form-' . $this->do ) ) {
-			return $this->error( '<strong>Error:</strong> The form has expired; reload the page and try again.' );
+			return $this->error( __( '<strong>Error:</strong> The form has expired; reload the page and try again.', 'exports-and-reports' ) );
 		}
 		$this->do_hook( 'pre_save', $create );
 		if ( isset( $this->custom['save'] ) && function_exists( "{$this->custom['save']}" ) ) {
@@ -1559,16 +1579,26 @@ class Exports_Reports_Admin_UI {
 			if ( 0 === $this->insert_id ) {
 				$this->insert_id = $wpdb->insert_id;
 			}
-			$this->message( '<strong>Success!</strong> ' . $this->item . ' ' . $action . ' successfully.' );
+			if ( 'created' === $action ) {
+				/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+				$this->message( sprintf( __( '<strong>Success!</strong> %s created successfully.', 'exports-and-reports' ), $this->item ) );
+			} else {
+				/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+				$this->message( sprintf( __( '<strong>Success!</strong> %s saved successfully.', 'exports-and-reports' ), $this->item ) );
+			}
+		} elseif ( 'created' === $action ) {
+			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+			$this->error( sprintf( __( '<strong>Error:</strong> %s has not been created.', 'exports-and-reports' ), $this->item ) );
 		} else {
-			$this->error( '<strong>Error:</strong> ' . $this->item . ' has not been ' . $action . '.' );
+			/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+			$this->error( sprintf( __( '<strong>Error:</strong> %s has not been saved.', 'exports-and-reports' ), $this->item ) );
 		}
 		$this->do_hook( 'post_save', $this->insert_id, $data, $create );
 	}
 
 	public function reorder() {
 		if ( ! isset( $_POST['_wpnonce'] ) || false === wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'exports-reports-reorder' ) ) {
-			return $this->error( '<strong>Error:</strong> The order was not saved: the page has expired, reload it and try again.' );
+			return $this->error( __( '<strong>Error:</strong> The order was not saved: the page has expired, reload it and try again.', 'exports-and-reports' ) );
 		}
 		$this->do_hook( 'pre_reorder' );
 		if ( isset( $this->custom['reorder'] ) && function_exists( "{$this->custom['reorder']}" ) ) {
@@ -1576,10 +1606,10 @@ class Exports_Reports_Admin_UI {
 		}
 		global $wpdb;
 		if ( false === $this->table ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 		if ( false === $this->identifier ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "identifier" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "identifier" definition.', 'exports-and-reports' ) );
 		}
 		$order_ids = ( isset( $_POST['order'] ) && is_array( $_POST['order'] ) ) ? array_map( 'absint', wp_unslash( $_POST['order'] ) ) : array();
 		if ( ! empty( $order_ids ) ) {
@@ -1595,9 +1625,9 @@ class Exports_Reports_Admin_UI {
 					array( '%d' )
 				);
 			}
-			$this->message( '<strong>Success!</strong> Order updated successfully.' );
+			$this->message( __( '<strong>Success!</strong> Order updated successfully.', 'exports-and-reports' ) );
 		} else {
-			$this->error( '<strong>Error:</strong> Order has not been updated.' );
+			$this->error( __( '<strong>Error:</strong> Order has not been updated.', 'exports-and-reports' ) );
 		}
 		$this->do_hook( 'post_reorder', $this->insert_id );
 	}
@@ -1663,7 +1693,7 @@ class Exports_Reports_Admin_UI {
 			}
 			$value = implode( ', ', $column_data );
 		} elseif ( 'bool' === $attributes['type'] ) {
-			$value = ( 1 === (int) $value ? 'Yes' : 'No' );
+			$value = ( 1 === (int) $value ? __( 'Yes', 'exports-and-reports' ) : __( 'No', 'exports-and-reports' ) );
 		} elseif ( 'number' === $attributes['type'] ) {
 			$value = number_format( $value, 0 );
 		} elseif ( 'decimal' === $attributes['type'] ) {
@@ -1741,13 +1771,13 @@ class Exports_Reports_Admin_UI {
 		$url         = $url[0];
 		$credentials = request_filesystem_credentials( $url, '', false, ABSPATH );
 		if ( false === $credentials ) {
-			$this->error( '<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site.' );
+			$this->error( __( '<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site.', 'exports-and-reports' ) );
 
 			return false;
 		}
 		if ( ! WP_Filesystem( $credentials, ABSPATH ) ) {
 			request_filesystem_credentials( $url, '', true, ABSPATH ); // The connection failed: ask for the credentials again.
-			$this->error( '<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site.' );
+			$this->error( __( '<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site.', 'exports-and-reports' ) );
 
 			return false;
 		}
@@ -1762,7 +1792,7 @@ class Exports_Reports_Admin_UI {
 		WP_Filesystem();
 
 		if ( ! $this->api && ! $this->verify_export_request() ) {
-			$this->error( '<strong>Error:</strong> The export link has expired. Go back to the report and use its export buttons again.' );
+			$this->error( __( '<strong>Error:</strong> The export link has expired. Go back to the report and use its export buttons again.', 'exports-and-reports' ) );
 
 			return false;
 		}
@@ -1783,13 +1813,15 @@ class Exports_Reports_Admin_UI {
 		$dir = dirname( EXPORTS_REPORTS_EXPORT_DIR );
 		if ( ! file_exists( EXPORTS_REPORTS_EXPORT_DIR ) ) {
 			if ( ! $wp_filesystem->is_writable( $dir ) || ! $wp_filesystem->mkdir( EXPORTS_REPORTS_EXPORT_DIR ) ) {
-				$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) did not exist and couldn&#8217;t be created by the web server. Check the directory permissions and try again.' );
+				/* translators: %s: the export directory. */
+				$this->error( sprintf( __( '<strong>Error:</strong> Your export directory (<strong>%s</strong>) did not exist and could not be created by the web server. Check the directory permissions and try again.', 'exports-and-reports' ), EXPORTS_REPORTS_EXPORT_DIR ) );
 
 				return false;
 			}
 		}
 		if ( ! $wp_filesystem->is_writable( EXPORTS_REPORTS_EXPORT_DIR ) ) {
-			$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
+			/* translators: %s: the export directory. */
+			$this->error( sprintf( __( '<strong>Error:</strong> Your export directory (<strong>%s</strong>) needs to be writable for this plugin to work. Double-check it and try again.', 'exports-and-reports' ), EXPORTS_REPORTS_EXPORT_DIR ) );
 
 			return false;
 		}
@@ -1799,7 +1831,7 @@ class Exports_Reports_Admin_UI {
 			$remove_export_path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $remove_export;
 
 			if ( ! self::is_export_file_name( $remove_export ) ) {
-				$this->error( '<strong>Error:</strong> That is not an export file.' );
+				$this->error( __( '<strong>Error:</strong> That is not an export file.', 'exports-and-reports' ) );
 
 				return false;
 			}
@@ -1810,17 +1842,18 @@ class Exports_Reports_Admin_UI {
 				$remove = $wp_filesystem->delete( $remove_export_path );
 				if ( $remove ) {
 					$this->do_hook( 'post_remove_export', $remove_export, true, $remove_export_path );
-					$this->message( '<strong>Success:</strong> Export removed successfully.' );
+					$this->message( __( '<strong>Success:</strong> Export removed successfully.', 'exports-and-reports' ) );
 
 					return;
 				} else {
 					$this->do_hook( 'post_remove_export', $remove_export, false, $remove_export_path );
-					$this->error( '<strong>Error:</strong> Your export directory (<strong>' . EXPORTS_REPORTS_EXPORT_DIR . '</strong>) needs to be writable for this plugin to work. Double-check it and try again.' );
+					/* translators: %s: the export directory. */
+					$this->error( sprintf( __( '<strong>Error:</strong> Your export directory (<strong>%s</strong>) needs to be writable for this plugin to work. Double-check it and try again.', 'exports-and-reports' ), EXPORTS_REPORTS_EXPORT_DIR ) );
 
 					return false;
 				}
 			} else {
-				$this->error( '<strong>Error:</strong> That file does not exist in the export directory.' );
+				$this->error( __( '<strong>Error:</strong> That file does not exist in the export directory.', 'exports-and-reports' ) );
 
 				return false;
 			}
@@ -1926,7 +1959,7 @@ class Exports_Reports_Admin_UI {
 
 			$this->export_ready( $export_file, $this->export_type );
 		} else {
-			$this->error( '<strong>Error:</strong> Invalid export type.' );
+			$this->error( __( '<strong>Error:</strong> Invalid export type.', 'exports-and-reports' ) );
 
 			return false;
 		}
@@ -2077,7 +2110,7 @@ class Exports_Reports_Admin_UI {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 				fclose( $fp );
 				wp_delete_file( $export_file_location );
-				$this->error( '<strong>Error:</strong> ' . esc_html( $wpdb->last_error ) );
+				$this->error( '<strong>' . esc_html__( 'Error:', 'exports-and-reports' ) . '</strong> ' . esc_html( $wpdb->last_error ) );
 
 				return false;
 			}
@@ -2144,7 +2177,7 @@ class Exports_Reports_Admin_UI {
 				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 				fclose( $fp );
 				wp_delete_file( $export_file_location );
-				$this->error( '<strong>Error:</strong> ' . esc_html( $stream_error ) );
+				$this->error( '<strong>' . esc_html__( 'Error:', 'exports-and-reports' ) . '</strong> ' . esc_html( $stream_error ) );
 
 				return false;
 			}
@@ -2263,10 +2296,10 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['row'], $this );
 		}
 		if ( false === $this->table && false === $this->sql ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 		if ( false === $this->id && false === $id ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "id" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "id" definition.', 'exports-and-reports' ) );
 		}
 		if ( false === $id ) {
 			$id = $this->id;
@@ -2290,7 +2323,7 @@ class Exports_Reports_Admin_UI {
 			return call_user_func( $this->custom['data'], $this );
 		}
 		if ( false === $this->table && false === $this->sql ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "table" definition.', 'exports-and-reports' ) );
 		}
 
 		/** @global wpdb $wpdb */ global $wpdb;
@@ -2744,7 +2777,7 @@ class Exports_Reports_Admin_UI {
 				<?php
 				if ( false !== $this->icon ) {
 					?>
-					style="background-position:0 0;background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
+					style="background-image:url(<?php echo esc_url( $this->icon ); ?>);"<?php } ?>>
 				<br /></div>
 			<h2><?php echo esc_html( 0 === $reorder || false === $this->reorder ? $this->heading['manage'] : $this->heading['reorder'] ); ?> <?php echo esc_html( $this->items ); ?>
 				<?php if ( 1 === $reorder && false !== $this->reorder ) { ?>
@@ -2759,7 +2792,7 @@ class Exports_Reports_Admin_UI {
 						)
 					);
 					?>
-										">&laquo; Back to Manage</a>)</small><?php } ?></h2>
+										">&laquo; <?php esc_html_e( 'Back to Manage', 'exports-and-reports' ); ?></a>)</small><?php } ?></h2>
 			<?php
 			if ( isset( $this->custom['header'] ) && function_exists( "{$this->custom['header']}" ) ) {
 				echo wp_kses( (string) call_user_func( $this->custom['header'], $this ), $this->allowed_html() );
@@ -2816,7 +2849,7 @@ class Exports_Reports_Admin_UI {
 									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
 									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
+									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" class="admin_ui_filter_multiple" multiple' : '' ); ?>>
 										<option value="">-- Show All --</option>
 										<?php
 										foreach ( $related as $option ) {
@@ -2832,7 +2865,7 @@ class Exports_Reports_Admin_UI {
 									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
 									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
-									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" style="height:auto;" MULTIPLE' : '' ); ?>>
+									<select name="filter_<?php echo esc_attr( $filter ); ?><?php echo( false !== $filter_column['related_multiple'] ? '[]' : '' ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"<?php echo( false !== $filter_column['related_multiple'] ? ' size="10" class="admin_ui_filter_multiple" multiple' : '' ); ?>>
 										<option value="">-- Show All --</option>
 										<?php
 										foreach ( $related as $option_id => $option ) {
@@ -2850,9 +2883,9 @@ class Exports_Reports_Admin_UI {
 								?>
 								<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>
 								<select name="filter_<?php echo esc_attr( $filter ); ?>" id="admin_ui_filter_<?php echo esc_attr( $filter ); ?>">
-									<option value="">-- Show All --</option>
-									<option value="1"<?php selected( '1', $selected ); ?>>Yes</option>
-									<option value="0"<?php selected( '0', $selected ); ?>>No</option>
+									<option value=""><?php esc_html_e( '-- Show All --', 'exports-and-reports' ); ?></option>
+									<option value="1"<?php selected( '1', $selected ); ?>><?php esc_html_e( 'Yes', 'exports-and-reports' ); ?></option>
+									<option value="0"<?php selected( '0', $selected ); ?>><?php esc_html_e( 'No', 'exports-and-reports' ); ?></option>
 								</select>
 								<?php
 							} else {
@@ -2864,9 +2897,9 @@ class Exports_Reports_Admin_UI {
 						}
 						?>
 						&nbsp;&nbsp;
-						<label<?php echo( empty( $this->filters ) ? ' class="screen-reader-text"' : '' ); ?> for="page-search-input">Search:</label>
+						<label<?php echo( empty( $this->filters ) ? ' class="screen-reader-text"' : '' ); ?> for="page-search-input"><?php esc_html_e( 'Search:', 'exports-and-reports' ); ?></label>
 						<input type="text" name="search_query" id="page-search-input" value="<?php echo esc_attr( $this->search_query ); ?>" />
-						<input type="submit" value="Search" class="button" />
+						<input type="submit" value="<?php esc_attr_e( 'Search', 'exports-and-reports' ); ?>" class="button" />
 						<?php
 						if ( false !== $this->search_query ) {
 							$clear_filters = array();
@@ -2890,7 +2923,7 @@ class Exports_Reports_Admin_UI {
 									)
 								);
 							?>
-												">Reset Filters</a>] </small>
+												"><?php esc_html_e( 'Reset Filters', 'exports-and-reports' ); ?></a>] </small>
 							<?php
 						}
 						?>
@@ -2909,25 +2942,30 @@ class Exports_Reports_Admin_UI {
 				if ( ! empty( $this->data ) && false !== $this->pagination ) {
 					?>
 					<div class="tablenav-pages">
-						Show per page:<?php $this->limit(); ?> &nbsp;|&nbsp;
+						<?php esc_html_e( 'Show per page:', 'exports-and-reports' ); ?><?php $this->limit(); ?> &nbsp;|&nbsp;
 						<?php $this->pagination( true ); ?>
 					</div>
 					<?php
 				}
 				if ( 1 === $reorder ) {
 					?>
-					<button type="submit" form="exports-reports-reorder" class="button">Update Order</button>
-					<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>">Cancel</a>
+					<button type="submit" form="exports-reports-reorder" class="button"><?php esc_html_e( 'Update Order', 'exports-and-reports' ); ?></button>
+					<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'manage' ) ) ); ?>"><?php esc_html_e( 'Cancel', 'exports-and-reports' ); ?></a>
 					<?php
 				} elseif ( $this->add || $this->export ) {
 					?>
 					<div class="alignleft actions">
 						<?php if ( $this->add ) { ?>
-							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>">Add New <?php echo esc_html( $this->item ); ?></a>
+							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'add' ) ) ); ?>">
+								<?php
+								/* translators: %s: the item's name, as the screen calls it (Report, Report Group). */
+								echo esc_html( sprintf( __( 'Add New %s', 'exports-and-reports' ), $this->item ) );
+								?>
+							</a>
 						<?php } ?>
 
 						<?php if ( $this->reorder ) { ?>
-							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>">Reorder</a>
+							<a class="button" href="<?php echo esc_url( $this->var_update( array( 'action' => 'reorder' ) ) ); ?>"><?php esc_html_e( 'Reorder', 'exports-and-reports' ); ?></a>
 						<?php } ?>
 
 						<?php if ( $this->export && ! empty( $this->data ) ) { ?>
@@ -2946,7 +2984,7 @@ class Exports_Reports_Admin_UI {
 								$export_format_links[ $export_format_text ] = $this->export_link( array( 'export_type' => $export_format_type ) );
 							}
 							?>
-							<strong>Export:</strong>
+							<strong><?php esc_html_e( 'Export:', 'exports-and-reports' ); ?></strong>
 							<?php foreach ( $export_format_links as $export_format_text => $export_format_link ) { ?>
 								<a class="button" href="<?php echo esc_url( $export_format_link ); ?>"><?php echo esc_html( $export_format_text ); ?></a>
 							<?php } ?>
@@ -2961,11 +2999,15 @@ class Exports_Reports_Admin_UI {
 			<?php
 			if ( empty( $this->data ) && false !== $this->default_none && false === $this->search_query ) {
 				?>
-				<p>Please use the search filter(s) above to display data
+				<p>
 					<?php
 					if ( $this->export ) {
-						?>
-						, or click on an Export to download a full copy of the data<?php } ?>.</p>
+						esc_html_e( 'Please use the search filter(s) above to display data, or click on an Export to download a full copy of the data.', 'exports-and-reports' );
+					} else {
+						esc_html_e( 'Please use the search filter(s) above to display data.', 'exports-and-reports' );
+					}
+					?>
+				</p>
 			<?php } else { ?>
 				<?php $this->table( $reorder ); ?>
 			<?php } ?>
@@ -2980,8 +3022,8 @@ class Exports_Reports_Admin_UI {
 			<?php } ?>
 
 			<?php if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) { ?>
-				<h3 align="center">Totals</h3>
-				<table class="widefat fixed admin_ui_table" cellspacing="0" style="width:auto;margin:0 auto;">
+				<h3 class="admin_ui_totals_heading"><?php esc_html_e( 'Totals', 'exports-and-reports' ); ?></h3>
+				<table class="widefat fixed admin_ui_table admin_ui_totals" cellspacing="0">
 					<thead>
 					<tr>
 						<?php
@@ -3038,7 +3080,7 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( empty( $this->data ) ) {
 			?>
-			<p>No items found</p>
+			<p><?php esc_html_e( 'No items found', 'exports-and-reports' ); ?></p>
 			<?php
 			return false;
 		}
@@ -3079,7 +3121,7 @@ class Exports_Reports_Admin_UI {
 			$column_index = 'reorder_columns';
 		}
 		if ( false === $this->{$column_index} || empty( $this->{$column_index} ) ) {
-			return $this->error( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.' );
+			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.', 'exports-and-reports' ) );
 		}
 		?>
 			<table class="widefat striped page fixed admin_ui_table wp-list-table" cellspacing="0"<?php echo( 1 === $reorder && $this->reorder ? ' id="admin_ui_reorder"' : '' ); ?>>
@@ -3236,7 +3278,7 @@ class Exports_Reports_Admin_UI {
 														'id'     => $id,
 													)
 												)
-											) . '" title="View this item">View</a></span>';
+											) . '" title="' . esc_attr__( 'View this item', 'exports-and-reports' ) . '">' . esc_html__( 'View', 'exports-and-reports' ) . '</a></span>';
 										}
 										if ( $this->edit ) {
 											$actions['edit'] = '<span class="edit"><a href="' . esc_url(
@@ -3246,7 +3288,7 @@ class Exports_Reports_Admin_UI {
 														'id'     => $id,
 													)
 												)
-											) . '" title="Edit this item">Edit</a></span>';
+											) . '" title="' . esc_attr__( 'Edit this item', 'exports-and-reports' ) . '">' . esc_html__( 'Edit', 'exports-and-reports' ) . '</a></span>';
 										}
 										if ( $this->duplicate ) {
 											$actions['duplicate'] = '<span class="edit"><a href="' . esc_url(
@@ -3256,10 +3298,12 @@ class Exports_Reports_Admin_UI {
 														'id'     => $id,
 													)
 												)
-											) . '" title="Duplicate this item">Duplicate</a></span>';
+											) . '" title="' . esc_attr__( 'Duplicate this item', 'exports-and-reports' ) . '">' . esc_html__( 'Duplicate', 'exports-and-reports' ) . '</a></span>';
 										}
 										if ( $this->delete ) {
-											$actions['delete'] = '<span class="delete"><a class="submitdelete" title="Delete this item" href="' . esc_url(
+											/* translators: %s: the item's title, as the row shows it. */
+											$confirm           = sprintf( __( 'You are about to delete "%s". Cancel to stop, OK to delete.', 'exports-and-reports' ), wp_strip_all_tags( (string) $row[ $column ] ) );
+											$actions['delete'] = '<span class="delete"><a class="submitdelete" title="' . esc_attr__( 'Delete this item', 'exports-and-reports' ) . '" href="' . esc_url(
 												$this->var_update(
 													array(
 														'action'   => 'delete',
@@ -3267,7 +3311,7 @@ class Exports_Reports_Admin_UI {
 														'_wpnonce' => wp_create_nonce( 'exports-reports-delete' ),
 													)
 												)
-											) . '" data-exports-reports-confirm="' . esc_attr( 'You are about to delete "' . wp_strip_all_tags( (string) $row[ $column ] ) . '". Cancel to stop, OK to delete.' ) . '">Delete</a></span>';
+											) . '" data-exports-reports-confirm="' . esc_attr( $confirm ) . '">' . esc_html__( 'Delete', 'exports-and-reports' ) . '</a></span>';
 										}
 										if ( is_array( $this->custom ) ) {
 											foreach ( $this->custom as $custom_action => $custom_data ) {
