@@ -19,7 +19,7 @@ code is non-zero when a case fails) and removes the table and the files it wrote
 - Writers: XLSX, XML and JSON exports checked for their labels and rows; a two-page PDF with each
   engine the PHP version allows (tc-lib-pdf on 8.2 and later, TCPDF below), the producer string
   telling them apart, and the default engine following the PHP version.
-- Export files: ASCII file names for a report named outside ASCII; the export directory carries
+- Export files, in the uploads directory: ASCII file names for a report named outside ASCII; the export directory carries
   `.htaccess` and `index.php`; downloads go through the plugin after the link nonce, or the log
   row and the report access rules, and refuse anything else; `.txt` exports are served; clearing
   the directory removes export files only; the daily cleanup has a handler, deactivation clears
@@ -33,7 +33,8 @@ code is non-zero when a case fails) and removes the table and the files it wrote
 - Request handling: the report field editor rendering the saved fields and saving the posted rows
   in order, unslashed and sanitised; `save()`, `reorder()` and the settings form carrying and
   verifying their nonces; an empty token saved from the settings page turning token access off;
-  request values unslashed and sanitised on the way in.
+  request values unslashed and sanitised on the way in; a search term's LIKE wildcards escaped; a sort
+  column the request names kept only when the report has it.
 - Uninstall: tables, options, the cleanup event and export files removed.
 
 Locally, on any WordPress with the plugin active:
