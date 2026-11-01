@@ -2289,17 +2289,26 @@ class Exports_Reports_Admin_UI {
 		$having_sql        = array();
 		$replace_variables = array();
 		$selects           = array();
-		if ( isset( $selectmatches[1] ) && ! empty( $selectmatches[1] ) && stripos( $selectmatches[1], ' AS ' ) !== false ) {
+		// The columns the SELECT list names, for the sort check: its aliases and its bare column names. A list
+		// with a * or an unaliased expression names fewer columns than the result has, so it settles nothing.
+		$select_names = array();
+		$select_known = isset( $selectmatches[1] ) && '' !== trim( $selectmatches[1] );
+		if ( $select_known ) {
 			$theselects = explode( ', ', $selectmatches[1] );
 			if ( 1 === count( $theselects ) ) {
 				$theselects = explode( ',', $selectmatches[1] );
 			}
 			foreach ( $theselects as $selected ) {
-				$selectfield = explode( ' AS ', $selected );
+				$selectfield = preg_split( '/ AS /i', $selected );
 				if ( count( $selectfield ) === 2 ) {
 					$field             = trim( trim( $selectfield[1] ), '`' );
 					$real_field        = trim( trim( $selectfield[0] ), '`' );
 					$selects[ $field ] = $real_field;
+					$select_names[]    = $field;
+				} elseif ( preg_match( '/^`?(?:[a-z0-9_]+`?\.`?)?([a-z0-9_]+)`?$/i', trim( $selected ), $bare ) ) {
+					$select_names[] = $bare[1];
+				} else {
+					$select_known = false;
 				}
 			}
 		}
@@ -2477,13 +2486,16 @@ class Exports_Reports_Admin_UI {
 			$wheresql  = $this->clause_sql( $sql, 'WHERE', $other_sql );
 			$havingsql = $this->clause_sql( $sql, 'HAVING', $having_sql );
 		}
-		if ( $this->order_from_request && ! in_array( $this->order, $this->column_names(), true ) && ! isset( $selects[ $this->order ] ) ) {
-			// The request named a column the report does not have: the report's own order applies.
-			$this->order     = $this->order_default;
-			$this->order_dir = $this->order_dir_default;
+		if ( $this->order_from_request && ( ! empty( $this->columns ) || $select_known ) && ! in_array( $this->order, array_merge( $this->column_names(), $select_names ), true ) ) {
+			// The request named a column the report does not have: the report's own order applies. A report whose
+			// columns are not known before it runs (no field definitions, a SELECT list that names fewer columns
+			// than its result) takes the name as the identifier it was sanitized to; the database checks it.
+			$this->order              = $this->order_default;
+			$this->order_dir          = $this->order_dir_default;
+			$this->order_from_request = false;
 		}
 		if ( false !== $this->order && ( false === $this->reorder || 'reorder' !== $this->action ) ) {
-			$ordersql = trim( $this->order . ' ' . $this->order_dir );
+			$ordersql = trim( ( $this->order_from_request ? $this->backtick( $this->order ) : $this->order ) . ' ' . $this->order_dir );
 		} elseif ( false !== $this->reorder && 'reorder' === $this->action ) {
 			$ordersql = trim( $this->reorder_order . ' ' . $this->reorder_order_dir );
 		}
