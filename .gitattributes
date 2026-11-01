@@ -41,6 +41,7 @@ tests/_support/_generated/* linguist-generated=true
 # Other files
 phpcs.xml export-ignore
 phpcs.xml.dist export-ignore
+phpunit.xml.dist export-ignore
 phpstan.neon export-ignore
 phpstan-legacy.neon export-ignore
 composer.lock export-ignore
