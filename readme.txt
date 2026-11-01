@@ -120,7 +120,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 == Changelog ==
 
 = 1.0.1 =
-* The release zip is built into a draft release and published with the file attached: the repository's releases are immutable, so a published release takes no asset. The packaging checks know the PDF engine's path under `includes/exporters/`.
+* The plugin zip is attached to the GitHub release again: the release workflow builds it on GitHub into a draft release and publishes the release once the file is on it (1.0.0 was published before its zip could be attached).
 * The menu icons and the reorder screen's drag handle are Dashicons; the PNG icons and the page icon of the old admin design, which WordPress has hidden since 3.8, are gone.
 * The report list's search form compares its values with the page's query string through `URLSearchParams`, so a search that repeats the current values keeps its page and one that changes them starts on page 1.
 
