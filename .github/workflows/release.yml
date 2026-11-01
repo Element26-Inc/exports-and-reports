@@ -1,12 +1,14 @@
 name: Release zip
-# Builds the plugin zip from the branch or tag the run is started on and puts it on a draft release for
-# the tag given, creating the draft when there is none, so that the file is attached before the release
-# is published: the repository's releases are immutable, and an immutable release takes no asset once it
-# is published. With publish set, the run publishes the draft itself; otherwise the draft waits for a
-# look at https://github.com/Element26-Inc/exports-and-reports/releases.
+# Builds the plugin zip on the runner, from the branch the run is started on or from the ref given, and
+# puts it on a draft release for the tag given, creating the draft when there is none, so that the file
+# is attached before the release is published: the repository's releases are immutable, and an
+# immutable release takes no asset once it is published. With publish set, the run publishes the draft
+# itself; otherwise the draft waits for a look at https://github.com/Element26-Inc/exports-and-reports/releases.
 #
 #   gh workflow run release.yml --ref main -f tag=v1.0.1                   # build, attach to the draft
 #   gh workflow run release.yml --ref main -f tag=v1.0.1 -f publish=true   # and publish it
+#   gh workflow run release.yml --ref main -f tag=v0.9.5 -f ref=dec0cfc10b2e67a0fb80dda930857408c559cdb8
+#                                                                           # an older commit, by its sha or tag
 #
 # The release notes are the version's section of the readme's changelog, with its upgrade notice.
 on:
@@ -16,6 +18,11 @@ on:
         description: 'The release tag (v1.0.1); its version must be the one the plugin declares'
         required: true
         type: string
+      ref:
+        description: 'The commit or tag to build; empty builds the branch the run is started on'
+        required: false
+        type: string
+        default: ''
       publish:
         description: 'Publish the draft once the zip is attached'
         required: false
@@ -32,6 +39,8 @@ jobs:
     steps:
       - name: Checkout the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Configure PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
@@ -46,6 +55,8 @@ jobs:
           version="${tag#v}"
           bin/check-version.sh "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "building $(git rev-parse --short HEAD) as $version"
 
       - name: Check the vendor tree
         run: bin/check-vendor.sh
@@ -81,9 +92,10 @@ jobs:
 
       - name: Check the packaged tree on PHP 7.2
         # The tc-lib-pdf engine and its library load on PHP 8.2 and later only; everything else must parse on the floor.
+        # The engine is matched by name: it moved into includes/exporters/ in 1.0.0, and an older commit may be built.
         run: |
           cd build/exports-and-reports
-          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -path './includes/exporters/class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
+          lint="$(find . -name '*.php' -not -path './vendor/vendor-prefixed/tecnickcom/tc-lib-*' -not -name 'class-exports-reports-admin-ui-export-pdf.php' -print0 | xargs -0 -P 4 -n 1 php -l 2>&1 | grep -v '^No syntax errors' || true)"
           if [ -n "$lint" ]; then echo "$lint"; echo "::error::a packaged PHP file the plugin loads on 7.2 does not parse there"; exit 1; fi
           php -r 'require "vendor/autoload.php"; require "vendor/vendor-prefixed/autoload.php"; exit( class_exists( "ExportsReports__Prefixed__XLSXWriter" ) && class_exists( "ExportsReports__Prefixed__TCPDF" ) ? 0 : 1 );' || { echo "::error::the packaged autoloaders do not resolve the libraries the plugin uses on PHP 7.2"; exit 1; }
           echo "packaged tree ok on PHP $(php -r 'echo PHP_VERSION;')"
@@ -127,7 +139,7 @@ jobs:
             gh release upload "$tag" "$ZIP" "$ZIP.sha256" --clobber
             gh release edit "$tag" --title "${{ steps.version.outputs.version }}" --notes-file notes.md
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
+            gh release create "$tag" --draft --target "${{ steps.version.outputs.sha }}" --title "${{ steps.version.outputs.version }}" --notes-file notes.md "$ZIP" "$ZIP.sha256"
           fi
           gh release view "$tag" --json isDraft,assets --jq '"draft: \(.isDraft), assets: \([.assets[].name] | join(", "))"'
 
