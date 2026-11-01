@@ -514,7 +514,6 @@ class Exports_Reports_Admin_UI {
 	}
 
 	public function sanitize( $input ) {
-		global $wpdb;
 		$output = array();
 
 		if ( is_numeric( $input ) ) {
@@ -530,10 +529,21 @@ class Exports_Reports_Admin_UI {
 				$output[ $key ] = $this->sanitize( $val );
 			}
 		} elseif ( ! empty( $input ) ) {
-			$output = $wpdb->_real_escape( trim( $input ) );
+			$output = esc_sql( trim( $input ) );
 		}
 
 		return $output;
+	}
+
+	/**
+	 * A column or table name as a quoted identifier: backticks around it, a backtick inside it doubled.
+	 *
+	 * @param string $name The name, from the report definition.
+	 *
+	 * @return string
+	 */
+	public function backtick( $name ) {
+		return '`' . str_replace( '`', '``', (string) $name ) . '`';
 	}
 
 	public function unsanitize( $input ) {
@@ -1345,7 +1355,7 @@ class Exports_Reports_Admin_UI {
 			if ( isset( $attributes['custom_save'] ) && false !== $attributes['custom_save'] && function_exists( "{$attributes['custom_save']}" ) ) {
 				$value = $attributes['custom_save']( $value, $column, $attributes, $this );
 			}
-			$column_sql[]    = '`' . $this->sanitize( $column ) . "`=$vartype";
+			$column_sql[]    = $this->backtick( $column ) . "=$vartype";
 			$values[]        = $value;
 			$data[ $column ] = $value;
 		}
@@ -1442,10 +1452,11 @@ class Exports_Reports_Admin_UI {
 					}
 				}
 				if ( empty( $column_data ) ) {
-					$limited = ' WHERE `' . $this->sanitize( $attributes['related_id'] ) . "` IN ('" . implode( "', '", $this->sanitize( $selected_options ) ) . "')";
+					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- the column is from the report definition; one placeholder per value.
+					$limited = $wpdb->prepare( ' WHERE ' . $this->backtick( $attributes['related_id'] ) . ' IN (' . implode( ', ', array_fill( 0, count( $selected_options ), '%s' ) ) . ')', $selected_options );
 
 					// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a related lookup the administrator defined for the column.
-					$related = $wpdb->get_results( 'SELECT `' . $this->sanitize( $attributes['related_id'] ) . '`,`' . $attributes['related_field'] . '` FROM ' . $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . $attributes['related_sql'] : $limited ) );
+					$related = $wpdb->get_results( 'SELECT ' . $this->backtick( $attributes['related_id'] ) . ',' . $this->backtick( $attributes['related_field'] ) . ' FROM ' . $attributes['related'] . ( ! empty( $attributes['related_sql'] ) ? ' ' . $attributes['related_sql'] : $limited ) );
 
 					foreach ( $related as $option ) {
 						if ( in_array( (string) $option->{$attributes['related_id']}, $selected_options, true ) ) {
@@ -1476,36 +1487,33 @@ class Exports_Reports_Admin_UI {
 		}
 		if ( false !== $attributes['custom_relate'] ) {
 			$table = $attributes['custom_relate'];
-			$on    = $this->sanitize( $field_name );
-			$is    = $this->sanitize( $value );
+			$on    = $field_name;
+			$is    = $value;
 			$what  = array( 'name' );
 			if ( is_array( $table ) ) {
 				if ( isset( $table['on'] ) ) {
-					$on = $this->sanitize( $table['on'] );
+					$on = $table['on'];
 				}
 				if ( isset( $table['is'] ) && isset( $this->row[ $table['is'] ] ) ) {
-					$is = $this->sanitize( $this->row[ $table['is'] ] );
+					$is = $this->row[ $table['is'] ];
 				}
 				if ( isset( $table['what'] ) ) {
 					$what = array();
 					if ( is_array( $table['what'] ) ) {
 						foreach ( $table['what'] as $wha ) {
-							$what[] = $this->sanitize( $wha );
+							$what[] = $wha;
 						}
 					} else {
-						$what[] = $this->sanitize( $table['what'] );
+						$what[] = $table['what'];
 					}
 				}
 				if ( isset( $table['table'] ) ) {
 					$table = $table['table'];
 				}
 			}
-			$table = $this->sanitize( $table );
-			$wha   = implode( '`,`', $what );
+			$sql = 'SELECT ' . implode( ',', array_map( array( $this, 'backtick' ), $what ) ) . ' FROM ' . $this->backtick( $table ) . ' WHERE ' . $this->backtick( $on ) . ' = %s';
 
-			$sql = "SELECT `{$wha}` FROM `{$table}` WHERE `{$on}` = %s";
-
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table and column names sanitised above, the value prepared.
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table and column names quoted as identifiers above, the value prepared.
 			$results = current( $wpdb->get_results( $wpdb->prepare( $sql, array( $is ) ), ARRAY_A ) );
 
 			if ( ! empty( $results ) ) {
@@ -2140,7 +2148,7 @@ class Exports_Reports_Admin_UI {
 			if ( false !== $attributes['real_name'] ) {
 				$columnfield = $attributes['real_name'];
 			}
-			$totals[] = 'SUM(' . $columnfield . ') AS `wp_admin_ui_total_' . $this->sanitize( $column ) . '`';
+			$totals[] = 'SUM(' . $columnfield . ') AS ' . $this->backtick( 'wp_admin_ui_total_' . $column );
 		}
 		if ( ! empty( $totals ) ) {
 			$select_extras .= ' ' . implode( ',', $totals ) . ', ';
@@ -2196,11 +2204,13 @@ class Exports_Reports_Admin_UI {
 					}
 
 					$filter_field_key = str_replace( '`', '', $columnfield );
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the column is from the report definition; the value takes a placeholder.
+					$like = $wpdb->prepare( "$columnfield LIKE %s", '%' . $wpdb->esc_like( $this->search_query ) . '%' );
 
 					if ( false !== $attributes['group_related'] ) {
-						$having_sql[ $filter_field_key ] = "$columnfield LIKE '%" . $this->sanitize( $this->search_query ) . "%'";
+						$having_sql[ $filter_field_key ] = $like;
 					} else {
-						$other_sql[ $filter_field_key ] = "$columnfield LIKE '%" . $this->sanitize( $this->search_query ) . "%'";
+						$other_sql[ $filter_field_key ] = $like;
 					}
 				}
 				if ( ! empty( $other_sql ) ) {
@@ -2267,16 +2277,17 @@ class Exports_Reports_Admin_UI {
 							$date_ongoing = $selects[ $date_ongoing ];
 						}
 
-						$filter_sql = "(($filterfield <= '$start' OR ($filterfield >= '$start' AND $filterfield <= '$end')) AND ($date_ongoing >= '$start' OR ($date_ongoing >= '$start' AND $date_ongoing <= '$end')))";
+						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the columns are from the report definition; the dates take placeholders.
+						$filter_sql = $wpdb->prepare( "(($filterfield <= %s OR ($filterfield >= %s AND $filterfield <= %s)) AND ($date_ongoing >= %s OR ($date_ongoing >= %s AND $date_ongoing <= %s)))", $start, $start, $end, $start, $start, $end );
 					} else {
-						$filter_sql = "($filterfield BETWEEN '$start' AND '$end')";
+						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the column is from the report definition; the dates take placeholders.
+						$filter_sql = $wpdb->prepare( "($filterfield BETWEEN %s AND %s)", $start, $end );
 					}
 				} elseif ( array() !== $filter_values && 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 					if ( ! is_array( $filter_column['related'] ) ) {
 						$search_values = array();
 						foreach ( $filter_values as $filter_value ) {
-							$filter_value    = (string) $this->sanitize( $filter_value );
-							$search_values[] = preg_match( '/[^0-9]/', $filter_value ) ? "'" . $filter_value . "'" : (string) (int) $filter_value;
+							$search_values[] = preg_match( '/[^0-9]/', $filter_value ) ? $wpdb->prepare( '%s', $filter_value ) : (string) (int) $filter_value;
 						}
 						$search_value        = implode( ', ', $search_values );
 						$related_filterfield = '`' . $filter . '`.`' . $filter_column['related_id'] . '`';
@@ -2291,14 +2302,16 @@ class Exports_Reports_Admin_UI {
 					} else {
 						$likes = array();
 						foreach ( $filter_values as $filter_value ) {
-							$likes[] = "$filterfield LIKE '%" . $this->sanitize( $filter_value ) . "%'";
+							// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the column is from the report definition; the value takes a placeholder.
+							$likes[] = $wpdb->prepare( "$filterfield LIKE %s", '%' . $wpdb->esc_like( $filter_value ) . '%' );
 						}
 						$filter_sql = 1 === count( $likes ) ? $likes[0] : '(' . implode( ' OR ', $likes ) . ')';
 					}
 				} elseif ( 'bool' === $filter_column['type'] && array() !== $filter_values ) {
 					$filter_sql = "$filterfield = " . (int) $filter_values[0];
 				} elseif ( array() !== $filter_values ) {
-					$filter_sql = "$filterfield LIKE '%" . $this->sanitize( $filter_values[0] ) . "%'";
+					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- the column is from the report definition; the value takes a placeholder.
+					$filter_sql = $wpdb->prepare( "$filterfield LIKE %s", '%' . $wpdb->esc_like( $filter_values[0] ) . '%' );
 				}
 
 				if ( $filter_sql ) {
@@ -2697,7 +2710,7 @@ class Exports_Reports_Admin_UI {
 							} elseif ( 'related' === $filter_column['type'] && false !== $filter_column['related'] ) {
 								if ( ! is_array( $filter_column['related'] ) ) {
 									// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- a related lookup the administrator defined for the filter.
-									$related  = $wpdb->get_results( 'SELECT `' . $this->sanitize( $filter_column['related_id'] ) . '`,`' . $this->sanitize( $filter_column['related_field'] ) . '` FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ) );
+									$related  = $wpdb->get_results( 'SELECT ' . $this->backtick( $filter_column['related_id'] ) . ',' . $this->backtick( $filter_column['related_field'] ) . ' FROM ' . $filter_column['related'] . ( ! empty( $filter_column['related_sql'] ) ? ' ' . $filter_column['related_sql'] : '' ) );
 									$selected = $this->filter_values( 'filter_' . $filter, $filter_column['filter_default'] );
 									?>
 									<label for="admin_ui_filter_<?php echo esc_attr( $filter ); ?>"><?php echo esc_html( $filter_column['filter_label'] ); ?>:</label>

@@ -318,6 +318,27 @@ er_report(
 	'' !== $er_count_seen ? 'sum_data ' . wp_json_encode( $er_admin->sum_data ) : 'filter not called'
 );
 
+// --- a search for an underscore matches only titles that contain one: the LIKE wildcards of the term are escaped ---
+$_GET['search_query'] = '_';
+$er_wild              = er_admin(
+	"SELECT id, title FROM `{$er_table}` ORDER BY id",
+	'Wildcard search',
+	array(
+		'search'  => true,
+		'columns' => array( 'title' ),
+	)
+);
+ob_start();
+$er_wild->get_data( false );
+ob_end_clean();
+unset( $_GET['search_query'] );
+$er_wild_expected = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$er_table}` WHERE title LIKE %s", '%' . $wpdb->esc_like( '_' ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+er_report(
+	'a search term\'s LIKE wildcards are escaped',
+	$er_wild_expected < $er_rows && (int) $er_wild->total === $er_wild_expected,
+	'total ' . $er_wild->total . ', expected ' . $er_wild_expected . ' of ' . $er_rows . ' rows'
+);
+
 // --- the page view of a report with a totals query still counts every row, not only the page ---
 $_GET['limit'] = '2';
 $er_paged      = er_admin( "SELECT id, revenue FROM `{$er_table}` ORDER BY id", 'Paged totals', array( 'sql_count' => "SELECT SUM(revenue) AS revenue FROM `{$er_table}`" ) );
