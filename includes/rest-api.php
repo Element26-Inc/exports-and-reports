@@ -282,10 +282,7 @@ function exports_reports_rest_download( $request ) {
 
 	$file = basename( (string) $request['file'] );
 
-	$sql = 'SELECT COUNT(*) FROM `' . $wpdb->prefix . EXPORTS_REPORTS_TBL . 'log` WHERE `report_id` = %d AND `filename` = %s';
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own export log.
-	$logged = (int) $wpdb->get_var( $wpdb->prepare( $sql, (int) $request['id'], $file ) );
+	$logged = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->exports_reports_log} WHERE `report_id` = %d AND `filename` = %s", (int) $request['id'], $file ) );
 
 	if ( 0 === $logged || ! is_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $file ) ) {
 		return new WP_Error( 'exports_reports_file_not_found', 'No such export of this report.', array( 'status' => 404 ) );

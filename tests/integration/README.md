@@ -45,5 +45,5 @@ wp eval-file tests/integration/report-queries.php
 ```
 
 In CI, `.github/workflows/report-queries.yml` installs WordPress against a MariaDB 11.4 service
-with WP-CLI and runs the script on every pull request that touches PHP: on WordPress 6.0 with
+with WP-CLI and runs the script on every pull request that touches PHP: on WordPress 5.8 with
 PHP 7.2 (the plugin's floor) and with PHP 7.3, and on the current WordPress with PHP 8.3.

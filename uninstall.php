@@ -23,10 +23,9 @@ if ( defined( 'EXPORTS_REPORTS_UNINSTALL_KEEP_DATA' ) && EXPORTS_REPORTS_UNINSTA
 function exports_reports_uninstall_site() {
 	/** @var wpdb $wpdb */ global $wpdb;
 
-	foreach ( array( 'groups', 'reports', 'log' ) as $suffix ) {
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the plugin's own table, removed on uninstall; the suffix is one of three literals.
-		$wpdb->query( "DROP TABLE IF EXISTS `{$wpdb->prefix}exportsreports_{$suffix}`" );
-	}
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}exportsreports_groups" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}exportsreports_reports" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}exportsreports_log" );
 
 	delete_option( 'exports_reports_version' );
 	delete_option( 'exports_reports_token' );
