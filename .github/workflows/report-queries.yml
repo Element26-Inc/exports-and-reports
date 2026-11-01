@@ -2,12 +2,11 @@ name: 'Report queries'
 on:
   pull_request:
     paths:
-      - 'wp-admin-ui/**.php'
       - 'includes/**'
       - '*.php'
       - 'tests/integration/**'
       - 'vendor/**'
-      - 'fonts/**'
+      - 'assets/fonts/**'
       - 'composer.lock'
       - '.github/workflows/report-queries.yml'
   workflow_dispatch:

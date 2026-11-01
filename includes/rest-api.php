@@ -172,7 +172,7 @@ function exports_reports_rest_data( $request ) {
 		return new WP_Error( 'exports_reports_not_found', __( 'No report with that id.', 'exports-and-reports' ), array( 'status' => 404 ) );
 	}
 
-	require_once dirname( __DIR__ ) . '/wp-admin-ui/class-exports-reports-admin-ui.php';
+	require_once __DIR__ . '/class-exports-reports-admin-ui.php';
 
 	$admin      = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
 	$admin->api = true;
@@ -234,7 +234,7 @@ function exports_reports_rest_export( $request ) {
 		return new WP_Error( 'exports_reports_export_disabled', __( 'Exports are disabled for this report.', 'exports-and-reports' ), array( 'status' => 403 ) );
 	}
 
-	require_once dirname( __DIR__ ) . '/wp-admin-ui/class-exports-reports-admin-ui.php';
+	require_once __DIR__ . '/class-exports-reports-admin-ui.php';
 
 	// A large export outlives the request's defaults, and a cronjob that disconnects still gets its file.
 	// phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- a large export may need longer than max_execution_time.

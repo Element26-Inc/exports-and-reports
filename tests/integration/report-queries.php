@@ -28,7 +28,7 @@ if ( ! defined( 'EXPORTS_REPORTS_TBL' ) || ! defined( 'EXPORTS_REPORTS_DIR' ) ) 
 	WP_CLI::error( 'exports-and-reports is not active' );
 }
 
-require_once EXPORTS_REPORTS_DIR . 'wp-admin-ui/class-exports-reports-admin-ui.php';
+require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-admin-ui.php';
 
 $er_table    = $wpdb->prefix . 'er_test_videos';
 $er_failed   = 0;

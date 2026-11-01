@@ -673,7 +673,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	}
 
 	/**
-	 * The metric file of a style of the font, shipped in fonts/core.
+	 * The metric file of a style of the font, shipped in assets/fonts/core.
 	 *
 	 * @param string $style '', 'B', 'I' or 'BI'.
 	 * @return string
@@ -688,7 +688,7 @@ class Exports_Reports_Admin_UI_Export_PDF {
 	 * @return string
 	 */
 	protected static function font_dir() {
-		return dirname( __DIR__, 2 ) . '/fonts/core';
+		return dirname( __DIR__ ) . '/assets/fonts/core';
 	}
 
 	/**

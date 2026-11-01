@@ -4,21 +4,23 @@ parameters:
   # plugin runs on 7.2, which phpstan-legacy.neon analyses with the class left out.
   phpVersion: 80200
   paths:
-    - wp-admin-ui
     - includes
     - exports-and-reports.php
   excludePaths:
     - tests (?)
   scanDirectories:
-    - wp-admin-ui
+    - includes
     - vendor/vendor-prefixed
   stubFiles:
     # The plugin's table names as wpdb properties (exports_reports_tables()).
     - tests/phpstan/wpdb-tables.stub
+  bootstrapFiles:
+    # EXPORTS_REPORTS_URL and EXPORTS_REPORTS_DIR, which the main file defines from its own location.
+    - tests/phpstan/bootstrap.php
   ignoreErrors:
     # TCPDF is deprecated by its author; it stays, on purpose, as the PDF engine below PHP 8.2.
     - identifiers:
         - class.extendsDeprecatedClass
         - method.deprecatedClass
         - property.deprecatedClass
-      path: wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf-legacy.php
+      path: includes/class-exports-reports-admin-ui-export-pdf-legacy.php

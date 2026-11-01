@@ -5,8 +5,8 @@ includes:
 parameters:
 	phpVersion: 70200
 	scanDirectories!:
-		- wp-admin-ui
+		- includes
 		- vendor/vendor-prefixed/mk-j
 		- vendor/vendor-prefixed/tecnickcom/tcpdf
 	excludePaths:
-		- wp-admin-ui/includes/class-exports-reports-admin-ui-export-pdf.php
+		- includes/class-exports-reports-admin-ui-export-pdf.php

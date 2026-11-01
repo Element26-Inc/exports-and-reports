@@ -17,9 +17,9 @@
   "contributors": "https://github.com/sc0ttkclark/exports-and-reports/graphs/contributors",
   "scripts": {
     "lint": "npm run lint:js && npm run lint:css",
-    "lint:js": "wp-scripts lint-js assets wp-admin-ui/assets",
+    "lint:js": "wp-scripts lint-js assets",
     "lint:css": "wp-scripts lint-style 'assets/**/*.css'",
-    "format": "wp-scripts format assets wp-admin-ui/assets && wp-scripts lint-style --fix 'assets/**/*.css'"
+    "format": "wp-scripts format assets && wp-scripts lint-style --fix 'assets/**/*.css'"
   },
   "engines": {
     "node": ">=22.22"

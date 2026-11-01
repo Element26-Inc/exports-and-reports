@@ -166,3 +166,18 @@ table.admin_ui_totals {
 select.admin_ui_filter_multiple {
 	height: auto;
 }
+
+/* The reorder screen: taller rows and a drag handle. */
+table.widefat.fixed tbody.sortable tr {
+	height: 50px;
+}
+
+.dragme {
+	background: url(../images/move.png) no-repeat;
+	background-position: 8px 5px;
+	cursor: pointer;
+}
+
+.dragme strong {
+	margin-left: 30px;
+}
