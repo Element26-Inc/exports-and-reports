@@ -319,6 +319,30 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	}
 
 	/**
+	 * A SELECT in a comment, in a string or in a quoted identifier is not the main one; a SELECT right after a
+	 * parenthesis, with or without a space, is read the same; the words are matched whole and in any case.
+	 */
+	public function test_the_outline_ignores_comments_and_strings_and_reads_select_after_a_parenthesis() {
+		$sql = "-- SELECT nothing FROM here\n# SELECT nothing either\n/* SELECT * FROM nowhere; */\nSELECT 'SELECT a FROM b' AS quoted, `select` AS backticked, (SELECT 1) AS tight, ( SELECT 2 ) AS spaced, selectors FROM t -- WHERE commented\nWHERE x = '(' ORDER BY y";
+
+		$outline = Exports_Reports_Query::outline( $sql );
+
+		$this->assertSame( "SELECT 'SELECT a FROM b'", substr( $sql, $outline['select'], 24 ) );
+		$this->assertSame( 'FROM t', substr( $sql, $outline['from'], 6 ) );
+		$this->assertSame( "WHERE x = '('", substr( $sql, $outline['where'], 13 ) );
+		$this->assertSame( 'ORDER BY y', substr( $sql, $outline['order'], 10 ) );
+		$this->assertFalse( $outline['limit'] );
+
+		$tokens = array_column( Exports_Reports_Query::tokens( $sql )['tokens'], 'kind' );
+
+		$this->assertSame( array( 'select', 'select', 'select', 'from', 'where', 'order' ), $tokens, 'the two subqueries, nothing from comments, strings or identifiers' );
+
+		$lower = Exports_Reports_Query::outline( 'with c as (select 1) select a from c' );
+
+		$this->assertSame( 'select a', substr( 'with c as (select 1) select a from c', $lower['select'], 8 ) );
+	}
+
+	/**
 	 * A failing query names the database's message to a user who may edit reports and a plain note to others;
 	 * a query that returns no rows on a report without field definitions says so.
 	 */
