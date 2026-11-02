@@ -273,7 +273,7 @@ class Exports_Reports_List_Table extends WP_List_Table {
 	}
 
 	/**
-	 * The page sizes (above the table) and the page links, through the screen's limit() and pagination().
+	 * The page sizes and the page links, above and below the table, through the screen's limit() and pagination().
 	 *
 	 * @param string $which 'top' or 'bottom'.
 	 */
@@ -284,11 +284,9 @@ class Exports_Reports_List_Table extends WP_List_Table {
 		?>
 		<div class="tablenav-pages">
 			<?php
-			if ( 'top' === $which ) {
-				esc_html_e( 'Show per page:', 'exports-and-reports' );
-				$this->admin->limit();
-				echo ' &nbsp;|&nbsp; ';
-			}
+			esc_html_e( 'Show per page:', 'exports-and-reports' );
+			$this->admin->limit();
+			echo ' &nbsp;|&nbsp; ';
 
 			$this->admin->pagination( 'top' === $which );
 			?>

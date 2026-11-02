@@ -182,9 +182,9 @@ select.admin_ui_filter_multiple {
 }
 /* stylelint-enable font-family-no-missing-generic-family-keyword */
 
-/* The note shown while an export is written: the spinner sits in the
-   line, before the text. */
-.exports-reports-export-progress .spinner {
+/* The notes shown while a report loads or an export is written: the
+   spinner sits in the line, before the text. */
+.exports-reports-progress .spinner {
 	float: none;
 	margin: 0 8px 0 0;
 	vertical-align: middle;
@@ -193,6 +193,7 @@ select.admin_ui_filter_multiple {
 /* A table of many columns: each takes the width its content needs, long
    values end in an ellipsis, and the table scrolls sideways in its box. */
 .exports-reports-table-scroll {
+	clear: both;
 	overflow-x: auto;
 }
 

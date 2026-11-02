@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -37,9 +37,9 @@ A Report is defined by a Custom MySQL query and can be configured to display how
 
 As an admin, add &debug=1 to the end of the report URL to see the query that this plugin uses, take that query and use it in your own MySQL client or PHPMyAdmin to see if there are any errors in your own query.
 
-= My report starts with WITH or EXECUTE IMMEDIATE and shows one page. Why? =
+= Where do the paging, the row count, a sort and a filter go in my query? =
 
-The plugin places its paging and its row count into statements that begin with SELECT. For a statement that begins with anything else, write %%LIMIT%% where the page belongs (inside the EXECUTE IMMEDIATE string, for example) and supply the total through the `exports_reports_get_data_total` filter, or add the report's own LIMIT and ORDER BY and treat it as a single page. Exports are not affected: they always write every row.
+Into the query's main SELECT: the one at the top level, after any WITH clauses, or inside the string of an `EXECUTE IMMEDIATE`. The row count (`SQL_CALC_FOUND_ROWS`) goes right after it, a sort from a column header goes before its own ORDER BY, a search or a filter joins its own WHERE (or HAVING, for a grouped column), and the page's LIMIT goes at its end. Subqueries, the queries of WITH clauses and window functions are left alone. Where you want them elsewhere, write `%%WHERE%%`, `%%HAVING%%`, `%%ORDERBY%%` or `%%LIMIT%%` at that spot. A query with a LIMIT of its own and no `%%LIMIT%%` shows what it returns as one page.
 
 = Can a report run more than one statement? =
 
@@ -126,6 +126,12 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.1.3 =
+* The row count, a sort from a column header, a search or a filter and the page's LIMIT go into the query's main SELECT, found by depth: the one after the WITH clauses, or inside an `EXECUTE IMMEDIATE` string. They went to the first keyword in the text, which in a query with WITH clauses or window functions is the wrong one (the database refused `SQL_CALC_FOUND_ROWS` there, and a sort landed inside a window function). A query with a LIMIT of its own and no `%%LIMIT%%` placeholder shows what it returns as one page instead of a broken LIMIT.
+* When the report's query fails, the screen says so and shows the database's message to users who may edit reports; a query that returns no rows on a report without field definitions says that, instead of "Missing columns definition". The REST data route returns the message too.
+* The report page prints a note with a spinner while a slow query runs.
+* The page sizes are offered below the table as well as above it, and the table box no longer shrinks beside the search box.
 
 = 1.1.2 =
 * An export link from before 1.1.0 (the action and the format in the page's address), opened again from the history or a bookmark, no longer writes another file: the report shows with a note, and the Export buttons start a new one.

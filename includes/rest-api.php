@@ -190,6 +190,11 @@ function exports_reports_rest_data( $request ) {
 	$rows  = $admin->get_data( $full );
 	$error = exports_reports_rest_ui_error( (string) ob_get_clean() );
 
+	if ( '' !== $admin->query_error ) {
+		// The database's message to the token and to a user who may edit reports.
+		$error = wp_strip_all_tags( $admin->query_error_message( exports_reports_rest_token_matches( $request ) ? true : null ) );
+	}
+
 	if ( '' !== $error || ! is_array( $rows ) ) {
 		return new WP_Error( 'exports_reports_query_failed', '' !== $error ? $error : __( 'The report query failed.', 'exports-and-reports' ), array( 'status' => 500 ) );
 	}

@@ -6,8 +6,8 @@
  */
 /* global jQuery */
 jQuery( function ( $ ) {
-	// The page has loaded, so the export it was writing is done (or failed, and the screen says so).
-	$( '.exports-reports-export-progress' ).remove();
+	// The page has loaded: the report it was loading, or the export it was writing, is done (or failed, and the screen says so).
+	$( '.exports-reports-progress' ).remove();
 
 	const exportForm = $( '#exports-reports-export' );
 
@@ -24,7 +24,7 @@ jQuery( function ( $ ) {
 				const buttons = $( 'button[form="exports-reports-export"]' );
 				const body = new FormData( exportForm[ 0 ] );
 				const notice = $(
-					'<div class="notice notice-info exports-reports-export-progress"><p><span class="spinner is-active"></span></p></div>'
+					'<div class="notice notice-info exports-reports-progress"><p><span class="spinner is-active"></span></p></div>'
 				);
 
 				notice
@@ -37,7 +37,7 @@ jQuery( function ( $ ) {
 				body.append( 'export_type', $( this ).val() );
 
 				$(
-					'.exports-reports-export-progress, .exports-reports-export-result'
+					'.exports-reports-progress, .exports-reports-export-result'
 				).remove();
 				place.after( notice );
 				buttons.prop( 'disabled', true );
