@@ -183,11 +183,19 @@ select.admin_ui_filter_multiple {
 /* stylelint-enable font-family-no-missing-generic-family-keyword */
 
 /* The notes shown while a report loads or an export is written: the
-   spinner sits in the line, before the text. */
-.exports-reports-progress .spinner {
+   spinner sits in the line, before the text. The loading line sits under
+   the report selector, aligned with its text. */
+.exports-reports-progress .spinner,
+.exports-reports-loading .spinner {
 	float: none;
 	margin: 0 8px 0 0;
 	vertical-align: middle;
+}
+
+.exports-reports-loading {
+	color: #50575e;
+	margin: 10px 15px 0 5px;
+	padding: 0 16px;
 }
 
 /* A table of many columns: each takes the width its content needs, long

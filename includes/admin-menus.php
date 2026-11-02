@@ -100,13 +100,35 @@ function exports_reports_menu() {
 }
 
 /**
- * Registers the admin script and style, and enqueues the report form's editor assets on the Manage Reports page.
+ * Whether the admin page being built is one of the plugin's: the administration screens or a report page.
+ *
+ * @since 1.1.4
+ *
+ * @return bool
+ */
+function exports_reports_is_plugin_page() {
+	/** @var string|null $plugin_page The admin page slug, as the admin sets it. */ global $plugin_page;
+
+	return isset( $plugin_page ) && 0 === strpos( (string) $plugin_page, 'exports-reports' );
+}
+
+/**
+ * Registers the admin script and style; enqueues the style, with the Dashicons it uses, on every page of the
+ * plugin, so that it is in the head and the screens render styled from the first byte; and enqueues the report
+ * form's editor assets on the Manage Reports page.
+ *
+ * @since 1.1.4 The style on every page of the plugin, in the head.
  *
  * @param string $hook_suffix The admin page, as admin_enqueue_scripts passes it.
  */
 function exports_reports_assets( $hook_suffix ) {
 	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/js/admin.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
 	wp_register_style( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/css/admin.css', array(), EXPORTS_REPORTS_VERSION );
+
+	if ( exports_reports_is_plugin_page() ) {
+		wp_enqueue_style( 'dashicons' );
+		wp_enqueue_style( 'exports-reports-admin' );
+	}
 
 	if ( get_plugin_page_hookname( 'exports-reports-admin-reports', 'exports-reports-admin' ) === $hook_suffix ) {
 		wp_enqueue_style( 'dashicons' );
@@ -134,4 +156,27 @@ function exports_reports_sql_editor() {
 			wp_json_encode( $settings )
 		)
 	);
+}
+
+/**
+ * On a report page, sends what WordPress has written of the admin frame as soon as it is complete, so the
+ * frame shows while the report's query runs; the page prints its own note for the wait after this. The
+ * report pages send no headers after this point (nothing on them redirects).
+ *
+ * @since 1.1.4
+ */
+function exports_reports_flush_admin_header() {
+	/** @var string|null $plugin_page The admin page slug, as the admin sets it. */ global $plugin_page;
+
+	$page = isset( $plugin_page ) ? (string) $plugin_page : '';
+
+	if ( 'exports-reports' !== $page && 0 !== strpos( $page, 'exports-reports-group-' ) ) {
+		return;
+	}
+
+	if ( 0 < ob_get_level() ) {
+		ob_flush();
+	}
+
+	flush();
 }

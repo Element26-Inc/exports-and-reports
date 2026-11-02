@@ -199,6 +199,28 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'Order updated', $output );
 	}
 
+	/**
+	 * The plugin's stylesheet is enqueued on its own pages from admin_enqueue_scripts, so it is in the head.
+	 */
+	public function test_the_stylesheet_is_enqueued_in_the_head_on_the_plugin_pages() {
+		global $plugin_page;
+
+		$plugin_page = 'exports-reports-group-3';
+		exports_reports_assets( 'reports_page_exports-reports-group-3' );
+
+		$this->assertTrue( wp_style_is( 'exports-reports-admin', 'enqueued' ) );
+		$this->assertTrue( wp_style_is( 'dashicons', 'enqueued' ) );
+
+		wp_dequeue_style( 'exports-reports-admin' );
+		wp_dequeue_style( 'dashicons' );
+		$plugin_page = 'edit';
+		exports_reports_assets( 'edit.php' );
+
+		$this->assertFalse( wp_style_is( 'exports-reports-admin', 'enqueued' ), 'not on other pages' );
+
+		$plugin_page = null;
+	}
+
 	public function test_the_settings_form_carries_its_nonce() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 

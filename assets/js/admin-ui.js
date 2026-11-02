@@ -7,7 +7,7 @@
 /* global jQuery */
 jQuery( function ( $ ) {
 	// The page has loaded: the report it was loading, or the export it was writing, is done (or failed, and the screen says so).
-	$( '.exports-reports-progress' ).remove();
+	$( '.exports-reports-progress, .exports-reports-loading' ).remove();
 
 	const exportForm = $( '#exports-reports-export' );
 
