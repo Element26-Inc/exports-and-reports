@@ -1,6 +1,6 @@
 {
   "name": "exports-and-reports",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "",
   "author": "SKC Development, LLC",
   "homepage": "https://skc.dev/",
@@ -19,7 +19,8 @@
     "lint": "npm run lint:js && npm run lint:css",
     "lint:js": "wp-scripts lint-js assets",
     "lint:css": "wp-scripts lint-style 'assets/**/*.css'",
-    "format": "wp-scripts format assets && wp-scripts lint-style --fix 'assets/**/*.css'"
+    "format": "wp-scripts format assets && wp-scripts lint-style --fix 'assets/**/*.css'",
+    "makepot": "bin/make-pot.sh"
   },
   "engines": {
     "node": ">=22.22"

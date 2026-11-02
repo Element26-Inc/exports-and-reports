@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.4
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,18 @@ Into the query's main SELECT: the one at the top level, after any WITH clauses, 
 
 Yes. End each with a semicolon: session variables first (`SET @day = CURRENT_DATE();`), a dynamic statement if the report builds one (`EXECUTE IMMEDIATE CONCAT( ... );`), and last the query that returns the rows. They run in order on one connection, so the last statement reads what the ones before it set up. The plugin's paging, search and filters go into the last statement only.
 
+= How do scripts and cronjobs read a report? =
+
+Through the REST routes under `/wp-json/exports-reports/v1/reports/ID/` (the Settings page shows them), as a logged-in user who may view the report (cookie and nonce, or an application password) or with the API token from the Settings page, sent as the header `Authorization: Bearer TOKEN` or as a `token` query parameter; the header keeps the token out of server logs. The token is stored as a hash, like a password, so it is shown once, when you generate it or set one of your own; generate a new one if it is lost, or turn token access off. A fresh install has token access off.
+
+= Why does the row count lag behind the rows? =
+
+The count ("1,234 items") is kept for a while once a page of the report has run: five minutes unless the Settings page's Row Count Cache says otherwise, per query, search and filters. Counting runs the query over every row it matches, which on a slow report costs as much as the page itself, so the pages that follow run without it while the count is kept. Rows added or removed meanwhile show in the count once it is counted again; the Settings page's Forget the Counts Now button makes every report count again at once, and Off keeps no counts. Code can adjust the time per report with the `exports_reports_count_cache_ttl` filter.
+
+= How do I fill in the fields of a report? =
+
+Leave the field editor empty and the report shows every column the query returns, as text. To name them, set their data types or hide, search and filter on some, add the fields: the Detect Fields from the Query button runs the query for one row and adds a field for each column of the result that is not listed yet, with the data type that fits the column (dates, numbers, decimals, flags); Add Field adds one by hand.
+
 = Can I limit the export formats? =
 
 Yes. The Settings page lists the formats the export buttons offer on every report; untick the ones the site does not need. A report can narrow that list further in its own settings (Export Formats), but not widen it. A format that is not offered is refused by the export and by the REST route, not only hidden. CSV, TSV and TXT are written row by row and suit very large reports; XLSX, XML, JSON and PDF hold the whole report in memory while they are written. Code can adjust a report's list with the `exports_reports_report_export_formats` filter.
@@ -65,7 +77,7 @@ The plugin registers three capabilities: `exports_reports_full_access` (everythi
 
 Every hook is documented where it runs; these are the ones sites use most. Filters receive the value first and the report screen (`Exports_Reports_Admin_UI`) last.
 
-* The report query: `exports_reports_get_data_sql( $sql, $full, $admin )` and `exports_reports_get_data_sql_count( $sql, $full, $admin )` right before the query and its count query run (return false to run nothing); `exports_reports_get_data_total( $total, $full, $admin )` for the row count; `exports_reports_data_filter_sql( $condition, $filter, $column, $field, $related_field, $value, $admin )` for the condition a filter adds.
+* The report query: `exports_reports_get_data_sql( $sql, $full, $admin )` and `exports_reports_get_data_sql_count( $sql, $full, $admin )` right before the query and its count query run (return false to run nothing); `exports_reports_get_data_total( $total, $full, $admin )` for the row count and `exports_reports_count_cache_ttl( $seconds, $admin )` for how long it is kept; `exports_reports_data_filter_sql( $condition, $filter, $column, $field, $related_field, $value, $admin )` for the condition a filter adds.
 * Exports: `exports_reports_export_file( $file, $type, $extension, $items, $admin )` for the file name; `exports_reports_export_escape_formulas( $escape, $admin )`; `exports_reports_export_pdf_engine( $engine )` and `exports_reports_export_pdf_report_file( $file, $admin )`; the actions `exports_reports_pre_export( $admin )`, `exports_reports_post_export( $file, $admin )`, `exports_reports_pre_remove_export( $file, $path, $admin )`, `exports_reports_post_remove_export( $file, $removed, $path, $admin )` and `exports_reports_export_download`.
 * The screens: `exports_reports_report_options( $options, $report_id )` and `exports_reports_options( $options, $admin )` for a screen's settings; `exports_reports_setup_columns( $columns, $which, $init, $admin )` and `exports_reports_setup_column( $attributes, $column, $filterable, $admin )`; `exports_reports_row_actions( $links, $row, $admin )`; `exports_reports_limit( $sizes, $admin )` for the page sizes; `exports_reports_allowed_html( $allowed )` for the HTML a display callback may return; `exports_reports_allowed_callback( $allowed, $callback, $admin )` for the functions a field definition may name; the actions `exports_reports_pre_init( $options )`, `exports_reports_post_init( $options, $admin )`, `exports_reports_pre_save( $create, $admin )`, `exports_reports_post_save( $id, $data, $create, $admin )`, `exports_reports_pre_delete( $id, $admin )`, `exports_reports_post_delete( $id, $admin )`, `exports_reports_post_reorder( $id, $admin )`.
 * Capabilities: `exports_reports_capabilities( $caps )`.
@@ -95,8 +107,8 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 
 = Reporting =
 * Filter by Date
-* Automatic Pagination
-* Show only the fields you want to show
+* Automatic Pagination, with the row count kept for a while on slow reports
+* Show only the fields you want to show; the field editor detects them from the query
 * Pre-display modification through custom defined function per field or row
 
 = Exporting =
@@ -112,7 +124,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 = REST API / Cronjob =
 * Run the Export action for a specific report to any supported export type, and download the file
 * Get paginated / full data from a report in JSON format
-* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the header keeps the token out of URLs and server logs; the Settings page shows the URLs
+* Routes under /wp-json/exports-reports/v1/reports/ID/ (data, export, exports/FILE), for a logged-in user who may view the report or for the API token from the Settings page, sent as "Authorization: Bearer TOKEN" or as ?token=; the header keeps the token out of URLs and server logs; the Settings page shows the URLs. The token is stored as a hash and shown once, when it is generated
 
 == Screenshots ==
 
@@ -126,6 +138,13 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.0 =
+* The API token is stored as a hash, like a password, and shown once when it is generated or set. The Settings page has buttons to generate a token and to turn token access off, and a field for a token of your own; the example addresses carry a placeholder. A token an earlier version stored in the clear is replaced by its hash on the first request that uses it, so scripts and cronjobs keep working through the update. A fresh install has token access off until a token is generated.
+* The row count of a report page ("1,234 items") is kept for five minutes (Settings: Row Count Cache, from off to an hour) for the same query, search and filters. The count runs with the first page over every row the query matches, which costs a slow query as much again; while a count is kept, the page views that follow run the query without it. Rows added or removed meanwhile show in the count once it is counted again, which the Settings page's Forget the Counts Now button makes happen at once. The `exports_reports_count_cache_ttl` filter adjusts the time per report.
+* The report form's field editor has a Detect Fields from the Query button: it runs the query for one row and adds a field for each column of the result that is not listed yet, with the data type that fits the column.
+* The link that removes an export under the export's message is a button that posts, sent in the background like the exports themselves, so the page's address never names a file; the removal runs no query. A removal link from before this version, opened from the history, is noted and removes nothing.
+* The translation template ships as languages/exports-and-reports.pot, with the Domain Path header; bin/make-pot.sh rewrites it and the workflow checks it is current.
 
 = 1.1.4 =
 * The plugin's stylesheet loads in the head of its pages. It was enqueued from the page itself, which put it in the footer, so a report rendered unstyled first and snapped into shape when the stylesheet arrived.
@@ -346,6 +365,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * First official release to the public as a plugin
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+The API token is now stored as a hash and cannot be shown again; the token you have keeps working. Row counts are kept for five minutes by default (Settings: Row Count Cache).
 
 = 1.0.0 =
 Administrators keep their access through capabilities placed on their role during the upgrade. Code hooked to the report screen's `exports_reports_*` filters of 0.9.5 must take positional arguments; callbacks on the `wp_admin_ui_*` names keep working.

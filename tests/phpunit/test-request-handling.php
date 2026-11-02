@@ -232,6 +232,35 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'name="cronjob_token"', $html );
 	}
 
+	public function test_the_settings_page_saves_the_row_count_cache_and_forgets_the_counts() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$generation = exports_reports_count_cache_generation();
+
+		$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'exports-reports-settings' ) );
+		$_POST    = array( 'count_cache' => '15' );
+
+		ob_start();
+		exports_reports_settings();
+		$html = (string) ob_get_clean();
+
+		$_POST = array( 'count_cache_forget' => '1' );
+
+		ob_start();
+		exports_reports_settings();
+		$forgotten = (string) ob_get_clean();
+
+		$_POST    = array();
+		$_REQUEST = array();
+
+		$this->assertSame( 15 * MINUTE_IN_SECONDS, exports_reports_count_cache_ttl() );
+		$this->assertStringContainsString( '<option value="15" selected=\'selected\'>', $html );
+		$this->assertSame( $generation + 1, exports_reports_count_cache_generation() );
+		$this->assertStringContainsString( 'counts are forgotten', $forgotten );
+
+		delete_option( 'exports_reports_count_cache' );
+	}
+
 	/**
 	 * Request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside
 	 * the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed.

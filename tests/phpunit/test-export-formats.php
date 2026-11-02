@@ -203,6 +203,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'data-ajax="', $html );
 		$this->assertStringContainsString( 'action=exports_reports_export_report', $html );
 		$this->assertStringContainsString( 'name="exports_reports_export" value="1"', $html );
+		$this->assertStringContainsString( '<form id="exports-reports-remove-export"', $html, 'the form the removal button under an export\'s message submits' );
 
 		preg_match_all( '/<button type="submit" class="button" form="exports-reports-export" name="export_type" value="([a-z]+)">/', $html, $buttons );
 

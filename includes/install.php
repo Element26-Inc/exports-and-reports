@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Creates the plugin's tables from includes/schema.sql, or brings them up to date through dbDelta() on an
- * upgrade; records the version, generates the API token on a first install and schedules the daily
+ * upgrade; records the version and schedules the daily
  * cleanup.
  *
  * @param bool $upgrade Whether the tables exist already.
@@ -75,12 +75,6 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	delete_option( 'exports_reports_version' );
 	add_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
-
-	if ( ! $upgrade ) {
-		$token = md5( microtime() . wp_generate_password( 20, true ) );
-
-		update_option( 'exports_reports_token', $token );
-	}
 
 	exports_reports_schedule_cleanup();
 }
@@ -227,8 +221,9 @@ function exports_reports_installed_version() {
 
 /**
  * Brings the tables and the stored version up to date when the plugin's version has changed. An
- * install from before 0.6 gets a new API token; one from before 1.0 gets the capabilities on the
- * administrator role, which the user_has_cap filter of the earlier versions granted on each request.
+ * install from before 0.6 loses its API token (that version's had another shape); one from before 1.0
+ * gets the capabilities on the administrator role, which the user_has_cap filter of the earlier
+ * versions granted on each request; one from before 1.2.0 has its API token replaced by its hash.
  */
 function exports_reports_upgrade() {
 	$installed = exports_reports_installed_version();
@@ -238,8 +233,8 @@ function exports_reports_upgrade() {
 	}
 
 	if ( version_compare( $installed, '0.6.0', '<' ) ) {
-		$token = md5( microtime() . wp_generate_password( 20, true ) );
-		update_option( 'exports_reports_token', $token );
+		// The token of those versions had another shape; a new one is generated on the Settings page.
+		delete_option( 'exports_reports_token' );
 	}
 
 	exports_reports_sql_install( true );
@@ -250,6 +245,11 @@ function exports_reports_upgrade() {
 
 	if ( version_compare( $installed, '1.1.1', '<' ) ) {
 		exports_reports_convert_export_formats_setting();
+	}
+
+	if ( version_compare( $installed, '1.2.0', '<' ) ) {
+		// The API token stored in the clear becomes its hash; the token itself goes on working.
+		exports_reports_token_hash();
 	}
 }
 

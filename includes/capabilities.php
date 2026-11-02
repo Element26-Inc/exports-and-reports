@@ -74,6 +74,18 @@ function exports_reports_capabilities() {
 }
 
 /**
+ * Whether the current user may manage the groups, the reports and the settings: full access (which a
+ * network's super admins have) or the settings capability, the capabilities the Reports Admin menu asks for.
+ *
+ * @since 1.2.0
+ *
+ * @return bool
+ */
+function exports_reports_current_user_can_manage() {
+	return is_super_admin() || exports_reports_current_user_can_any( array( 'exports_reports_full_access', 'exports_reports_settings' ) );
+}
+
+/**
  * Whether the current user has any of the capabilities, or full access.
  *
  * @param string|string[] $caps One capability or several.

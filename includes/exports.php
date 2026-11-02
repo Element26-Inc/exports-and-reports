@@ -411,9 +411,10 @@ function exports_reports_ajax_export() {
 	set_time_limit( 6000 );
 	ignore_user_abort( true );
 
-	$admin = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
+	$admin    = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
+	$removing = '' !== $admin->removing_export();
 
-	if ( 'export' !== $admin->action || false === $admin->export_type ) {
+	if ( 'export' !== $admin->action || ( ! $removing && false === $admin->export_type ) ) {
 		wp_send_json_error( array( 'html' => '<div id="message" class="error fade"><p>' . esc_html__( 'That export format is not offered for this report.', 'exports-and-reports' ) . '</p></div>' ), 403 );
 	}
 
@@ -421,6 +422,11 @@ function exports_reports_ajax_export() {
 	$admin->export();
 	// The screen's messages, without the script that opens the download: the page's script does that itself.
 	$html = (string) preg_replace( '#<script\b[^>]*>.*?</script>#is', '', (string) ob_get_clean() );
+
+	if ( $removing ) {
+		// The message says whether the file is gone.
+		wp_send_json_success( array( 'html' => $html ) );
+	}
 
 	if ( empty( $admin->exported_file ) ) {
 		wp_send_json_error( array( 'html' => $html ) );

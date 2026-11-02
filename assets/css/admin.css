@@ -111,6 +111,17 @@
 	width: 100%;
 }
 
+.er-fields__actions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.er-fields__note {
+	color: #50575e;
+}
+
 /* A multiple-choice column of a form (roles with access). */
 .er-choices {
 	display: grid;

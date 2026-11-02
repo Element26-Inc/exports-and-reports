@@ -31,10 +31,18 @@ $back         = $reordering;
 	}
 
 	if ( false !== $this->export ) {
-		// The export buttons of the table submit this form, which their form attribute names: a POST, which no
-		// browser keeps as an address. The screen's script sends it in the background and shows the answer.
+		// The export buttons of the table submit the first form, which their form attribute names, and the button
+		// under an export's message submits the second, which removes the file: POSTs, which no browser keeps
+		// as an address. The screen's script sends them in the background and shows the answer.
 		?>
 		<form id="exports-reports-export" class="exports-reports-export" method="post" action="<?php echo esc_url( $this->export_form_action() ); ?>" data-ajax="<?php echo esc_url( $this->export_ajax_url() ); ?>" data-preparing="<?php esc_attr_e( 'Preparing your export…', 'exports-and-reports' ); ?>">
+			<input type="hidden" name="exports_reports_export" value="1" />
+			<?php if ( 0 < (int) $this->report_id ) : ?>
+				<input type="hidden" name="report" value="<?php echo esc_attr( (string) (int) $this->report_id ); ?>" />
+			<?php endif; ?>
+			<?php wp_nonce_field( 'exports-reports-export-request', '_wpnonce', false ); ?>
+		</form>
+		<form id="exports-reports-remove-export" class="exports-reports-export" method="post" action="<?php echo esc_url( $this->export_form_action() ); ?>" data-ajax="<?php echo esc_url( $this->export_ajax_url() ); ?>" data-preparing="<?php esc_attr_e( 'Removing the export…', 'exports-and-reports' ); ?>">
 			<input type="hidden" name="exports_reports_export" value="1" />
 			<?php if ( 0 < (int) $this->report_id ) : ?>
 				<input type="hidden" name="report" value="<?php echo esc_attr( (string) (int) $this->report_id ); ?>" />
@@ -45,9 +53,12 @@ $back         = $reordering;
 	}
 
 	if ( false !== $this->export && 'export' === $this->action && $this->export_from_address ) {
-		// A link from before 1.1.0, opened again from the history or a bookmark: the export it named was
-		// written then; another one starts from the buttons.
+		// A link from before 1.1.0 (or a removal link from before 1.2.0), opened again from the history or a
+		// bookmark: the export it named was written then; another one starts from the buttons.
 		$this->message( __( 'This address pointed at an export that was written when its link was made. Exports start from the Export buttons, which leave the address as it is.', 'exports-and-reports' ) );
+	} elseif ( false !== $this->export && 'export' === $this->action && '' !== $this->removing_export() ) {
+		// The button under an export's message, when the screen's script did not send it in the background.
+		$this->export();
 	} elseif ( false !== $this->export && 'export' === $this->action ) {
 		// The file is written during this request. A note for the wait, sent ahead when the server lets it
 		// through; the screen's script removes it once the page, and with it the export, is done.

@@ -4,7 +4,8 @@
  *
  * Routes under exports-reports/v1, answered either for a logged-in user who may view the report
  * (cookie and nonce, or an application password) or for the API token from the Settings page, sent
- * as "Authorization: Bearer <token>" or as the token query parameter.
+ * as "Authorization: Bearer <token>" or as the token query parameter. The token is stored as a hash,
+ * like a password (exports_reports_token_hash()).
  *
  *   GET  /reports/<id>/data?full=1|pg=N&limit=N   the rows (paged, or all of them)
  *   POST /reports/<id>/export?type=csv[&download=1]   write an export; with download=1 the file is the response
@@ -136,17 +137,12 @@ function exports_reports_rest_permission( $request ) {
  * Whether the request carries the API token, in the Authorization header or the token parameter.
  *
  * @since 0.9.5
+ * @since 1.2.0 Compared against the token's hash.
  *
  * @param WP_REST_Request $request The request.
  * @return bool
  */
 function exports_reports_rest_token_matches( $request ) {
-	$token = (string) get_option( 'exports_reports_token' );
-
-	if ( '' === $token ) {
-		return false;
-	}
-
 	$given = (string) $request->get_param( 'token' );
 	$auth  = (string) $request->get_header( 'authorization' );
 
@@ -154,7 +150,91 @@ function exports_reports_rest_token_matches( $request ) {
 		$given = trim( substr( $auth, 7 ) );
 	}
 
-	return '' !== $given && hash_equals( $token, $given );
+	return exports_reports_token_matches( $given );
+}
+
+/**
+ * Whether a token is the site's API token: checked against the stored hash, the way core checks a
+ * password.
+ *
+ * @since 1.2.0
+ *
+ * @param string $given The token a request carries.
+ * @return bool False when token access is off.
+ */
+function exports_reports_token_matches( $given ) {
+	$hash = exports_reports_token_hash();
+
+	if ( '' === $hash || '' === $given ) {
+		return false;
+	}
+
+	return wp_check_password( $given, $hash );
+}
+
+/**
+ * The hash of the API token, or '' when token access is off.
+ *
+ * Versions before 1.2.0 stored the token itself; one still stored that way is hashed here on first use
+ * and the stored token removed, so a cronjob keeps working before an administrator has visited the
+ * admin (where the upgrade routine runs) and the token is never kept in the clear once this version
+ * has run.
+ *
+ * @since 1.2.0
+ *
+ * @return string
+ */
+function exports_reports_token_hash() {
+	$hash = (string) get_option( 'exports_reports_token_hash', '' );
+
+	if ( '' !== $hash ) {
+		return $hash;
+	}
+
+	$legacy = (string) get_option( 'exports_reports_token', '' );
+
+	if ( '' === $legacy ) {
+		return '';
+	}
+
+	exports_reports_set_token( $legacy );
+
+	return (string) get_option( 'exports_reports_token_hash', '' );
+}
+
+/**
+ * Stores the hash of an API token, or turns token access off. The token itself is not kept: the
+ * Settings page shows it once, when it is set.
+ *
+ * @since 1.2.0
+ *
+ * @param string $token The token; '' turns token access off.
+ */
+function exports_reports_set_token( $token ) {
+	delete_option( 'exports_reports_token' );
+
+	if ( '' === $token ) {
+		delete_option( 'exports_reports_token_hash' );
+
+		return;
+	}
+
+	update_option( 'exports_reports_token_hash', wp_hash_password( $token ), false );
+}
+
+/**
+ * Generates an API token, stores its hash and returns the token, for the Settings page to show once.
+ *
+ * @since 1.2.0
+ *
+ * @return string The token.
+ */
+function exports_reports_generate_token() {
+	$token = wp_generate_password( 32, false );
+
+	exports_reports_set_token( $token );
+
+	return $token;
 }
 
 /**

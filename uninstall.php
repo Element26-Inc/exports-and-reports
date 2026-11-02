@@ -29,9 +29,12 @@ function exports_reports_uninstall_site() {
 
 	delete_option( 'exports_reports_version' );
 	delete_option( 'exports_reports_token' );
+	delete_option( 'exports_reports_token_hash' );
 	delete_option( 'exports_reports_charset_errors' );
 	delete_option( 'exports_reports_export_formats_off' );
 	delete_option( 'exports_reports_export_formats' );
+	delete_option( 'exports_reports_count_cache' );
+	delete_option( 'exports_reports_count_cache_generation' );
 
 	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
 

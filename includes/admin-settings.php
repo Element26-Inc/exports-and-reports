@@ -10,17 +10,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Reset settings for plugin.
+ * Reset settings for plugin: every export format back on, the row count cache back to its default, and a
+ * new API token.
  *
  * @since 0.9.4
+ * @since 1.2.0 Returns the new token.
+ *
+ * @return string The new API token, for the page to show once.
  */
 function exports_reports_reset() {
 	update_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
 	delete_option( 'exports_reports_export_formats_off' );
 	delete_option( 'exports_reports_export_formats' );
+	delete_option( 'exports_reports_count_cache' );
+	exports_reports_forget_counts();
 
-	$token = md5( microtime() . wp_generate_password( 20 ) );
-	update_option( 'exports_reports_token', $token );
+	return exports_reports_generate_token();
 }
 
 /**
@@ -31,15 +36,36 @@ function exports_reports_settings() {
 		wp_die( esc_html__( 'Sorry, you are not allowed to manage the Exports and Reports settings.', 'exports-and-reports' ), 403 );
 	}
 
-	$cleared = false;
-	$reset   = false;
+	$cleared   = false;
+	$reset     = false;
+	$forgotten = false;
+	$new_token = '';
 
-	if ( isset( $_POST['cronjob_token'] ) || isset( $_POST['export_formats_set'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+	if ( isset( $_POST['cronjob_token'] ) || ! empty( $_POST['generate_token'] ) || ! empty( $_POST['disable_token'] ) || isset( $_POST['export_formats_set'] ) || isset( $_POST['count_cache'] ) || ! empty( $_POST['count_cache_forget'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
 		check_admin_referer( 'exports-reports-settings' );
 
-		if ( isset( $_POST['cronjob_token'] ) ) {
-			// An empty token turns the token access off.
-			update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) ) );
+		if ( isset( $_POST['count_cache'] ) ) {
+			update_option( 'exports_reports_count_cache', absint( wp_unslash( $_POST['count_cache'] ) ) );
+		}
+
+		if ( ! empty( $_POST['count_cache_forget'] ) ) {
+			exports_reports_forget_counts();
+			$forgotten = true;
+		}
+
+		// The token is kept as a hash, so the page shows it once, now, and the field for one of the
+		// administrator's own is otherwise empty: saved empty, it changes nothing.
+		if ( ! empty( $_POST['generate_token'] ) ) {
+			$new_token = exports_reports_generate_token();
+		} elseif ( ! empty( $_POST['disable_token'] ) ) {
+			exports_reports_set_token( '' );
+		} elseif ( isset( $_POST['cronjob_token'] ) ) {
+			$own_token = sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) );
+
+			if ( '' !== $own_token ) {
+				exports_reports_set_token( $own_token );
+				$new_token = $own_token;
+			}
 		}
 
 		if ( isset( $_POST['export_formats_set'] ) ) {
@@ -55,14 +81,28 @@ function exports_reports_settings() {
 		}
 
 		if ( ! empty( $_POST['reset'] ) ) {
-			exports_reports_reset();
-			$reset = true;
+			$new_token = exports_reports_reset();
+			$reset     = true;
 		}
 	}
 
 	$rest_base    = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
-	$token        = (string) get_option( 'exports_reports_token' );
+	$token_on     = '' !== exports_reports_token_hash();
+	$token        = '' !== $new_token ? $new_token : 'YOUR_TOKEN'; // In the example addresses.
 	$site_formats = exports_reports_site_export_formats();
+	$count_cache  = (int) get_option( 'exports_reports_count_cache', 5 );
+	$count_caches = array(
+		0  => __( 'Off', 'exports-and-reports' ),
+		1  => __( '1 minute', 'exports-and-reports' ),
+		5  => __( '5 minutes (the default)', 'exports-and-reports' ),
+		15 => __( '15 minutes', 'exports-and-reports' ),
+		60 => __( '1 hour', 'exports-and-reports' ),
+	);
+	if ( ! isset( $count_caches[ $count_cache ] ) ) {
+		/* translators: %s: a number of minutes. */
+		$count_caches[ $count_cache ] = sprintf( _n( '%s minute', '%s minutes', $count_cache, 'exports-and-reports' ), number_format_i18n( $count_cache ) );
+		ksort( $count_caches );
+	}
 
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
@@ -78,6 +118,19 @@ function exports_reports_settings() {
 		<?php if ( $reset ) : ?>
 			<div id="message" class="updated fade">
 				<p><?php esc_html_e( 'Your Settings have been reset.', 'exports-and-reports' ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( $forgotten ) : ?>
+			<div id="message" class="updated fade">
+				<p><?php esc_html_e( 'The kept row counts are forgotten; the next page view of each report counts again.', 'exports-and-reports' ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<?php if ( '' !== $new_token ) : ?>
+			<div class="notice notice-success exports-reports-token-notice">
+				<p><strong><?php esc_html_e( 'Your API token:', 'exports-and-reports' ); ?></strong> <code><?php echo esc_html( $new_token ); ?></code></p>
+				<p><?php esc_html_e( 'Copy it now and put it in your scripts and cronjobs: the plugin keeps only its hash, like a password, and cannot show it again.', 'exports-and-reports' ); ?></p>
 			</div>
 		<?php endif; ?>
 
@@ -109,6 +162,18 @@ function exports_reports_settings() {
 					</td>
 				</tr>
 				<tr valign="top">
+					<th scope="row"><label for="count_cache"><?php esc_html_e( 'Row Count Cache', 'exports-and-reports' ); ?></label></th>
+					<td>
+						<select name="count_cache" id="count_cache">
+							<?php foreach ( $count_caches as $minutes => $label ) : ?>
+								<option value="<?php echo esc_attr( (string) $minutes ); ?>"<?php selected( $count_cache, $minutes ); ?>><?php echo esc_html( $label ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<input name="count_cache_forget" type="submit" class="button" value="<?php esc_attr_e( 'Forget the Counts Now', 'exports-and-reports' ); ?>" />
+						<p class="description"><?php esc_html_e( 'How long the row count of a report page ("1,234 items") is kept for the same query, search and filters. The count runs with the first page over every row the query matches, which costs a slow query as much again; while a count is kept, the page views that follow run the query without it. Rows added or removed meanwhile show in the count once it is counted again; the button makes every report count again now.', 'exports-and-reports' ); ?></p>
+					</td>
+				</tr>
+				<tr valign="top">
 					<th scope="row"><?php esc_html_e( 'Export Directory', 'exports-and-reports' ); ?></th>
 					<td>
 						<code><?php echo esc_html( EXPORTS_REPORTS_EXPORT_DIR ); ?></code><br />
@@ -134,15 +199,29 @@ function exports_reports_settings() {
 					</td>
 				</tr>
 				<tr valign="top">
-					<th scope="row"><label for="cronjob_token"><?php esc_html_e( 'Cronjob/JSON API Token', 'exports-and-reports' ); ?></label></th>
+					<th scope="row"><?php esc_html_e( 'Cronjob/JSON API Token', 'exports-and-reports' ); ?></th>
 					<td>
-						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="<?php echo esc_attr( get_option( 'exports_reports_token' ) ); ?>" /><br />
+						<p class="exports-reports-token-state">
+							<?php if ( $token_on ) : ?>
+								<?php esc_html_e( 'Token access is on. The token is stored as a hash, like a password, so it cannot be shown here; generate a new one if it is lost.', 'exports-and-reports' ); ?>
+							<?php else : ?>
+								<?php esc_html_e( 'Token access is off: the REST routes answer logged-in users only. Generate a token to let a script or a cronjob in.', 'exports-and-reports' ); ?>
+							<?php endif; ?>
+						</p>
+						<p>
+							<input name="generate_token" type="submit" class="button" value="<?php echo esc_attr( $token_on ? __( 'Generate a New Token', 'exports-and-reports' ) : __( 'Generate a Token', 'exports-and-reports' ) ); ?>" />
+							<?php if ( $token_on ) : ?>
+								<input name="disable_token" type="submit" class="button" value="<?php esc_attr_e( 'Turn Token Access Off', 'exports-and-reports' ); ?>" />
+							<?php endif; ?>
+						</p>
+						<label for="cronjob_token"><?php esc_html_e( 'Or set a token of your own, then save the settings:', 'exports-and-reports' ); ?></label><br />
+						<input name="cronjob_token" type="text" id="cronjob_token" size="50" value="" autocomplete="off" /><br />
 						<span class="description">
 							<?php
 							echo wp_kses(
 								sprintf(
 									/* translators: 1: the Authorization header, 2: the token query parameter, both as code. */
-									__( 'Keep this token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header %1$s, or as a %2$s query parameter. You can change it anytime as needed; save it empty to turn token access off.', 'exports-and-reports' ),
+									__( 'Keep the token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header %1$s, or as a %2$s query parameter; the header is the better choice, since a query parameter ends up in server logs.', 'exports-and-reports' ),
 									'<code>Authorization: Bearer TOKEN</code>',
 									'<code>token</code>'
 								),
@@ -172,7 +251,7 @@ function exports_reports_settings() {
 						<p class="description">
 							<?php
 							/* translators: %s: the export directory, relative to the WordPress directory. */
-							echo esc_html( sprintf( __( 'This generates a new token, puts every export format back on, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept.', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
+							echo esc_html( sprintf( __( 'This generates a new token, puts every export format back on and the row count cache back to five minutes, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept.', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
 							?>
 						</p>
 					</td>
