@@ -243,6 +243,35 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		$this->assertFalse( $admin->exported_file );
 	}
 
+	/**
+	 * A link from before 1.1.0 (the action and the type in the address) opened again writes nothing: the
+	 * screen shows the report with a note. The removal link, without a type, still works through the address.
+	 */
+	public function test_an_export_asked_for_through_the_address_is_not_written_again() {
+		$_GET = array(
+			'action'      => 'export',
+			'export_type' => 'csv',
+			'_wpnonce'    => wp_create_nonce( 'exports-reports-export-request' ),
+		);
+
+		$before = count( $this->export_files() );
+		$admin  = $this->report( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Old link' );
+
+		$this->assertSame( 'export', $admin->action );
+		$this->assertFalse( $admin->export_type );
+		$this->assertTrue( $admin->export_from_address );
+
+		ob_start();
+		$admin->manage();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Exports start from the Export buttons', $html );
+		$this->assertStringNotContainsString( 'Your export is ready', $html );
+		$this->assertStringContainsString( 'form="exports-reports-export"', $html, 'the report and its buttons are shown' );
+		$this->assertCount( $before, $this->export_files(), 'no file was written' );
+		$this->assertFalse( $admin->exported_file );
+	}
+
 	public function test_a_posted_format_the_screen_does_not_offer_is_not_taken() {
 		$_POST = array(
 			'exports_reports_export' => '1',

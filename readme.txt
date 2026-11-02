@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,10 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.1.2 =
+* An export link from before 1.1.0 (the action and the format in the page's address), opened again from the history or a bookmark, no longer writes another file: the report shows with a note, and the Export buttons start a new one.
+* On a wide report the bars with the export buttons and the paging stay in place while the table scrolls sideways under them.
 
 = 1.1.1 =
 * The Settings page stores the export formats that are turned off rather than the ones that are on, so a format a later version adds is on everywhere until someone turns it off. The list 1.1.0 saved is converted on upgrade.

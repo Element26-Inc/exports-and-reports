@@ -44,7 +44,11 @@ $back         = $reordering;
 		<?php
 	}
 
-	if ( false !== $this->export && 'export' === $this->action ) {
+	if ( false !== $this->export && 'export' === $this->action && $this->export_from_address ) {
+		// A link from before 1.1.0, opened again from the history or a bookmark: the export it named was
+		// written then; another one starts from the buttons.
+		$this->message( __( 'This address pointed at an export that was written when its link was made. Exports start from the Export buttons, which leave the address as it is.', 'exports-and-reports' ) );
+	} elseif ( false !== $this->export && 'export' === $this->action ) {
 		// The file is written during this request. A note for the wait, sent ahead when the server lets it
 		// through; the screen's script removes it once the page, and with it the export, is done.
 		?>

@@ -124,8 +124,18 @@ class Exports_Reports_Admin_UI {
 	 *
 	 * @var string[]
 	 */
-	public $export_formats   = array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' );
-	public $page_orientation = 'P';
+	public $export_formats = array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' );
+	/**
+	 * Whether the request asked for an export through the page's address, the way the links before 1.1.0
+	 * did (action=export&export_type=...). Such a request writes nothing: the address is what a browser
+	 * keeps, and the file it pointed at was written when the link was made.
+	 *
+	 * @since 1.1.2
+	 *
+	 * @var bool
+	 */
+	public $export_from_address = false;
+	public $page_orientation    = 'P';
 
 	public $base_dir = '';
 
@@ -237,7 +247,8 @@ class Exports_Reports_Admin_UI {
 			$this->order_dir = $order_dir;
 		}
 		// The export buttons post their form, so the request that writes a file is never an address a browser
-		// keeps or revisits; the older links with the action in the address still work.
+		// keeps or revisits. An export asked for through the address, as the links before 1.1.0 did, writes
+		// nothing (the removal link, which carries no export type, still works).
 		$posted_export = '1' === $this->get_var( 'exports_reports_export', false, '1', 'post' );
 		if ( $posted_export && false !== $this->export ) {
 			$this->action = 'export';
@@ -245,8 +256,10 @@ class Exports_Reports_Admin_UI {
 		if ( 'export' === $this->action ) {
 			$source      = $posted_export ? 'post' : false;
 			$export_type = $this->get_var( 'export_type', false, $this->allowed_export_types(), $source );
-			if ( false !== $export_type ) {
+			if ( false !== $export_type && $posted_export ) {
 				$this->export_type = $export_type;
+			} elseif ( false !== $this->get_var( 'export_type' ) ) {
+				$this->export_from_address = true;
 			}
 			$export_delimiter = $this->get_var( 'export_delimiter', false, false, $source );
 			if ( 'custom' === $this->export_type && false !== $export_delimiter ) {
