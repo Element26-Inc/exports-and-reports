@@ -91,7 +91,7 @@ class Tests_Detect_Columns extends Exports_Reports_Test_Case {
 		$no_rows = exports_reports_detect_columns( 'SET @x = 1' );
 
 		$this->assertSame( array(), $failing['columns'] );
-		$this->assertStringContainsString( 'nothing', $failing['error'], 'the database\'s message' );
+		$this->assertSame( 1, preg_match( "/Unknown column|doesn't exist/", $failing['error'] ), 'the database\'s message (MariaDB names the column, MySQL the table): ' . $failing['error'] );
 		$this->assertSame( array(), $no_rows['columns'] );
 		$this->assertSame( 'The last statement of the query returns no rows.', $no_rows['error'] );
 		$this->assertSame( '18446744073709551615', (string) $wpdb->get_var( 'SELECT @@SESSION.sql_select_limit' ) );
