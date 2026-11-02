@@ -71,12 +71,11 @@ class Exports_Reports_List_Table extends WP_List_Table {
 			'ajax'     => false,
 		);
 
-		// The current admin screen, by id; outside an admin request (a test, WP-CLI) core works one out.
+		// The current admin screen, by id. Outside an admin request (a test, WP-CLI) a name of the plugin's own
+		// stands in: WordPress 5.7 reads the hook suffix global for a missing one, which is not set there.
 		$screen = get_current_screen();
 
-		if ( $screen instanceof WP_Screen ) {
-			$args['screen'] = $screen->id;
-		}
+		$args['screen'] = $screen instanceof WP_Screen ? $screen->id : 'exports-reports';
 
 		parent::__construct( $args );
 	}
