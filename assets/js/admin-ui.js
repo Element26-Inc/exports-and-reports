@@ -1,10 +1,13 @@
 /**
  * The report screens: rows dragged into order when the screen reorders, the delete links' confirmation,
- * and the pagination header's page field, which goes back to page 1 when the form is submitted for
- * anything but a page change.
+ * the note shown while an export was written, and the pagination header's page field, which goes back
+ * to page 1 when the form is submitted for anything but a page change.
  */
 /* global jQuery */
 jQuery( function ( $ ) {
+	// The page has loaded, so the export it was writing is done (or failed, and the screen says so).
+	$( '.exports-reports-export-progress' ).remove();
+
 	const sortable = $( '.admin_ui_reorder_form tbody' );
 
 	if ( sortable.length && $.fn.sortable ) {

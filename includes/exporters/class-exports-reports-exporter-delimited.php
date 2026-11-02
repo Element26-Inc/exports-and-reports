@@ -121,9 +121,15 @@ class Exports_Reports_Exporter_Delimited extends Exports_Reports_Exporter {
 
 		if ( '' !== $this->admin->stream_sql ) {
 			// Unbuffered, on wpdb's connection: the statement may read temporary tables and session variables
-			// a filter callback created there. One row is in memory at a time.
-			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query -- an unbuffered result on wpdb's connection; the statement is the report's own query.
-			$stream = mysqli_query( $wpdb->dbh, $this->admin->stream_sql, MYSQLI_USE_RESULT );
+			// that a filter callback created there, or that the statements before it in the definition set
+			// up, which run first. One row is in memory at a time.
+			$stream_sql = $this->admin->query->run_leading_statements( $this->admin->stream_sql );
+			$stream     = false;
+
+			if ( false !== $stream_sql ) {
+				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_query -- an unbuffered result on wpdb's connection; the statement is the report's own query.
+				$stream = mysqli_query( $wpdb->dbh, $stream_sql, MYSQLI_USE_RESULT );
+			}
 
 			if ( ! $stream instanceof mysqli_result ) {
 				// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_error

@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -40,6 +40,10 @@ As an admin, add &debug=1 to the end of the report URL to see the query that thi
 = My report starts with WITH or EXECUTE IMMEDIATE and shows one page. Why? =
 
 The plugin places its paging and its row count into statements that begin with SELECT. For a statement that begins with anything else, write %%LIMIT%% where the page belongs (inside the EXECUTE IMMEDIATE string, for example) and supply the total through the `exports_reports_get_data_total` filter, or add the report's own LIMIT and ORDER BY and treat it as a single page. Exports are not affected: they always write every row.
+
+= Can a report run more than one statement? =
+
+Yes. End each with a semicolon: session variables first (`SET @day = CURRENT_DATE();`), a dynamic statement if the report builds one (`EXECUTE IMMEDIATE CONCAT( ... );`), and last the query that returns the rows. They run in order on one connection, so the last statement reads what the ones before it set up. The plugin's paging, search and filters go into the last statement only.
 
 = Where do the export files go, and who can download them? =
 
@@ -118,6 +122,12 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.0.2 =
+* A report may be several statements: session variables set before the query, a dynamic statement prepared with `EXECUTE IMMEDIATE` (`SET @day = CURRENT_DATE(); EXECUTE IMMEDIATE CONCAT( ... )`). They run one at a time on the same connection, and the paging, the search and the filters go into the last one, the query that returns the rows. Such a report no longer stops with a syntax error at its second statement.
+* The row count above the list no longer shows 0 after a CSV, TSV or TXT export.
+* The page count in the list's paging carries thousands separators, like the row count.
+* The list shows a note while an export is being written.
 
 = 1.0.1 =
 * The plugin zip is attached to the GitHub release again: the release workflow builds it on GitHub into a draft release and publishes the release once the file is on it (1.0.0 was published before its zip could be attached).

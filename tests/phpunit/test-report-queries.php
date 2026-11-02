@@ -58,6 +58,141 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	}
 
 	/**
+	 * A definition of several statements: the ones before the query run first, on the same connection, so
+	 * the query reads the session variables they set. Doubled and trailing semicolons, and a semicolon in a
+	 * string, do not get in the way. (The variables compared are numbers: a text variable takes the
+	 * connection's collation, which need not be the column's.)
+	 */
+	public function test_statements_before_the_query_run_first() {
+		list( , $rows, $error ) = $this->run_report( "SET @remainder = 0;;\nSET @note = 'a; b';\nSELECT id, title, @note AS note FROM " . self::videos() . " WHERE id % 3 = @remainder ORDER BY id;", 'Session variables' );
+
+		$this->assertSame( '', $error );
+		$this->assertCount( 20, $rows );
+		$this->assertSame( 3, (int) $rows[0]['id'] );
+		$this->assertSame( 'a; b', $rows[0]['note'] );
+	}
+
+	/**
+	 * The page view of such a definition: the count and the page's LIMIT go into the last statement; the ones
+	 * before it stay as written (a SELECT in one of them does not take the count).
+	 */
+	public function test_the_page_of_several_statements_counts_the_last() {
+		$report        = $this->report( "SET @total = ( SELECT COUNT(*) FROM " . self::videos() . " );\nSELECT id, title, @total AS total FROM " . self::videos() . " WHERE channel = 'beta' ORDER BY id", 'Session variables page' );
+		$report->limit = 5;
+
+		ob_start();
+		$report->get_data( false );
+		ob_end_clean();
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( 20, (int) $report->total );
+		$this->assertCount( 5, $report->data );
+		$this->assertSame( self::$video_rows, (int) $report->data[0]['total'] );
+
+		$sql = $report->query->statement( false );
+		$sql = $sql['sql'];
+
+		$this->assertStringStartsWith( 'SET @total = ( SELECT COUNT(*)', $sql );
+		$this->assertSame( 1, substr_count( $sql, 'SQL_CALC_FOUND_ROWS' ) );
+		$this->assertGreaterThan( strpos( $sql, ";\n" ), strpos( $sql, 'SQL_CALC_FOUND_ROWS' ), 'the count goes into the last statement' );
+		$this->assertGreaterThan( strpos( $sql, ";\n" ), strpos( $sql, ' LIMIT ' ), 'the page goes into the last statement' );
+	}
+
+	/**
+	 * The shape dynamic reports take: session variables, then EXECUTE IMMEDIATE with the LIMIT placeholder
+	 * inside its string and a line break before its SELECT, which takes the count; MariaDB only.
+	 */
+	public function test_session_variables_then_execute_immediate() {
+		if ( ! $this->is_mariadb() ) {
+			$this->markTestSkipped( 'EXECUTE IMMEDIATE is MariaDB only.' );
+		}
+
+		$report        = $this->report( "SET @least = 41;;\nEXECUTE IMMEDIATE CONCAT('\nSELECT id, title FROM " . self::videos() . " WHERE id >= ', @least, ' ORDER BY id LIMIT %%LIMIT%%');", 'Dynamic with variables' );
+		$report->limit = 5;
+
+		ob_start();
+		$report->get_data( false );
+		ob_end_clean();
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( 20, (int) $report->total );
+		$this->assertCount( 5, $report->data );
+		$this->assertSame( 41, (int) $report->data[0]['id'] );
+		$this->assertSame( array( 'id', 'title' ), array_keys( $report->data[0] ), 'the columns come from the result' );
+	}
+
+	/**
+	 * A statement before the query that fails stops the report with the database's error; nothing runs after it.
+	 */
+	public function test_a_failing_statement_before_the_query_stops_the_report() {
+		global $wpdb;
+
+		$shown = $wpdb->suppress_errors();
+
+		list( , $rows, $error ) = $this->run_report( "SET @broken = (SELECT no_such_column FROM " . self::videos() . ");\nSELECT id FROM " . self::videos(), 'Broken variable' );
+
+		$wpdb->suppress_errors( $shown );
+
+		$this->assertSame( array(), $rows );
+		$this->assertStringContainsString( 'no_such_column', $error );
+	}
+
+	/**
+	 * The splitter: semicolons inside quotes and comments do not split, a comment stays with its statement,
+	 * empty pieces and comment-only pieces are dropped.
+	 */
+	public function test_statements_are_split_outside_quotes_and_comments() {
+		$sql = "SET @a = 'x;y';; -- a note; not a split\nSET @b = \"p;q\"; /* c; */ SELECT `we;ird`, 'it\\'s' AS apostrophe FROM t WHERE a LIKE '%;%';\n# tail; comment";
+
+		$this->assertSame(
+			array(
+				"SET @a = 'x;y'",
+				"-- a note; not a split\nSET @b = \"p;q\"",
+				"/* c; */ SELECT `we;ird`, 'it\\'s' AS apostrophe FROM t WHERE a LIKE '%;%'",
+			),
+			Exports_Reports_Query::statements( $sql )
+		);
+		$this->assertSame( array( 'SELECT 1' ), Exports_Reports_Query::statements( ' SELECT 1 ; ; ' ) );
+		$this->assertSame( array(), Exports_Reports_Query::statements( "-- nothing\n;" ) );
+	}
+
+	/**
+	 * A full read after the page (the list screen writes an export after it has loaded its page) keeps the
+	 * page's count; a streamed export counts nothing and must not zero it.
+	 */
+	public function test_a_full_read_after_the_page_keeps_the_page_count() {
+		$report = $this->view( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Count kept' );
+
+		$this->assertSame( self::$video_rows, (int) $report->total );
+
+		$report->stream_export = true;
+
+		ob_start();
+		$report->get_data( true );
+		ob_end_clean();
+
+		$report->stream_export = false;
+
+		$this->assertSame( self::$video_rows, (int) $report->total );
+	}
+
+	/**
+	 * The paging prints the page count the way it prints the row count.
+	 */
+	public function test_the_page_count_is_formatted_like_the_row_count() {
+		$report        = $this->report( 'SELECT id FROM ' . self::videos(), 'Pages' );
+		$report->total = 100000;
+		$report->limit = 1;
+
+		ob_start();
+		$report->pagination( true );
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( '100,000 pages', $html );
+		$this->assertStringContainsString( '<span class="total-pages">100,000</span>', $html );
+	}
+
+	/**
 	 * The placeholder removal must not depend on spaces.
 	 */
 	public function test_a_tab_indented_limit_placeholder() {

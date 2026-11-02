@@ -2005,7 +2005,9 @@ class Exports_Reports_Admin_UI {
 		$total = apply_filters( 'exports_reports_get_data_total', $total, $full, $this );
 		$total = $this->legacy_hook( 'get_data_total', array( $total, $full ) );
 
-		if ( is_numeric( $total ) ) {
+		// The page's count. A full read keeps the count the page made: on the list screen the export runs
+		// after the page has loaded, and a streamed export counts nothing.
+		if ( ! $full && is_numeric( $total ) ) {
 			$this->total = $total;
 		}
 
@@ -2248,7 +2250,7 @@ class Exports_Reports_Admin_UI {
 			if ( true === $header ) {
 				?>
 				<span class="paging-input"><input class="current-page" title="<?php esc_attr_e( 'Current page', 'exports-and-reports' ); ?>" type="text" name="pg<?php echo esc_attr( $this->num ); ?>" value="<?php echo esc_attr( $this->page ); ?>" size="<?php echo esc_attr( (string) strlen( (string) $total_pages ) ); ?>"> <?php esc_html_e( 'of', 'exports-and-reports' ); ?>
-					<span class="total-pages"><?php echo esc_html( (string) $total_pages ); ?></span></span>
+					<span class="total-pages"><?php echo esc_html( number_format_i18n( $total_pages ) ); ?></span></span>
 				<?php
 			} else {
 				?>
