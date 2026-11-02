@@ -135,7 +135,15 @@ class Exports_Reports_Admin_UI {
 	 * @var bool
 	 */
 	public $export_from_address = false;
-	public $page_orientation    = 'P';
+	/**
+	 * The database's message when the report's query (or its count query) failed on the last get_data(), '' otherwise.
+	 *
+	 * @since 1.1.3
+	 *
+	 * @var string
+	 */
+	public $query_error      = '';
+	public $page_orientation = 'P';
 
 	public $base_dir = '';
 
@@ -2102,14 +2110,18 @@ class Exports_Reports_Admin_UI {
 			$wpdb->show_errors( true );
 		}
 
-		$results = array();
-		$total   = 0;
+		$results           = array();
+		$total             = 0;
+		$this->query_error = '';
 
 		if ( $this->stream_export ) {
 			// The delimited exporter reads the result row by row.
 			$this->stream_sql = $wpdb->remove_placeholder_escape( $sql ); // mysqli runs it without wpdb, which would remove the escape.
 		} else {
 			$results = $this->rows( $sql, ARRAY_A );
+
+			// The database's complaint, before the count query clears it.
+			$this->query_error = (string) $wpdb->last_error;
 
 			$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
 		}
@@ -2174,9 +2186,36 @@ class Exports_Reports_Admin_UI {
 
 		if ( false !== $this->sql_count && ! empty( $sql_count ) ) {
 			$this->sum_data = $this->rows( $sql_count, ARRAY_A );
+
+			if ( '' === $this->query_error ) {
+				$this->query_error = (string) $wpdb->last_error;
+			}
 		}
 
 		return $results;
+	}
+
+	/**
+	 * What the screen says when the report's query failed: the database's message to a user who may edit
+	 * reports (or to the API's token), a plain note to anyone else.
+	 *
+	 * @since 1.1.3
+	 *
+	 * @param bool|null $in_full Whether to give the database's message; null decides by the user's capabilities.
+	 *
+	 * @return string HTML.
+	 */
+	public function query_error_message( $in_full = null ) {
+		if ( null === $in_full ) {
+			$in_full = current_user_can( 'manage_options' ) || ( function_exists( 'exports_reports_current_user_can_any' ) && exports_reports_current_user_can_any( array( 'exports_reports_full_access', 'exports_reports_settings' ) ) );
+		}
+
+		if ( $in_full ) {
+			/* translators: %s: the database's error message. */
+			return sprintf( __( '<strong>Error:</strong> The report\'s query failed: %s', 'exports-and-reports' ), esc_html( $this->query_error ) );
+		}
+
+		return __( '<strong>Error:</strong> The report\'s query failed. Ask an administrator to check its definition.', 'exports-and-reports' );
 	}
 
 	public function set_filter_lookups() {
@@ -2269,7 +2308,21 @@ class Exports_Reports_Admin_UI {
 		}
 		$column_index = 1 === $reorder ? 'reorder_columns' : 'columns';
 
+		if ( '' !== $this->query_error ) {
+			$this->error( $this->query_error_message() );
+
+			return false;
+		}
+
 		if ( empty( $this->{$column_index} ) ) {
+			if ( 1 !== $reorder && empty( $this->data ) && false !== $this->sql ) {
+				// No field definitions and no rows: the columns would have come from the rows.
+				?>
+				<p><?php esc_html_e( 'The report returned no rows.', 'exports-and-reports' ); ?></p>
+				<?php
+				return false;
+			}
+
 			return $this->error( __( '<strong>Error:</strong> Invalid Configuration - Missing "columns" definition.', 'exports-and-reports' ) );
 		}
 

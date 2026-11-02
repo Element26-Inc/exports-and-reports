@@ -193,6 +193,178 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	}
 
 	/**
+	 * The row count goes into the main SELECT, not into the first SELECT in the text (the query of a WITH clause).
+	 */
+	public function test_the_row_count_goes_into_the_main_select_of_a_cte_query() {
+		$report = $this->view( 'WITH per_channel AS ( SELECT channel, COUNT(*) AS videos FROM ' . self::videos() . ' GROUP BY channel ) SELECT channel, videos FROM per_channel ORDER BY channel', 'CTE page' );
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( 3, (int) $report->total );
+		$this->assertCount( 3, $report->data );
+
+		$sql = $report->query->statement( false );
+		$sql = $sql['sql'];
+
+		$this->assertStringContainsString( '( SELECT channel, COUNT(*)', $sql, 'the WITH clause is untouched' );
+		$this->assertStringContainsString( ') SELECT SQL_CALC_FOUND_ROWS channel, videos FROM per_channel', $sql );
+		$this->assertStringContainsString( 'ORDER BY channel LIMIT 0,', $sql, 'the page goes after the main ORDER BY' );
+	}
+
+	/**
+	 * A sort from the request goes into the main ORDER BY, not into a window function's.
+	 */
+	public function test_a_sort_goes_into_the_main_order_by_not_a_window_function() {
+		$_GET['order']     = 'id';
+		$_GET['order_dir'] = 'DESC';
+
+		$report = $this->view( 'SELECT id, title, ROW_NUMBER() OVER (PARTITION BY channel ORDER BY id DESC) AS rn FROM ' . self::videos() . ' ORDER BY title', 'Window sort' );
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( self::$video_rows, (int) $report->data[0]['id'] );
+
+		$sql = $report->query->statement( false );
+		$sql = $sql['sql'];
+
+		$this->assertStringContainsString( 'OVER (PARTITION BY channel ORDER BY id DESC)', $sql, 'the window function is untouched' );
+		$this->assertSame( 1, preg_match( '/ORDER BY `id` DESC,\\s+title LIMIT/', $sql ), $sql );
+	}
+
+	/**
+	 * A filter goes into the main SELECT's WHERE (added before its ORDER BY), not into a WITH clause's WHERE.
+	 */
+	public function test_a_filter_goes_into_the_main_where_not_a_cte_where() {
+		$_GET = array( 'filter_channel' => array( 'alpha' ) );
+
+		$report = $this->view( 'WITH recent AS ( SELECT * FROM ' . self::videos() . ' WHERE id > 30 ) SELECT id, channel FROM recent ORDER BY id', 'CTE filter', $this->channel_filter_options() );
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( 10, (int) $report->total );
+		$this->assertSame( 33, (int) $report->data[0]['id'] );
+
+		$sql = $report->query->statement( false );
+		$sql = $sql['sql'];
+
+		$this->assertStringContainsString( 'WHERE id > 30 ) SELECT', $sql, 'the WITH clause is untouched' );
+		$this->assertSame( 1, preg_match( '/FROM recent\\s+WHERE\\s*\\(`channel` LIKE/', $sql ), $sql );
+	}
+
+	/**
+	 * A statement with a LIMIT of its own and no placeholder pages itself: one page of what it returns, no count.
+	 */
+	public function test_a_statement_with_its_own_limit_is_one_page() {
+		$report = $this->view( 'SELECT id FROM ' . self::videos() . ' ORDER BY id LIMIT 7', 'Own limit' );
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertCount( 7, $report->data );
+		$this->assertSame( 7, (int) $report->total );
+
+		$sql = $report->query->statement( false );
+
+		$this->assertStringNotContainsString( 'SQL_CALC_FOUND_ROWS', $sql['sql'] );
+		$this->assertStringEndsWith( 'LIMIT 7 ', $sql['sql'] );
+	}
+
+	/**
+	 * The dynamic shape: WITH clauses inside EXECUTE IMMEDIATE's string, the main SELECT after them with no
+	 * space before it, the LIMIT placeholder inside the string; MariaDB only.
+	 */
+	public function test_the_row_count_goes_into_the_main_select_of_a_dynamic_cte_query() {
+		if ( ! $this->is_mariadb() ) {
+			$this->markTestSkipped( 'EXECUTE IMMEDIATE is MariaDB only.' );
+		}
+
+		$report        = $this->report( "SET @least = 41;\nEXECUTE IMMEDIATE CONCAT(\"WITH recent AS (SELECT id, title FROM " . self::videos() . " WHERE id >= \", @least, \"), other AS (SELECT 1 AS one)\nSELECT id, title FROM recent ORDER BY id LIMIT %%LIMIT%%\")", 'Dynamic CTE' );
+		$report->limit = 5;
+
+		ob_start();
+		$report->get_data( false );
+		ob_end_clean();
+
+		$this->assertSame( '', $this->db_error() );
+		$this->assertSame( 20, (int) $report->total );
+		$this->assertCount( 5, $report->data );
+		$this->assertSame( 41, (int) $report->data[0]['id'] );
+
+		$sql = $report->query->statement( false );
+
+		$this->assertStringContainsString( 'AS one) SELECT SQL_CALC_FOUND_ROWS id, title FROM recent', $sql['sql'] );
+	}
+
+	/**
+	 * The scanner: the main SELECT and its clauses by depth, placeholders where they stand, the end of a dynamic statement's text.
+	 */
+	public function test_the_outline_finds_the_main_select_and_its_clauses() {
+		$outline = Exports_Reports_Query::outline( " WITH a AS (SELECT x FROM t WHERE y = 1 ORDER BY z) SELECT a.x, (SELECT 1) AS one FROM a WHERE a.x > 0 GROUP BY a.x HAVING COUNT(*) > 1 ORDER BY a.x LIMIT 5 " );
+
+		$plain = " WITH a AS (SELECT x FROM t WHERE y = 1 ORDER BY z) SELECT a.x, (SELECT 1) AS one FROM a WHERE a.x > 0 GROUP BY a.x HAVING COUNT(*) > 1 ORDER BY a.x LIMIT 5 ";
+
+		$this->assertSame( 0, $outline['depth'] );
+		$this->assertSame( 'SELECT a.x,', substr( $plain, $outline['select'], 11 ) );
+		$this->assertSame( 'FROM a', substr( $plain, $outline['from'], 6 ) );
+		$this->assertLessThan( $outline['where'], $outline['from'] );
+		$this->assertLessThan( $outline['group'], $outline['where'] );
+		$this->assertLessThan( $outline['having'], $outline['group'] );
+		$this->assertLessThan( $outline['order'], $outline['having'] );
+		$this->assertLessThan( $outline['limit'], $outline['order'] );
+
+		$dynamic = 'EXECUTE IMMEDIATE CONCAT("SELECT a FROM t WHERE b = \'x)\' LIMIT %%LIMIT%%")';
+		$outline = Exports_Reports_Query::outline( $dynamic );
+
+		$this->assertSame( 1, $outline['depth'] );
+		$this->assertSame( strrpos( $dynamic, '"' ), $outline['end'], 'a clause added at the end goes inside the string' );
+		$this->assertNotFalse( $outline['where'] );
+		$this->assertNotFalse( $outline['limit'] );
+
+		$this->assertFalse( Exports_Reports_Query::outline( 'CALL some_procedure()' )['select'] );
+	}
+
+	/**
+	 * A failing query names the database's message to a user who may edit reports and a plain note to others;
+	 * a query that returns no rows on a report without field definitions says so.
+	 */
+	public function test_a_failing_query_is_reported_and_an_empty_result_is_not_a_configuration_error() {
+		$administrator = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$subscriber    = self::factory()->user->create( array( 'role' => 'subscriber' ) );
+
+		global $wpdb;
+
+		$shown  = $wpdb->suppress_errors();
+		$report = $this->view( 'SELECT no_such_column FROM ' . self::videos(), 'Broken' );
+		$wpdb->suppress_errors( $shown );
+
+		$this->assertStringContainsString( 'no_such_column', $report->query_error );
+
+		wp_set_current_user( $administrator );
+		ob_start();
+		$report->table();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'query failed', $html );
+		$this->assertStringContainsString( 'no_such_column', $html );
+		$this->assertStringNotContainsString( 'Missing &quot;columns&quot;', $html );
+		$this->assertStringNotContainsString( 'Missing "columns"', $html );
+
+		wp_set_current_user( $subscriber );
+		ob_start();
+		$report->table();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Ask an administrator', $html );
+		$this->assertStringNotContainsString( 'no_such_column', $html );
+
+		$report = $this->view( 'SELECT id FROM ' . self::videos() . ' WHERE id > 1000', 'Empty' );
+
+		$this->assertSame( '', $report->query_error );
+
+		ob_start();
+		$report->table();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'returned no rows', $html );
+		$this->assertStringNotContainsString( 'Missing', $html );
+	}
+
+	/**
 	 * The placeholder removal must not depend on spaces.
 	 */
 	public function test_a_tab_indented_limit_placeholder() {

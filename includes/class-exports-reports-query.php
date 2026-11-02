@@ -317,11 +317,214 @@ class Exports_Reports_Query {
 	}
 
 	/**
-	 * The WHERE or HAVING text the filters add to a statement: the clause itself when the statement has
-	 * none, otherwise the conditions for its %%WHERE%% or %%HAVING%% placeholder, joined to the statement's
-	 * own with AND.
+	 * The keywords and placeholders of a statement, each with the parenthesis depth and group it sits in:
+	 * SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT and the plugin's %%NAME%% placeholders, outside
+	 * quoted strings, quoted identifiers and comments. The SQL of an EXECUTE IMMEDIATE statement sits in a
+	 * string: that string's quote is read through, so the words inside count as the statement's own.
+	 *
+	 * @since 1.1.3
+	 *
+	 * @param string $sql One statement.
+	 *
+	 * @return array{tokens: array<int, array{kind: string, pos: int, end: int, depth: int, group: int}>, end: int}
+	 *               The tokens in order (kind: the keyword in lower case, 'group' and 'order' standing for GROUP BY
+	 *               and ORDER BY, or the placeholder as written), and the offset where the statement's own text
+	 *               ends: before the closing quote of a dynamic statement, else after its last character.
+	 */
+	public static function tokens( $sql ) {
+		$sql     = (string) $sql;
+		$length  = strlen( $sql );
+		$through = '';
+		$end     = strlen( rtrim( $sql, " \t\n\r;" ) );
+
+		if ( preg_match( '/^\s*EXECUTE\s+IMMEDIATE\b/i', $sql, $head ) ) {
+			$first = strlen( $head[0] ) + strcspn( $sql, "'\"", strlen( $head[0] ) );
+
+			if ( $first < $length ) {
+				$through = $sql[ $first ];
+				$close   = strrpos( $sql, $through );
+
+				if ( false !== $close && $close > $first ) {
+					$end = $close;
+				}
+			}
+		}
+
+		$keywords = array( 'select', 'from', 'where', 'group', 'having', 'order', 'limit' );
+		$tokens   = array();
+		$depth    = 0;
+		$groups   = array( 0 => -1 );
+		$quote    = '';
+
+		for ( $i = 0; $i < $length; $i++ ) {
+			$char = $sql[ $i ];
+
+			if ( '' !== $quote ) {
+				if ( '\\' === $char && '`' !== $quote && $i + 1 < $length ) {
+					++$i;
+				} elseif ( $char === $quote ) {
+					$quote = '';
+				}
+
+				continue;
+			}
+
+			if ( '' !== $through && $char === $through ) {
+				continue;
+			}
+
+			if ( "'" === $char || '"' === $char || '`' === $char ) {
+				$quote = $char;
+				continue;
+			}
+
+			if ( '#' === $char || ( '-' === $char && '--' === substr( $sql, $i, 2 ) && ( $i + 2 === $length || '' === trim( $sql[ $i + 2 ] ) ) ) ) {
+				$newline = strpos( $sql, "\n", $i );
+				$i       = false === $newline ? $length : $newline;
+				continue;
+			}
+
+			if ( '/' === $char && '/*' === substr( $sql, $i, 2 ) ) {
+				$close = strpos( $sql, '*/', $i + 2 );
+				$i     = false === $close ? $length : $close + 1;
+				continue;
+			}
+
+			if ( '(' === $char ) {
+				++$depth;
+				$groups[ $depth ] = $i;
+				continue;
+			}
+
+			if ( ')' === $char ) {
+				$depth = max( 0, $depth - 1 );
+				continue;
+			}
+
+			if ( '%' === $char && preg_match( '/^%%([A-Za-z0-9_]+)%%/', substr( $sql, $i, 80 ), $placeholder ) ) {
+				$tokens[] = array(
+					'kind'  => $placeholder[0],
+					'pos'   => $i,
+					'end'   => $i + strlen( $placeholder[0] ),
+					'depth' => $depth,
+					'group' => $groups[ $depth ],
+				);
+				$i       += strlen( $placeholder[0] ) - 1;
+				continue;
+			}
+
+			if ( ! ctype_alpha( $char ) || ( 0 < $i && preg_match( '/[A-Za-z0-9_$@.]/', $sql[ $i - 1 ] ) ) ) {
+				continue;
+			}
+
+			$word_length = strspn( $sql, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$', $i );
+			$word        = strtolower( substr( $sql, $i, $word_length ) );
+			$after       = $i + $word_length;
+
+			if ( 'group' === $word || 'order' === $word ) {
+				if ( preg_match( '/^\s+BY\b/i', substr( $sql, $after, 16 ), $by ) ) {
+					$after += strlen( $by[0] );
+				} else {
+					$word = '';
+				}
+			}
+
+			if ( in_array( $word, $keywords, true ) ) {
+				$tokens[] = array(
+					'kind'  => $word,
+					'pos'   => $i,
+					'end'   => $after,
+					'depth' => $depth,
+					'group' => $groups[ $depth ],
+				);
+			}
+
+			$i = $after - 1;
+		}
+
+		return array(
+			'tokens' => $tokens,
+			'end'    => $end,
+		);
+	}
+
+	/**
+	 * The shape of a statement around its main SELECT, the one whose rows the screen shows: the offsets of
+	 * that keyword and of the clauses that belong to it. A SELECT inside parentheses (a subquery, the query of
+	 * a WITH clause, a window function's argument) is deeper than the main one: the main SELECT is the first
+	 * at the shallowest depth, and only the keywords at its depth, in its group and after it are its own.
+	 *
+	 * @since 1.1.3
+	 *
+	 * @param string $sql One statement.
+	 *
+	 * @return array{select: int|false, select_end: int, from: int|false, from_end: int, where: int|false, where_end: int, group: int|false, group_end: int, having: int|false, having_end: int, order: int|false, order_end: int, limit: int|false, limit_end: int, end: int, depth: int}
+	 *               For each keyword its offset (false when the main SELECT has none) and the offset after it;
+	 *               end, where a clause goes when the statement has nothing for it to go before (before the
+	 *               closing quote of a dynamic statement); depth, the main SELECT's.
+	 */
+	public static function outline( $sql ) {
+		$scan    = self::tokens( $sql );
+		$outline = array(
+			'select'     => false,
+			'select_end' => 0,
+			'from'       => false,
+			'from_end'   => 0,
+			'where'      => false,
+			'where_end'  => 0,
+			'group'      => false,
+			'group_end'  => 0,
+			'having'     => false,
+			'having_end' => 0,
+			'order'      => false,
+			'order_end'  => 0,
+			'limit'      => false,
+			'limit_end'  => 0,
+			'end'        => $scan['end'],
+			'depth'      => 0,
+		);
+		$main    = false;
+
+		foreach ( $scan['tokens'] as $token ) {
+			if ( 'select' === $token['kind'] && ( false === $main || $token['depth'] < $main['depth'] ) ) {
+				$main = $token;
+			}
+		}
+
+		if ( false === $main ) {
+			return $outline;
+		}
+
+		$outline['select']     = $main['pos'];
+		$outline['select_end'] = $main['end'];
+		$outline['depth']      = $main['depth'];
+
+		foreach ( $scan['tokens'] as $token ) {
+			$kind = $token['kind'];
+
+			if ( ! isset( $outline[ $kind ] ) || 'select' === $kind || $token['pos'] <= $main['pos'] || $token['depth'] !== $main['depth'] || $token['group'] !== $main['group'] ) {
+				continue;
+			}
+
+			if ( false === $outline[ $kind ] ) {
+				$outline[ $kind ]          = $token['pos'];
+				$outline[ $kind . '_end' ] = $token['end'];
+			}
+		}
+
+		return $outline;
+	}
+
+	/**
+	 * The WHERE or HAVING text the filters add to a statement. Where the author wrote the %%WHERE%% or
+	 * %%HAVING%% placeholder, the text fits that spot: the conditions and AND right after the clause's own
+	 * keyword, AND and the conditions further along a clause, the conditions alone after an AND or OR the
+	 * author left for them, the clause with its keyword where the query around the placeholder has none.
+	 * Without a placeholder: the conditions and AND when the main SELECT has the clause (place_clauses()
+	 * puts them right after its keyword), otherwise the whole clause.
 	 *
 	 * @since 0.9.5
+	 * @since 1.1.3 Judged by the main SELECT's own clauses, not the first keyword in the text.
 	 *
 	 * @param string   $sql        The statement.
 	 * @param string   $keyword    'WHERE' or 'HAVING'.
@@ -334,26 +537,56 @@ class Exports_Reports_Query {
 			return '';
 		}
 
-		$conditions = ' (' . implode( ' AND ', $conditions ) . ') ';
+		$conditions  = ' (' . implode( ' AND ', $conditions ) . ') ';
+		$placeholder = '%%' . $keyword . '%%';
+		$kind        = strtolower( $keyword );
+		$scan        = self::tokens( $sql );
 
-		if ( false === stripos( $sql, ' ' . $keyword . ' ' ) ) {
-			return ' ' . $keyword . $conditions;
+		foreach ( $scan['tokens'] as $token ) {
+			if ( $token['kind'] !== $placeholder ) {
+				continue;
+			}
+
+			$own = false;
+
+			foreach ( $scan['tokens'] as $other ) {
+				if ( $other['kind'] === $kind && $other['group'] === $token['group'] && $other['pos'] < $token['pos'] ) {
+					$own = $other;
+				}
+			}
+
+			if ( false === $own ) {
+				return ' ' . $keyword . $conditions;
+			}
+
+			$between = trim( substr( $sql, $own['end'], $token['pos'] - $own['end'] ) );
+
+			if ( '' === $between ) {
+				return $conditions . 'AND ';
+			}
+
+			if ( preg_match( '/\b(AND|OR)$/i', $between ) ) {
+				return $conditions;
+			}
+
+			return ' AND' . $conditions;
 		}
 
-		if ( false !== stripos( $sql, ' ' . $keyword . ' %%' . $keyword . '%% ' ) || false === stripos( $sql, ' %%' . $keyword . '%% ' ) ) {
-			return $conditions . 'AND ';
-		}
+		$outline = self::outline( $sql );
 
-		return ' AND' . $conditions;
+		return false === $outline[ $kind ] ? ' ' . $keyword . $conditions : $conditions . 'AND ';
 	}
 
 	/**
-	 * Puts the plugin's clauses into a statement. A %%WHERE%%, %%HAVING%%, %%ORDERBY%% or %%LIMIT%%
-	 * placeholder the definition lacks is added for a clause that has text: right after the statement's own
-	 * keyword, before the first clause that follows it in SQL order, or at the end. The filters' own
-	 * %%name%% variables are substituted, then each placeholder is replaced by its clause.
+	 * Puts the plugin's clauses into a statement, at its main SELECT (see outline()). A %%WHERE%%, %%HAVING%%,
+	 * %%ORDERBY%% or %%LIMIT%% placeholder the author wrote is where a clause goes, wherever it is. Otherwise a
+	 * clause with text goes right after the main SELECT's own keyword, or before the first of its later clauses,
+	 * or at the end of its text (inside the string of a dynamic statement). A main SELECT with a LIMIT of its
+	 * own and no placeholder keeps it: the screen shows what the statement returns, as one page. The filters'
+	 * own %%name%% variables are substituted, then each placeholder is replaced by its clause.
 	 *
 	 * @since 0.9.5
+	 * @since 1.1.3 At the main SELECT, not the first keyword in the text.
 	 *
 	 * @param string                $sql       The statement, a space at each end.
 	 * @param array<string, string> $clauses   The clauses by placeholder name (WHERE, HAVING, ORDERBY, LIMIT), '' for none: the
@@ -363,24 +596,24 @@ class Exports_Reports_Query {
 	 * @return string
 	 */
 	public function place_clauses( $sql, array $clauses, array $variables = array() ) {
-		$keywords  = array(
-			'WHERE'   => ' WHERE ',
-			'HAVING'  => ' HAVING ',
-			'ORDERBY' => ' ORDER BY ',
-			'LIMIT'   => ' LIMIT ',
+		$kinds     = array(
+			'WHERE'   => 'where',
+			'HAVING'  => 'having',
+			'ORDERBY' => 'order',
+			'LIMIT'   => 'limit',
 		);
 		$followers = array(
-			'WHERE'   => array( ' GROUP BY ', ' ORDER BY ', ' LIMIT ' ),
-			'HAVING'  => array( ' ORDER BY ', ' LIMIT ' ),
-			'ORDERBY' => array( ' LIMIT ' ),
+			'WHERE'   => array( 'group', 'having', 'order', 'limit' ),
+			'HAVING'  => array( 'order', 'limit' ),
+			'ORDERBY' => array( 'limit' ),
 			'LIMIT'   => array(),
 		);
 		// The WHERE, HAVING and ORDER BY clauses bring their keyword when the statement has none; the LIMIT clause is the page alone.
 		$appended = array(
-			'WHERE'   => ' %%WHERE%% ',
-			'HAVING'  => ' %%HAVING%% ',
-			'ORDERBY' => ' %%ORDERBY%% ',
-			'LIMIT'   => ' LIMIT %%LIMIT%% ',
+			'WHERE'   => ' %%WHERE%%',
+			'HAVING'  => ' %%HAVING%%',
+			'ORDERBY' => ' %%ORDERBY%%',
+			'LIMIT'   => ' LIMIT %%LIMIT%%',
 		);
 
 		foreach ( $clauses as $name => $clause ) {
@@ -390,19 +623,28 @@ class Exports_Reports_Query {
 				continue;
 			}
 
-			if ( false !== stripos( $sql, $keywords[ $name ] ) ) {
-				$sql = str_ireplace( $keywords[ $name ], $keywords[ $name ] . $placeholder . ' ', $sql );
+			$outline = self::outline( $sql );
+			$kind    = $kinds[ $name ];
+
+			if ( false !== $outline[ $kind ] ) {
+				if ( 'LIMIT' === $name ) {
+					continue;
+				}
+
+				$sql = substr_replace( $sql, ' ' . $placeholder, $outline[ $kind . '_end' ], 0 );
 				continue;
 			}
 
+			$at = $outline['end'];
+
 			foreach ( $followers[ $name ] as $follower ) {
-				if ( false !== stripos( $sql, $follower ) ) {
-					$sql = str_ireplace( $follower, ' ' . $placeholder . $follower, $sql );
-					continue 2;
+				if ( false !== $outline[ $follower ] ) {
+					$at = $outline[ $follower ];
+					break;
 				}
 			}
 
-			$sql .= $appended[ $name ];
+			$sql = substr_replace( $sql, $appended[ $name ] . ' ', $at, 0 );
 		}
 
 		foreach ( $variables as $name => $value ) {
@@ -446,12 +688,22 @@ class Exports_Reports_Query {
 		// are; the plugin's additions go into the last, the one that returns the rows.
 		$leading = self::statements( $admin->sql );
 		$sql     = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . (string) array_pop( $leading ) ) . ' ';
-		// The author's own SQL_CALC_FOUND_ROWS, if any, comes off; the select list is read before anything is added to it.
-		$sql = preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 );
-		preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
-		// What goes after the first SELECT: the row count for the page view (an export reads every row and needs
+		// The main SELECT, the one whose rows the screen shows (see outline()): the author's own SQL_CALC_FOUND_ROWS
+		// after it comes off, and its select list is read before anything is added to it.
+		$outline = self::outline( $sql );
+		if ( false !== $outline['select'] && preg_match( '/^\s+SQL_CALC_FOUND_ROWS\b/i', substr( $sql, $outline['select_end'] ), $own_count ) ) {
+			$sql     = substr_replace( $sql, '', $outline['select_end'], strlen( $own_count[0] ) );
+			$outline = self::outline( $sql );
+		}
+		$selectmatches = array();
+		if ( false !== $outline['select'] && false !== $outline['from'] ) {
+			$selectmatches[1] = substr( $sql, $outline['select_end'], $outline['from'] - $outline['select_end'] );
+		}
+		// A statement with a LIMIT of its own and no placeholder pages itself: the screen shows what it returns.
+		$own_limit = false !== $outline['limit'] && false === stripos( $sql, '%%LIMIT%%' );
+		// What goes after the main SELECT: the row count for the page view (an export reads every row and needs
 		// none; a totals query feeds the sum row, not the count), then a SUM() per total field.
-		$select_extras = $full ? '' : 'SQL_CALC_FOUND_ROWS';
+		$select_extras = $full || $own_limit ? '' : 'SQL_CALC_FOUND_ROWS';
 		$totals        = array();
 		foreach ( $admin->columns as $key => $column ) {
 			$attributes = $column;
@@ -473,7 +725,9 @@ class Exports_Reports_Query {
 		if ( ! empty( $totals ) ) {
 			$select_extras .= ' ' . implode( ',', $totals ) . ', ';
 		}
-		$sql               = preg_replace( '/ SELECT /i', " SELECT {$select_extras} ", $sql, 1 );
+		if ( '' !== trim( $select_extras ) && false !== $outline['select'] ) {
+			$sql = substr_replace( $sql, ' ' . trim( $select_extras ), $outline['select_end'], 0 );
+		}
 		$wheresql          = '';
 		$havingsql         = '';
 		$ordersql          = '';
@@ -706,7 +960,9 @@ class Exports_Reports_Query {
 			$ordersql = trim( $admin->reorder_order . ' ' . $admin->reorder_order_dir );
 		}
 		if ( ! empty( $ordersql ) ) {
-			if ( false === stripos( $sql, ' ORDER BY ' ) ) {
+			$outline = self::outline( $sql );
+
+			if ( false === $outline['order'] ) {
 				$ordersql = ' ORDER BY ' . $ordersql;
 			} elseif ( false !== stripos( $sql, ' ORDER BY %%ORDERBY%% ' ) ) {
 				$ordersql = $ordersql . ', ';

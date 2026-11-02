@@ -52,7 +52,7 @@ $back         = $reordering;
 		// The file is written during this request. A note for the wait, sent ahead when the server lets it
 		// through; the screen's script removes it once the page, and with it the export, is done.
 		?>
-		<div class="notice notice-info exports-reports-export-progress"><p><span class="spinner is-active"></span><?php esc_html_e( 'Preparing your export…', 'exports-and-reports' ); ?></p></div>
+		<div class="notice notice-info exports-reports-progress"><p><span class="spinner is-active"></span><?php esc_html_e( 'Preparing your export…', 'exports-and-reports' ); ?></p></div>
 		<?php
 		if ( 0 < ob_get_level() ) {
 			ob_flush();
