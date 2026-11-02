@@ -429,6 +429,14 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 
 		$second = $this->view( $sql, 'Count cache' );
 
+		ob_start();
+		$first->pagination( true );
+		$first_pagination = (string) ob_get_clean();
+
+		ob_start();
+		$second->pagination( true );
+		$second_pagination = (string) ob_get_clean();
+
 		$_GET['search_query'] = 'extra';
 		$searched             = $this->view( $sql, 'Count cache', array( 'search' => true, 'columns' => array( 'id', 'title' => array( 'search' => true ) ) ) );
 		$_GET                 = array();
@@ -449,6 +457,8 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'SQL_CALC_FOUND_ROWS', $seen[0] );
 		$this->assertSame( self::$video_rows, (int) $second->total, 'the kept count, a row more notwithstanding' );
 		$this->assertStringNotContainsString( 'SQL_CALC_FOUND_ROWS', $seen[1], 'the query ran without the count' );
+		$this->assertStringNotContainsString( 'exports-reports-counted', $first_pagination, 'the page that counted says nothing' );
+		$this->assertSame( 1, preg_match( '/\(counted \d+ \w+ ago\)/', $second_pagination ), 'the page with the kept count says when it was counted: ' . $second_pagination );
 		$this->assertSame( 1, (int) $searched->total, 'a search has a count of its own' );
 		$this->assertSame( self::$video_rows + 1, (int) $third->total, 'forgotten: counted again' );
 		$this->assertStringContainsString( 'SQL_CALC_FOUND_ROWS', $seen[3] );

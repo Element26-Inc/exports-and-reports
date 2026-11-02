@@ -53,7 +53,7 @@ abstract class Exports_Reports_Exporter {
 	/**
 	 * The exporter of an export type.
 	 *
-	 * @param string                   $type  csv, tsv, pipe, custom, xml, xlsx, json or pdf.
+	 * @param string                   $type  csv, tsv, pipe, xml, xlsx, json or pdf.
 	 * @param Exports_Reports_Admin_UI $admin The screen.
 	 *
 	 * @return Exports_Reports_Exporter|null Null for a type the plugin does not write.

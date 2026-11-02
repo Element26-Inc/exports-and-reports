@@ -29,6 +29,11 @@ jQuery( function ( $ ) {
 
 		if ( type ) {
 			row.find( 'select[name^="field_type["]' ).val( type );
+			// A LIKE over a date or a number finds nothing worth the cost: a detected field is searchable when it is text.
+			row.find( 'input[type="checkbox"][name^="field_search["]' ).prop(
+				'checked',
+				'text' === type
+			);
 		}
 
 		return row;

@@ -105,6 +105,7 @@ function exports_reports_settings() {
 	}
 
 	wp_enqueue_style( 'exports-reports-admin' );
+	wp_enqueue_script( 'exports-reports-admin' ); // The Copy button of the token notice.
 	?>
 	<div class="wrap exports-reports-settings">
 		<h2><?php esc_html_e( 'Exports and Reports - Settings', 'exports-and-reports' ); ?></h2>
@@ -129,7 +130,11 @@ function exports_reports_settings() {
 
 		<?php if ( '' !== $new_token ) : ?>
 			<div class="notice notice-success exports-reports-token-notice">
-				<p><strong><?php esc_html_e( 'Your API token:', 'exports-and-reports' ); ?></strong> <code><?php echo esc_html( $new_token ); ?></code></p>
+				<p>
+					<strong><?php esc_html_e( 'Your API token:', 'exports-and-reports' ); ?></strong>
+					<code><?php echo esc_html( $new_token ); ?></code>
+					<button type="button" class="button button-small exports-reports-copy" data-copy="<?php echo esc_attr( $new_token ); ?>" data-copied="<?php esc_attr_e( 'Copied', 'exports-and-reports' ); ?>"><?php esc_html_e( 'Copy', 'exports-and-reports' ); ?></button>
+				</p>
 				<p><?php esc_html_e( 'Copy it now and put it in your scripts and cronjobs: the plugin keeps only its hash, like a password, and cannot show it again.', 'exports-and-reports' ); ?></p>
 			</div>
 		<?php endif; ?>
@@ -256,18 +261,8 @@ function exports_reports_settings() {
 						</p>
 					</td>
 				</tr>
-				<!--
-				<tr valign="top">
-					<th scope="row"><label for=""></label></th>
-					<td>
-						<input name="" type="text" id="" value="0" class="small-text" />
-						<span class="description"></span>
-					</td>
-				</tr>-->
 			</table>
-			<p class="submit">
-				<input type="submit" name="Submit" class="button-primary" value="Save Settings" />
-			</p>
+			<?php submit_button( __( 'Save Settings', 'exports-and-reports' ) ); ?>
 		</form>
 	</div>
 	<?php

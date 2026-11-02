@@ -90,6 +90,16 @@ class Exports_Reports_Admin_UI {
 	// data related
 	public $total = 0;
 
+	/**
+	 * When the page's row count was counted, as a Unix time, when it comes from a kept count; 0 when the
+	 * page counted it itself.
+	 *
+	 * @since 1.2.2
+	 *
+	 * @var int
+	 */
+	public $total_counted_at = 0;
+
 	/** @var bool|array $totals */
 	public $totals = false;
 
@@ -112,10 +122,9 @@ class Exports_Reports_Admin_UI {
 	public $related         = array();
 
 	// export related
-	public $exported_file    = false;
-	public $export_url       = false;
-	public $export_type      = false;
-	public $export_delimiter = false;
+	public $exported_file = false;
+	public $export_url    = false;
+	public $export_type   = false;
 	/**
 	 * The export formats the screen offers, by type (see exports_reports_export_formats()); a report's come
 	 * from the Settings page and its own definition.
@@ -269,10 +278,6 @@ class Exports_Reports_Admin_UI {
 				$this->export_type = $export_type;
 			} elseif ( false !== $this->get_var( 'export_type' ) || false !== $this->get_var( 'remove_export' ) ) {
 				$this->export_from_address = true;
-			}
-			$export_delimiter = $this->get_var( 'export_delimiter', false, false, $source );
-			if ( 'custom' === $this->export_type && false !== $export_delimiter ) {
-				$this->export_delimiter = $export_delimiter;
 			}
 		}
 
@@ -718,21 +723,14 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * The export types the screen accepts: its formats, and the custom delimiter when a delimited format
-	 * is among them.
+	 * The export types the screen accepts: its formats.
 	 *
 	 * @since 1.1.0
 	 *
 	 * @return string[]
 	 */
 	public function allowed_export_types() {
-		$types = array_values( array_intersect( array_keys( self::format_labels() ), array_map( 'strval', (array) $this->export_formats ) ) );
-
-		if ( array_intersect( $types, array( 'csv', 'tsv', 'pipe' ) ) ) {
-			$types[] = 'custom';
-		}
-
-		return $types;
+		return array_values( array_intersect( array_keys( self::format_labels() ), array_map( 'strval', (array) $this->export_formats ) ) );
 	}
 
 	/**
@@ -798,7 +796,6 @@ class Exports_Reports_Admin_UI {
 			'exports_and_reports_download',
 			'exports_and_reports_export',
 			'export_type',
-			'export_delimiter',
 			'remove_export',
 			'_wpnonce',
 			'updated',
@@ -2172,13 +2169,23 @@ class Exports_Reports_Admin_UI {
 			// The database's complaint, before the count query clears it.
 			$this->query_error = (string) $wpdb->last_error;
 
-			if ( false !== $cached ) {
-				$total = (int) $cached;
+			if ( is_array( $cached ) && isset( $cached['total'] ) ) {
+				$total                  = (int) $cached['total'];
+				$this->total_counted_at = isset( $cached['at'] ) ? (int) $cached['at'] : 0;
+			} elseif ( false !== $cached ) {
+				$total = (int) $cached; // A count kept by 1.2.0 or 1.2.1, without its time.
 			} else {
 				$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
 
 				if ( '' !== $count_key && '' === $this->query_error && is_numeric( $total ) ) {
-					set_transient( $count_key, (int) $total, $this->count_cache_ttl() );
+					set_transient(
+						$count_key,
+						array(
+							'total' => (int) $total,
+							'at'    => time(),
+						),
+						$this->count_cache_ttl()
+					);
 				}
 			}
 		}
@@ -2255,7 +2262,8 @@ class Exports_Reports_Admin_UI {
 	/**
 	 * The transient that keeps the row count of a page view: the rows the count describes (the statement with
 	 * its conditions and variables in, without the sort and the page), the user and the counts' generation,
-	 * hashed. '' when counts are not kept (count_cache_ttl()) or the statement gives no key.
+	 * hashed. '' when counts are not kept (count_cache_ttl()), the statement gives no key, or the screen is
+	 * not a report view (the management screens).
 	 *
 	 * @since 1.2.0
 	 *
@@ -2264,7 +2272,9 @@ class Exports_Reports_Admin_UI {
 	 * @return string
 	 */
 	public function count_cache_key( $rows ) {
-		if ( '' === trim( (string) $rows ) || 0 >= $this->count_cache_ttl() ) {
+		// The report views only: the management screens list the plugin's own small tables, which cost nothing
+		// to count and change with every save.
+		if ( false === $this->readonly || ! is_string( $this->sql ) || '' === trim( (string) $rows ) || 0 >= $this->count_cache_ttl() ) {
 			return '';
 		}
 
@@ -2521,6 +2531,17 @@ class Exports_Reports_Admin_UI {
 			?>
 			<span class="displaying-num"><?php echo esc_html( number_format_i18n( $total_rows ) . ' ' . $label_n ); ?></span>
 			<?php
+			if ( 0 < $this->total_counted_at ) {
+				// The count comes from an earlier page view (count_cache_key()); the time says how much earlier.
+				?>
+				<span class="exports-reports-counted" title="<?php esc_attr_e( 'The row count is kept for a while (Settings: Row Count Cache); rows added or removed since show once it is counted again.', 'exports-and-reports' ); ?>">
+					<?php
+					/* translators: %s: a length of time, e.g. "3 mins". */
+					echo esc_html( sprintf( __( '(counted %s ago)', 'exports-and-reports' ), human_time_diff( $this->total_counted_at ) ) );
+					?>
+				</span>
+				<?php
+			}
 		}
 
 		if ( 1 < $total_pages ) {

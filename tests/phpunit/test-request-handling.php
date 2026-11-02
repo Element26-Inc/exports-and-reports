@@ -232,6 +232,21 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'name="cronjob_token"', $html );
 	}
 
+	/**
+	 * The management screens (groups, reports) count their own table on every view; only a report view keeps its count.
+	 */
+	public function test_the_management_screens_keep_no_count() {
+		update_option( 'exports_reports_count_cache', 5 );
+
+		list( , $groups ) = $this->groups_screen();
+		$report           = $this->report( 'SELECT id FROM ' . self::videos(), 'Kept' );
+
+		$this->assertSame( '', $groups->count_cache_key( 'SELECT 1' ), 'the groups screen keeps none' );
+		$this->assertStringStartsWith( 'exports_reports_count_', $report->count_cache_key( 'SELECT 1' ), 'a report view does' );
+
+		delete_option( 'exports_reports_count_cache' );
+	}
+
 	public function test_the_settings_page_saves_the_row_count_cache_and_forgets_the_counts() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 

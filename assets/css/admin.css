@@ -134,6 +134,12 @@
 	font-size: 13px;
 }
 
+/* The pagination's note on a row count kept from an earlier page view. */
+.exports-reports-counted {
+	color: #646970;
+	margin-left: 4px;
+}
+
 /* The Settings page. */
 .exports-reports-settings .exports-reports-url-label {
 	font-style: normal;

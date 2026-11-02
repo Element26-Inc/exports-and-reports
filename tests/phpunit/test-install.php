@@ -167,8 +167,11 @@ class Tests_Install extends Exports_Reports_Test_Case {
 		}
 
 		exports_reports_set_token( 'uninstall-token' );
+		set_transient( 'exports_reports_count_abc', array( 'total' => 5, 'at' => time() ), HOUR_IN_SECONDS );
 
 		require EXPORTS_REPORTS_DIR . 'uninstall.php';
+
+		$kept_count = $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = '_transient_exports_reports_count_abc'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		$table_left    = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->exports_reports_reports ) );
 		$version       = get_option( 'exports_reports_version' );
@@ -182,6 +185,7 @@ class Tests_Install extends Exports_Reports_Test_Case {
 		$this->assertNull( $table_left, 'the reports table is gone' );
 		$this->assertFalse( $version, 'the version option is gone' );
 		$this->assertFalse( $token, 'the token hash option is gone' );
+		$this->assertNull( $kept_count, 'the kept row counts are gone' );
 		$this->assertFalse( $event, 'the cleanup event is gone' );
 		$this->assertFalse( $leftover_left, 'the export file is gone' );
 	}

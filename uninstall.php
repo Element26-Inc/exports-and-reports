@@ -36,6 +36,9 @@ function exports_reports_uninstall_site() {
 	delete_option( 'exports_reports_count_cache' );
 	delete_option( 'exports_reports_count_cache_generation' );
 
+	// The kept row counts (transients that would expire within the hour anyway).
+	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_exports_reports_count_%' OR option_name LIKE '_transient_timeout_exports_reports_count_%'" );
+
 	wp_clear_scheduled_hook( 'exports_reports_cleanup' );
 
 	// The capabilities the plugin put on the administrator role, and any per-group or per-report

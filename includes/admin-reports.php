@@ -104,9 +104,9 @@ function exports_reports_reports() {
 	);
 
 	$form_columns['sql_query_count'] = array(
-		'label'    => __( 'SQL Query for Count (advanced, optional)', 'exports-and-reports' ),
+		'label'    => __( 'SQL Query for Totals (advanced, optional)', 'exports-and-reports' ),
 		'type'     => 'desc',
-		'comments' => __( 'For advanced/complex queries above, you can SELECT minimal fields here for better "Total Count" performance.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)', 'exports-and-reports' ),
+		'comments' => __( 'Runs after the report query with the same search and filters and returns one row, whose values show in the Totals row under the last page of the report and as the totals of the REST data (for example SELECT SUM(amount) AS amount, COUNT(*) AS id FROM ...). It does not count the rows: the report query does.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)', 'exports-and-reports' ),
 	);
 
 	$form_columns['field_data'] = array(
