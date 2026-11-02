@@ -196,6 +196,13 @@ select.admin_ui_filter_multiple {
 	overflow-x: auto;
 }
 
+/* The bars with the buttons and the paging stay in place while the table
+   scrolls under them. */
+.exports-reports-table-scroll .tablenav {
+	left: 0;
+	position: sticky;
+}
+
 .wp-list-table.exports-reports-wide {
 	min-width: 100%;
 	table-layout: auto;
