@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function exports_reports_reset() {
 	update_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
+	delete_option( 'exports_reports_export_formats_off' );
 	delete_option( 'exports_reports_export_formats' );
 
 	$token = md5( microtime() . wp_generate_password( 20 ) );
@@ -42,10 +43,10 @@ function exports_reports_settings() {
 		}
 
 		if ( isset( $_POST['export_formats_set'] ) ) {
-			// The boxes ticked; none ticked turns every export button off.
+			// The boxes left unticked are the formats turned off; none ticked turns every export button off.
 			$chosen = isset( $_POST['export_formats'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_POST['export_formats'] ) ) : array();
 
-			update_option( 'exports_reports_export_formats', array_values( array_intersect( array_keys( exports_reports_export_formats() ), $chosen ) ) );
+			update_option( 'exports_reports_export_formats_off', array_values( array_diff( array_keys( exports_reports_export_formats() ), $chosen ) ) );
 		}
 
 		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {

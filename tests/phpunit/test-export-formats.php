@@ -59,6 +59,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		$this->administrator = self::factory()->user->create( array( 'role' => 'administrator' ) );
 
 		delete_option( 'exports_reports_export_formats' );
+		delete_option( 'exports_reports_export_formats_off' );
 	}
 
 	protected function clean() {
@@ -68,6 +69,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		$wpdb->delete( $wpdb->exports_reports_groups, array( 'id' => $this->group_id ) );
 
 		delete_option( 'exports_reports_export_formats' );
+		delete_option( 'exports_reports_export_formats_off' );
 
 		$_POST = array();
 		$_GET  = array();
@@ -84,16 +86,32 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		return exports_reports_get_report( $this->report_id );
 	}
 
-	public function test_the_site_offers_every_format_until_the_setting_narrows_it() {
+	public function test_the_site_offers_every_format_but_the_ones_turned_off() {
 		$this->assertSame( array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' ), exports_reports_site_export_formats() );
 
-		update_option( 'exports_reports_export_formats', array( 'pdf', 'csv', 'bogus' ) );
+		update_option( 'exports_reports_export_formats_off', array( 'pdf', 'xlsx', 'bogus' ) );
 
-		$this->assertSame( array( 'csv', 'pdf' ), exports_reports_site_export_formats(), 'in the plugin\'s order, unknown types dropped' );
+		$this->assertSame( array( 'csv', 'tsv', 'pipe', 'xml', 'json' ), exports_reports_site_export_formats(), 'in the plugin\'s order; a type the plugin no longer has is ignored' );
 
-		update_option( 'exports_reports_export_formats', array() );
+		update_option( 'exports_reports_export_formats_off', array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' ) );
 
-		$this->assertSame( array(), exports_reports_site_export_formats(), 'none ticked turns the buttons off' );
+		$this->assertSame( array(), exports_reports_site_export_formats(), 'every format off turns the buttons off' );
+	}
+
+	/**
+	 * The setting 1.1.0 kept named the formats that were on; the upgrade turns it into the formats that are
+	 * off and removes it, so a format added later is on.
+	 */
+	public function test_the_upgrade_converts_the_formats_setting_of_1_1_0() {
+		update_option( 'exports_reports_export_formats', array( 'csv', 'xlsx' ) );
+		update_option( 'exports_reports_version', '1.1.0' );
+
+		exports_reports_install_upgrade();
+
+		$this->assertSame( array( 'tsv', 'pipe', 'xml', 'json', 'pdf' ), get_option( 'exports_reports_export_formats_off' ) );
+		$this->assertFalse( get_option( 'exports_reports_export_formats' ) );
+		$this->assertSame( array( 'csv', 'xlsx' ), exports_reports_site_export_formats() );
+		$this->assertSame( EXPORTS_REPORTS_VERSION, get_option( 'exports_reports_version' ) );
 	}
 
 	public function test_a_report_narrows_the_site_formats_and_cannot_widen_them() {
@@ -105,7 +123,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 
 		$this->assertSame( array( 'csv', 'pdf' ), exports_reports_report_export_formats( $this->report_row() ) );
 
-		update_option( 'exports_reports_export_formats', array( 'csv', 'xlsx' ) );
+		update_option( 'exports_reports_export_formats_off', array( 'pdf' ) );
 
 		$this->assertSame( array( 'csv' ), exports_reports_report_export_formats( $this->report_row() ), 'the report cannot offer what the site turned off' );
 
@@ -140,7 +158,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 
 	public function test_the_rest_export_refuses_a_format_the_report_does_not_offer() {
 		wp_set_current_user( $this->administrator );
-		update_option( 'exports_reports_export_formats', array( 'csv' ) );
+		update_option( 'exports_reports_export_formats_off', array( 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' ) );
 
 		$response = $this->rest_request( 'GET', '/exports-reports/v1/reports/' . $this->report_id . '/export', array( 'type' => 'pdf' ) );
 
@@ -252,7 +270,8 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		exports_reports_settings();
 		$html = (string) ob_get_clean();
 
-		$this->assertSame( array( 'csv', 'tsv' ), get_option( 'exports_reports_export_formats' ) );
+		$this->assertSame( array( 'pipe', 'xlsx', 'xml', 'json', 'pdf' ), get_option( 'exports_reports_export_formats_off' ), 'what is off is stored, so a format added later is on' );
+		$this->assertSame( array( 'csv', 'tsv' ), exports_reports_site_export_formats() );
 		$this->assertSame( 1, preg_match( '/name="export_formats\[\]" value="csv" checked/', $html ) );
 		$this->assertSame( 1, preg_match( '/name="export_formats\[\]" value="pdf" \/>/', $html ) );
 
@@ -266,7 +285,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		exports_reports_settings();
 		ob_end_clean();
 
-		$this->assertSame( array(), get_option( 'exports_reports_export_formats' ) );
+		$this->assertSame( array(), exports_reports_site_export_formats(), 'none ticked turns every button off' );
 
 		$_POST = array(
 			'_wpnonce' => wp_create_nonce( 'exports-reports-settings' ),
@@ -278,7 +297,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		exports_reports_settings();
 		ob_end_clean();
 
-		$this->assertFalse( get_option( 'exports_reports_export_formats' ), 'the reset puts every format back on' );
+		$this->assertFalse( get_option( 'exports_reports_export_formats_off' ), 'the reset puts every format back on' );
 	}
 
 	public function test_the_upgrade_adds_the_export_formats_column() {

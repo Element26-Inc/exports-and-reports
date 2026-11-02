@@ -316,21 +316,39 @@ function exports_reports_export_formats() {
 }
 
 /**
- * The formats the site offers, as the Settings page has them: every format until the setting is saved.
+ * The formats the site offers: every format but the ones turned off on the Settings page. The setting
+ * holds what is off, so a format a later version adds is on until someone turns it off.
  *
  * @since 1.1.0
+ * @since 1.1.1 The setting names the formats turned off (exports_reports_export_formats_off).
  *
  * @return string[] The types, in the order of exports_reports_export_formats().
  */
 function exports_reports_site_export_formats() {
-	$all   = array_keys( exports_reports_export_formats() );
-	$saved = get_option( 'exports_reports_export_formats', null );
+	$all = array_keys( exports_reports_export_formats() );
+	$off = get_option( 'exports_reports_export_formats_off', array() );
 
-	if ( ! is_array( $saved ) ) {
+	if ( ! is_array( $off ) || empty( $off ) ) {
 		return $all;
 	}
 
-	return array_values( array_intersect( $all, array_map( 'strval', $saved ) ) );
+	return array_values( array_diff( $all, array_map( 'strval', $off ) ) );
+}
+
+/**
+ * Turns the setting 1.1.0 kept, the formats that were on, into the one kept since 1.1.1, the formats that
+ * are off, and removes the old one. Runs on the upgrade to 1.1.1.
+ *
+ * @since 1.1.1
+ */
+function exports_reports_convert_export_formats_setting() {
+	$on = get_option( 'exports_reports_export_formats', null );
+
+	if ( is_array( $on ) ) {
+		update_option( 'exports_reports_export_formats_off', array_values( array_diff( array_keys( exports_reports_export_formats() ), array_map( 'strval', $on ) ) ) );
+	}
+
+	delete_option( 'exports_reports_export_formats' );
 }
 
 /**
