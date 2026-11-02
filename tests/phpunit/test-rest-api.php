@@ -81,7 +81,7 @@ class Tests_REST_API extends Exports_Reports_Test_Case {
 		$this->report_id = (int) $wpdb->insert_id;
 		$this->route     = sprintf( '/exports-reports/v1/reports/%d', $this->report_id );
 
-		update_option( 'exports_reports_token', 'er-test-token' );
+		exports_reports_set_token( 'er-test-token' );
 
 		$this->subscriber    = self::factory()->user->create( array( 'role' => 'subscriber' ) );
 		$this->administrator = self::factory()->user->create( array( 'role' => 'administrator' ) );
@@ -262,26 +262,99 @@ class Tests_REST_API extends Exports_Reports_Test_Case {
 		$this->assertSame( 404, $response->get_status() );
 	}
 
-	public function test_an_empty_token_saved_from_the_settings_page_turns_token_access_off() {
+	/**
+	 * The Settings page's buttons: Turn Token Access Off removes the hash and closes the routes to the old
+	 * token; Generate a Token stores a hash and prints the token once, and that token opens the routes.
+	 */
+	public function test_the_settings_page_turns_token_access_off_and_generates_a_token_it_shows_once() {
 		wp_set_current_user( $this->administrator );
 
-		$_POST    = array( 'cronjob_token' => '' );
+		$_POST    = array( 'disable_token' => '1' );
 		$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'exports-reports-settings' ) );
+
+		ob_start();
+		exports_reports_settings();
+		$off_html = (string) ob_get_clean();
+
+		$hash_after_off = get_option( 'exports_reports_token_hash' );
+
+		$_POST = array( 'generate_token' => '1' );
+
+		ob_start();
+		exports_reports_settings();
+		$on_html = (string) ob_get_clean();
+
+		$_POST    = array();
+		$_REQUEST = array();
+
+		$this->assertTrue( preg_match( '#<code>([A-Za-z0-9]{32})</code>#', $on_html, $shown ) > 0, 'the new token is printed once' );
+		$this->assertStringNotContainsString( $shown[1], get_option( 'exports_reports_token_hash' ), 'the option holds a hash, not the token' );
+		$this->assertStringContainsString( 'Token access is off', $off_html );
+		$this->assertStringContainsString( 'Token access is on', $on_html );
+		$this->assertStringContainsString( 'name="disable_token"', $on_html );
+		$this->assertStringNotContainsString( 'name="disable_token"', $off_html );
+
+		wp_set_current_user( 0 );
+
+		$old_token = $this->rest_request( 'GET', $this->route . '/data', array( 'token' => 'er-test-token' ) );
+		$new_token = $this->rest_request( 'GET', $this->route . '/data', array(), array( 'Authorization' => 'Bearer ' . $shown[1] ) );
+
+		$this->assertFalse( $hash_after_off, 'turning token access off removes the hash' );
+		$this->assertSame( 401, $old_token->get_status(), 'the old token no longer opens the report' );
+		$this->assertSame( 200, $new_token->get_status(), 'the new one does' );
+	}
+
+	/**
+	 * A token of the administrator's own, typed into the field: stored as a hash and shown once. The field
+	 * saved empty, as it always is since the token cannot be shown in it, changes nothing.
+	 */
+	public function test_a_token_of_ones_own_is_hashed_and_an_empty_field_changes_nothing() {
+		wp_set_current_user( $this->administrator );
+
+		$_REQUEST = array( '_wpnonce' => wp_create_nonce( 'exports-reports-settings' ) );
+		$_POST    = array( 'cronjob_token' => 'My Own Token' );
+
+		ob_start();
+		exports_reports_settings();
+		$html = (string) ob_get_clean();
+
+		$_POST = array(
+			'cronjob_token'      => '',
+			'export_formats_set' => '1',
+			'export_formats'     => array( 'csv' ),
+		);
 
 		ob_start();
 		exports_reports_settings();
 		ob_end_clean();
 
-		$cleared = get_option( 'exports_reports_token' );
-
 		$_POST    = array();
 		$_REQUEST = array();
 
-		wp_set_current_user( 0 );
+		$this->assertStringContainsString( '<code>my-own-token</code>', $html, 'the token is shown once, as stored (a slug, as before 1.2.0)' );
+		$this->assertTrue( exports_reports_token_matches( 'my-own-token' ) );
+		$this->assertFalse( exports_reports_token_matches( 'er-test-token' ) );
+		$this->assertTrue( exports_reports_token_matches( 'my-own-token' ), 'the empty field left the token alone' );
+		$this->assertFalse( exports_reports_token_matches( '' ) );
+	}
 
-		$response = $this->rest_request( 'GET', $this->route . '/data', array( 'token' => 'er-test-token' ) );
+	/**
+	 * The token a version before 1.2.0 stored in the clear opens the routes on the first request after the
+	 * update, before any admin visit, and is replaced by its hash then.
+	 */
+	public function test_a_token_stored_in_the_clear_by_an_earlier_version_works_once_and_becomes_a_hash() {
+		delete_option( 'exports_reports_token_hash' );
+		update_option( 'exports_reports_token', 'legacy-token' );
 
-		$this->assertSame( '', $cleared );
-		$this->assertSame( 401, $response->get_status(), 'the old token no longer opens the report' );
+		$response = $this->rest_request( 'GET', $this->route . '/data', array( 'token' => 'legacy-token' ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertFalse( get_option( 'exports_reports_token' ), 'the token in the clear is gone' );
+		$this->assertNotEmpty( get_option( 'exports_reports_token_hash' ) );
+		$this->assertTrue( wp_check_password( 'legacy-token', get_option( 'exports_reports_token_hash' ) ) );
+
+		$again = $this->rest_request( 'GET', $this->route . '/data', array( 'token' => 'legacy-token' ) );
+
+		$this->assertSame( 200, $again->get_status(), 'and the token goes on working' );
 	}
 }

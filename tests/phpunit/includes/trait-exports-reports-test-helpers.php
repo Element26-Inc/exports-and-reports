@@ -314,6 +314,31 @@ trait Exports_Reports_Test_Helpers {
 	}
 
 	/**
+	 * Runs export() as the screen's forms do, with their nonce and the variables posted.
+	 *
+	 * @param Exports_Reports_Admin_UI $admin The instance.
+	 * @param array                    $vars  Other posted variables (export_type, remove_export).
+	 * @return array{0: mixed, 1: string} What export() returned, and what it printed.
+	 */
+	protected function export_from_post( $admin, $vars = array() ) {
+		$_POST = array_merge(
+			$vars,
+			array(
+				'exports_reports_export' => '1',
+				'_wpnonce'               => wp_create_nonce( 'exports-reports-export-request' ),
+			)
+		);
+
+		ob_start();
+		$result = $admin->export();
+		$output = (string) ob_get_clean();
+
+		$_POST = array();
+
+		return array( $result, $output );
+	}
+
+	/**
 	 * Writes the PDF export of a report definition and reads what the viewer would: the file name, the
 	 * contents, the page count and the major version in the producer string (TCPDF 6 is the TCPDF
 	 * engine, "TCPDF 8" is tc-lib-pdf). The file is removed.

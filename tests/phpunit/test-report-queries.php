@@ -395,6 +395,67 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	/**
 	 * The placeholder removal must not depend on spaces.
 	 */
+	/**
+	 * The row count of a page view is kept for a while (Settings, five minutes unless changed) and spares the
+	 * query its count on the page views that follow; the Settings page's button and a cache turned off each
+	 * count again. The key is the rows the count describes: another search gets its own count.
+	 */
+	public function test_the_row_count_is_kept_and_the_query_runs_without_it_meanwhile() {
+		global $wpdb;
+
+		$seen = array();
+		$spy  = static function ( $sql ) use ( &$seen ) {
+			$seen[] = $sql;
+
+			return $sql;
+		};
+
+		add_filter( 'exports_reports_get_data_sql', $spy );
+		update_option( 'exports_reports_count_cache', 5 );
+
+		$sql   = 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id';
+		$first = $this->view( $sql, 'Count cache' );
+
+		$wpdb->insert(
+			self::$videos_table,
+			array(
+				'channel'   => 'delta',
+				'title'     => 'Video extra',
+				'revenue'   => 1,
+				'published' => '2026-01-01',
+			)
+		);
+		$extra = (int) $wpdb->insert_id;
+
+		$second = $this->view( $sql, 'Count cache' );
+
+		$_GET['search_query'] = 'extra';
+		$searched             = $this->view( $sql, 'Count cache', array( 'search' => true, 'columns' => array( 'id', 'title' => array( 'search' => true ) ) ) );
+		$_GET                 = array();
+
+		exports_reports_forget_counts();
+
+		$third = $this->view( $sql, 'Count cache' );
+
+		update_option( 'exports_reports_count_cache', 0 );
+		$wpdb->delete( self::$videos_table, array( 'id' => $extra ) );
+
+		$fourth = $this->view( $sql, 'Count cache' );
+
+		remove_filter( 'exports_reports_get_data_sql', $spy );
+		delete_option( 'exports_reports_count_cache' );
+
+		$this->assertSame( self::$video_rows, (int) $first->total );
+		$this->assertStringContainsString( 'SQL_CALC_FOUND_ROWS', $seen[0] );
+		$this->assertSame( self::$video_rows, (int) $second->total, 'the kept count, a row more notwithstanding' );
+		$this->assertStringNotContainsString( 'SQL_CALC_FOUND_ROWS', $seen[1], 'the query ran without the count' );
+		$this->assertSame( 1, (int) $searched->total, 'a search has a count of its own' );
+		$this->assertSame( self::$video_rows + 1, (int) $third->total, 'forgotten: counted again' );
+		$this->assertStringContainsString( 'SQL_CALC_FOUND_ROWS', $seen[3] );
+		$this->assertSame( self::$video_rows, (int) $fourth->total, 'off: counted each time' );
+		$this->assertStringContainsString( 'SQL_CALC_FOUND_ROWS', $seen[4] );
+	}
+
 	public function test_a_tab_indented_limit_placeholder() {
 		list( , $rows, $error ) = $this->run_report( "SELECT id, title\n\tFROM " . self::videos() . "\n\tORDER BY id\n\tLIMIT %%LIMIT%%", 'Tabs' );
 

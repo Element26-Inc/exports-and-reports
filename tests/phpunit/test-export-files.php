@@ -9,7 +9,7 @@
 class Tests_Export_Files extends Exports_Reports_Test_Case {
 
 	/**
-	 * An export from a link needs its nonce; remove_export takes export files only.
+	 * An export needs its nonce; remove_export takes export files only.
 	 */
 	public function test_export_needs_the_link_nonce_and_remove_export_leaves_the_protection_files_alone() {
 		$report = $this->report( 'SELECT id, channel FROM ' . self::videos() . ' WHERE id = 1', 'Export nonce' );
@@ -38,11 +38,54 @@ class Tests_Export_Files extends Exports_Reports_Test_Case {
 		$this->assertStringContainsString( 'action=export', $link );
 		$this->assertStringContainsString( '_wpnonce=', $link );
 
-		list( $removed, $removed_output ) = $this->export_from_link( $report, array( 'remove_export' => '.htaccess' ) );
+		list( $removed, $removed_output ) = $this->export_from_post( $report, array( 'remove_export' => '.htaccess' ) );
 
 		$this->assertFalse( $removed );
 		$this->assertStringContainsString( 'not an export file', $removed_output );
 		$this->assertFileExists( EXPORTS_REPORTS_EXPORT_DIR . '/.htaccess' );
+	}
+
+	/**
+	 * An export is removed by the button under its message, a POST; the address of a removal link from before
+	 * 1.2.0 is noted and removes nothing, like the export links before 1.1.0.
+	 */
+	public function test_an_export_is_removed_by_the_posted_button_and_not_by_an_address() {
+		$report = $this->report( 'SELECT id FROM ' . self::videos() . ' WHERE id = 1', 'Removal' );
+
+		$report->export_type = 'csv';
+
+		list( , $output ) = $this->export_from_post( $report, array( 'export_type' => 'csv' ) );
+
+		$file = (string) $report->exported_file;
+		$path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $file;
+
+		$this->assertNotSame( '', $file );
+		$this->assertStringContainsString( '<button type="submit" class="button-link exports-reports-remove-export" form="exports-reports-remove-export" name="remove_export" value="' . $file . '">', $output, 'the message carries the removal button, kept by the message filter' );
+		$this->assertStringNotContainsString( 'remove_export=', $output, 'and no removal address' );
+
+		$_GET = array(
+			'action'        => 'export',
+			'remove_export' => $file,
+			'_wpnonce'      => wp_create_nonce( 'exports-reports-export-request' ),
+		);
+
+		$from_address = $this->report( 'SELECT id FROM ' . self::videos() . ' WHERE id = 1', 'Removal' );
+
+		ob_start();
+		$from_address->manage();
+		$address_output = (string) ob_get_clean();
+
+		$_GET = array();
+
+		$this->assertTrue( $from_address->export_from_address );
+		$this->assertStringContainsString( 'This address pointed at an export', $address_output );
+		$this->assertStringContainsString( 'id="exports-reports-remove-export"', $address_output, 'the removal form is on the screen' );
+		$this->assertFileExists( $path, 'the address removed nothing' );
+
+		list( , $removed_output ) = $this->export_from_post( $report, array( 'remove_export' => $file ) );
+
+		$this->assertStringContainsString( 'removed successfully', $removed_output );
+		$this->assertFileDoesNotExist( $path );
 	}
 
 	public function test_the_export_directory_carries_htaccess_and_index_php_after_an_export() {

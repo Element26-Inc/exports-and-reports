@@ -10,10 +10,11 @@
  * Plugin Name:       Exports and Reports
  * Plugin URI:        https://github.com/sc0ttkclark/exports-and-reports
  * Description:       Define custom exports / reports for users by creating each export / report and defining the fields as well as custom MySQL queries to run.
- * Version:           1.1.4
+ * Version:           1.2.0
  * Author:            Scott Kingsley Clark
  * Author URI:        https://www.scottkclark.com/
  * Text Domain:       exports-and-reports
+ * Domain Path:       /languages
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.7
@@ -27,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'EXPORTS_REPORTS_TBL', 'exportsreports_' );
-define( 'EXPORTS_REPORTS_VERSION', '1.1.4' );
+define( 'EXPORTS_REPORTS_VERSION', '1.2.0' );
 define( 'EXPORTS_REPORTS_URL', plugin_dir_url( __FILE__ ) );
 define( 'EXPORTS_REPORTS_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -72,6 +73,7 @@ add_action( 'admin_menu', 'exports_reports_admin_menu' );
 
 add_action( 'wp_ajax_' . EXPORTS_REPORTS_EXPORT_ACTION, 'exports_reports_export_download' );
 add_action( 'wp_ajax_exports_reports_export_report', 'exports_reports_ajax_export' );
+add_action( 'wp_ajax_exports_reports_detect_columns', 'exports_reports_ajax_detect_columns' );
 add_action( 'exports_reports_cleanup', 'exports_reports_cleanup_event' );
 add_action( 'admin_enqueue_scripts', 'exports_reports_assets' );
 add_action( 'in_admin_header', 'exports_reports_flush_admin_header' );

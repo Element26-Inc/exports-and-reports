@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery -- the plugin runs the administrator's report queries and keeps its own tables; there is nothing to cache.
+
 /**
  * The Manage Reports page: an Exports_Reports_Admin_UI on the reports table, with the field editor on
  * the field_data column.
@@ -134,7 +136,7 @@ function exports_reports_reports() {
 
 /**
  * The field editor of the report form: one card per field, the advanced options folded away, new
- * rows from a template, the order by drag and drop (assets/js/report-fields.js).
+ * rows from a template or detected from the query, the order by drag and drop (assets/js/report-fields.js).
  *
  * @param string                   $column     The column name (field_data).
  * @param array                    $attributes The column attributes.
@@ -145,8 +147,18 @@ function exports_reports_report_field( $column, $attributes, $obj ) {
 	$fields     = is_array( $field_data ) ? array_values( $field_data ) : array();
 	$types      = exports_reports_field_types();
 	?>
-	<div class="er-fields" data-next-index="<?php echo esc_attr( (string) count( $fields ) ); ?>">
-		<p class="description"><?php esc_html_e( 'Leave this empty to show every column the query returns. Drag a field by its handle to change the order.', 'exports-and-reports' ); ?></p>
+	<div
+		class="er-fields"
+		data-next-index="<?php echo esc_attr( (string) count( $fields ) ); ?>"
+		data-detect-nonce="<?php echo esc_attr( wp_create_nonce( 'exports-reports-detect-columns' ) ); ?>"
+		data-confirm-remove="<?php esc_attr_e( 'Remove this field from the report?', 'exports-and-reports' ); ?>"
+		data-detecting="<?php esc_attr_e( 'Running the query…', 'exports-and-reports' ); ?>"
+		<?php /* translators: 1: how many fields were added, 2: how many columns were listed already. */ ?>
+		data-detected="<?php esc_attr_e( 'Fields added: %1$s. Already listed: %2$s.', 'exports-and-reports' ); ?>"
+		data-detect-empty="<?php esc_attr_e( 'Type the query first.', 'exports-and-reports' ); ?>"
+		data-detect-failed="<?php esc_attr_e( 'The request did not get through. Save the report and try again.', 'exports-and-reports' ); ?>"
+	>
+		<p class="description"><?php esc_html_e( 'Leave this empty to show every column the query returns. Drag a field by its handle to change the order. Detect Fields runs the query above for one row and adds a field for each column of the result that is not listed yet, with the data type that fits the column.', 'exports-and-reports' ); ?></p>
 		<div class="er-fields__list">
 			<?php
 			foreach ( $fields as $index => $field ) {
@@ -154,11 +166,165 @@ function exports_reports_report_field( $column, $attributes, $obj ) {
 			}
 			?>
 		</div>
-		<p><button type="button" class="button er-fields__add"><?php esc_html_e( 'Add Field', 'exports-and-reports' ); ?></button></p>
+		<p class="er-fields__actions">
+			<button type="button" class="button er-fields__add"><?php esc_html_e( 'Add Field', 'exports-and-reports' ); ?></button>
+			<button type="button" class="button er-fields__detect"><?php esc_html_e( 'Detect Fields from the Query', 'exports-and-reports' ); ?></button>
+			<span class="er-fields__note" role="status"></span>
+		</p>
 		<template class="er-fields__template"><?php exports_reports_report_field_row( '__i__', exports_reports_field_defaults(), $types ); ?></template>
 	</div>
 	<input type="hidden" name="<?php echo esc_attr( $column ); ?>" value="" />
 	<?php
+}
+
+/**
+ * The admin-ajax action exports_reports_detect_columns, for the field editor's Detect Fields button: runs
+ * the query posted from the report form, one row of it, and answers with the columns of its result and the
+ * data type that fits each (exports_reports_detect_columns()).
+ *
+ * @since 1.2.0
+ */
+function exports_reports_ajax_detect_columns() {
+	check_ajax_referer( 'exports-reports-detect-columns' );
+
+	if ( ! exports_reports_current_user_can_manage() ) {
+		wp_send_json_error( array( 'message' => __( 'You are not allowed to edit reports.', 'exports-and-reports' ) ), 403 );
+	}
+
+	// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- the query the administrator typed into the form, run as the report would run it; the report form stores it the same way.
+	$sql = isset( $_POST['sql'] ) ? trim( (string) wp_unslash( $_POST['sql'] ) ) : '';
+
+	if ( '' === $sql ) {
+		wp_send_json_error( array( 'message' => __( 'Type the query first.', 'exports-and-reports' ) ) );
+	}
+
+	$detected = exports_reports_detect_columns( $sql );
+
+	if ( '' !== $detected['error'] ) {
+		wp_send_json_error( array( 'message' => $detected['error'] ) );
+	}
+
+	wp_send_json_success( array( 'columns' => $detected['columns'] ) );
+}
+
+/**
+ * The columns a report query returns, each with the data type that fits its column type, read from one row
+ * of its result.
+ *
+ * The query runs as the report runs it (the statements before the last first, the placeholders substituted,
+ * nothing of the plugin's added), capped at one row by the session's sql_select_limit, which also caps a
+ * dynamic statement, where the plugin can place no LIMIT; a LIMIT of the query's own counts instead.
+ *
+ * @since 1.2.0
+ *
+ * @param string $sql The query, as typed into the report form.
+ *
+ * @return array{columns: array<int, array{name: string, type: string}>, rows: int, error: string} The columns and the
+ *               rows read, or the database's message in error when the query failed or its last statement returns no rows.
+ */
+function exports_reports_detect_columns( $sql ) {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-admin-ui.php';
+
+	$report = (object) array(
+		'id'               => 0,
+		'name'             => '',
+		'sql_query'        => $sql,
+		'sql_query_count'  => '',
+		'field_data'       => '',
+		'disable_export'   => 1,
+		'export_formats'   => '',
+		'default_none'     => 0,
+		'page_orientation' => 'P',
+	);
+
+	$admin     = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
+	$statement = $admin->query->statement( true );
+	$columns   = array();
+	$rows      = 0;
+	$error     = '';
+
+	// The database's complaints go into the answer, not the page.
+	$suppressed = $wpdb->suppress_errors();
+
+	$wpdb->query( 'SET SESSION sql_select_limit = 1' );
+
+	$last = $admin->query->run_leading_statements( $statement['sql'] );
+
+	if ( false === $last ) {
+		$error = '' !== (string) $wpdb->last_error ? (string) $wpdb->last_error : __( 'The query is empty.', 'exports-and-reports' );
+	} else {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the administrator's own query; see Exports_Reports_Query::rows().
+		$wpdb->query( $last );
+
+		$result = $wpdb->__get( 'result' ); // What the last statement returned: a result set, or true for a statement without one.
+		$rows   = (int) $wpdb->num_rows;
+
+		if ( '' !== (string) $wpdb->last_error ) {
+			$error = (string) $wpdb->last_error;
+		} elseif ( ! $result instanceof mysqli_result ) {
+			$error = __( 'The last statement of the query returns no rows.', 'exports-and-reports' );
+		} else {
+			// phpcs:ignore WordPress.DB.RestrictedFunctions.mysql_mysqli_fetch_fields -- the columns of the result wpdb holds.
+			foreach ( mysqli_fetch_fields( $result ) as $field ) {
+				$columns[] = array(
+					'name' => (string) $field->name,
+					'type' => exports_reports_column_data_type( (int) $field->type, (int) $field->length ),
+				);
+			}
+		}
+	}
+
+	$wpdb->query( 'SET SESSION sql_select_limit = DEFAULT' );
+	$wpdb->suppress_errors( $suppressed );
+
+	return array(
+		'columns' => $columns,
+		'rows'    => $rows,
+		'error'   => $error,
+	);
+}
+
+/**
+ * The data type of the field editor that fits a column of a result: dates, times and date-times, integers
+ * (a one-digit TINYINT and a BIT as a flag), decimals, and text for the rest.
+ *
+ * @since 1.2.0
+ *
+ * @param int $type   The column type, a MYSQLI_TYPE_* constant.
+ * @param int $length The column's display width.
+ *
+ * @return string A key of exports_reports_field_types().
+ */
+function exports_reports_column_data_type( $type, $length ) {
+	switch ( $type ) {
+		case MYSQLI_TYPE_DATE:
+		case MYSQLI_TYPE_NEWDATE:
+			return 'date';
+		case MYSQLI_TYPE_TIME:
+			return 'time';
+		case MYSQLI_TYPE_DATETIME:
+		case MYSQLI_TYPE_TIMESTAMP:
+			return 'datetime';
+		case MYSQLI_TYPE_BIT:
+			return 'bool';
+		case MYSQLI_TYPE_TINY:
+			return $length <= 1 ? 'bool' : 'number';
+		case MYSQLI_TYPE_SHORT:
+		case MYSQLI_TYPE_INT24:
+		case MYSQLI_TYPE_LONG:
+		case MYSQLI_TYPE_LONGLONG:
+		case MYSQLI_TYPE_YEAR:
+			return 'number';
+		case MYSQLI_TYPE_DECIMAL:
+		case MYSQLI_TYPE_NEWDECIMAL:
+		case MYSQLI_TYPE_FLOAT:
+		case MYSQLI_TYPE_DOUBLE:
+			return 'decimal';
+	}
+
+	return 'text';
 }
 
 /**

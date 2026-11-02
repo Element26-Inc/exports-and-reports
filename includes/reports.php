@@ -1,6 +1,6 @@
 <?php
 /**
- * A report and its group as rows, a report's admin UI options, and the report page.
+ * A report and its group as rows, a report's admin UI options, the kept row counts, and the report page.
  *
  * @package Exports_And_Reports
  */
@@ -41,6 +41,43 @@ function exports_reports_get_group( $group_id ) {
 	$group = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->exports_reports_groups} WHERE `id` = %d AND `disabled` = 0 LIMIT 1", absint( $group_id ) ) );
 
 	return empty( $group ) ? null : $group;
+}
+
+/**
+ * How long the row count of a report page is kept, in seconds, from the Settings page: five minutes
+ * unless changed there, 0 for none. The count runs with the first page over every row the query matches,
+ * which costs a slow query as much again; while a count is kept, the page views that follow run the query
+ * without it. Rows added or removed meanwhile show in the count once it is counted again.
+ *
+ * @since 1.2.0
+ *
+ * @return int
+ */
+function exports_reports_count_cache_ttl() {
+	$minutes = get_option( 'exports_reports_count_cache', 5 );
+
+	return max( 0, (int) $minutes ) * MINUTE_IN_SECONDS;
+}
+
+/**
+ * The generation of the kept row counts, part of each one's key: raising it (exports_reports_forget_counts())
+ * lets every kept count go at once.
+ *
+ * @since 1.2.0
+ *
+ * @return int
+ */
+function exports_reports_count_cache_generation() {
+	return (int) get_option( 'exports_reports_count_cache_generation', 0 );
+}
+
+/**
+ * Forgets every kept row count: the next page view of each report counts again.
+ *
+ * @since 1.2.0
+ */
+function exports_reports_forget_counts() {
+	update_option( 'exports_reports_count_cache_generation', exports_reports_count_cache_generation() + 1 );
 }
 
 /**

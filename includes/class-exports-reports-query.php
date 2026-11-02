@@ -667,12 +667,16 @@ class Exports_Reports_Query {
 	 *
 	 * @since 1.0.0 Out of Exports_Reports_Admin_UI::get_data().
 	 * @since 1.0.2 A definition of several statements keeps the ones before the last as they are.
+	 * @since 1.2.0 The $count argument, and count_key in the result.
 	 *
-	 * @param bool $full Whether every row is wanted, as for an export: no count and no LIMIT.
+	 * @param bool $full  Whether every row is wanted, as for an export: no count and no LIMIT.
+	 * @param bool $count Whether the page's rows are counted (SQL_CALC_FOUND_ROWS); false when a kept count serves.
 	 *
-	 * @return array{sql: string, sql_count: string, where: string, having: string}
+	 * @return array{sql: string, sql_count: string, where: string, having: string, count_key: string} count_key is the
+	 *               text of the rows the count describes: the statement with its conditions and variables in, without the
+	 *               count, the sort and the page, as the key of a kept count (Exports_Reports_Admin_UI::count_cache_key()).
 	 */
-	public function statement( $full = false ) {
+	public function statement( $full = false, $count = true ) {
 		/** @global wpdb $wpdb */ global $wpdb;
 
 		$admin = $this->admin;
@@ -701,9 +705,12 @@ class Exports_Reports_Query {
 		}
 		// A statement with a LIMIT of its own and no placeholder pages itself: the screen shows what it returns.
 		$own_limit = false !== $outline['limit'] && false === stripos( $sql, '%%LIMIT%%' );
+		// The statement as the author wrote it, for the key of a kept count.
+		$bare_sql = $sql;
 		// What goes after the main SELECT: the row count for the page view (an export reads every row and needs
-		// none; a totals query feeds the sum row, not the count), then a SUM() per total field.
-		$select_extras = $full || $own_limit ? '' : 'SQL_CALC_FOUND_ROWS';
+		// none, a kept count spares it, and a totals query feeds the sum row, not the count), then a SUM() per
+		// total field.
+		$select_extras = $full || $own_limit || ! $count ? '' : 'SQL_CALC_FOUND_ROWS';
 		$totals        = array();
 		foreach ( $admin->columns as $key => $column ) {
 			$attributes = $column;
@@ -989,6 +996,17 @@ class Exports_Reports_Query {
 			),
 			$replace_variables
 		);
+		// The rows the count describes, as text: the same conditions and variables, no sort and no page.
+		$count_key = $this->place_clauses(
+			$bare_sql,
+			array(
+				'WHERE'   => $wheresql,
+				'HAVING'  => $havingsql,
+				'ORDERBY' => '',
+				'LIMIT'   => '',
+			),
+			$replace_variables
+		);
 		if ( false !== $admin->sql_count ) {
 			// The count query takes the same conditions, placed by its own shape, and one row.
 			$leading_count = self::statements( $admin->sql_count );
@@ -1010,7 +1028,8 @@ class Exports_Reports_Query {
 		}
 
 		if ( ! empty( $leading ) ) {
-			$sql = implode( ";\n", $leading ) . ";\n" . $sql;
+			$sql       = implode( ";\n", $leading ) . ";\n" . $sql;
+			$count_key = implode( ";\n", $leading ) . ";\n" . $count_key;
 		}
 
 		return array(
@@ -1018,6 +1037,7 @@ class Exports_Reports_Query {
 			'sql_count' => isset( $sql_count ) ? $sql_count : '',
 			'where'     => $wheresql,
 			'having'    => $havingsql,
+			'count_key' => $count_key,
 		);
 	}
 }

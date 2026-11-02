@@ -152,7 +152,8 @@ function exports_reports_sql_editor() {
 	wp_add_inline_script(
 		'code-editor',
 		sprintf(
-			'jQuery( function() { [ "admin_ui_sql_query", "admin_ui_sql_query_count" ].forEach( function( id ) { var field = document.getElementById( id ); if ( field ) { wp.codeEditor.initialize( field, %s ); } } ); } );',
+			// The editor's instance stays on the field, where the field editor's Detect Fields button reads the query.
+			'jQuery( function() { [ "admin_ui_sql_query", "admin_ui_sql_query_count" ].forEach( function( id ) { var field = document.getElementById( id ); if ( field ) { field.exportsReportsCodeMirror = wp.codeEditor.initialize( field, %s ).codemirror; } } ); } );',
 			wp_json_encode( $settings )
 		)
 	);

@@ -122,11 +122,13 @@ class Tests_Install extends Exports_Reports_Test_Case {
 			define( 'WP_UNINSTALL_PLUGIN', true );
 		}
 
+		exports_reports_set_token( 'uninstall-token' );
+
 		require EXPORTS_REPORTS_DIR . 'uninstall.php';
 
 		$table_left    = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->exports_reports_reports ) );
 		$version       = get_option( 'exports_reports_version' );
-		$token         = get_option( 'exports_reports_token' );
+		$token         = get_option( 'exports_reports_token_hash' );
 		$event         = wp_next_scheduled( 'exports_reports_cleanup' );
 		$leftover_left = file_exists( $leftover );
 
@@ -135,7 +137,7 @@ class Tests_Install extends Exports_Reports_Test_Case {
 
 		$this->assertNull( $table_left, 'the reports table is gone' );
 		$this->assertFalse( $version, 'the version option is gone' );
-		$this->assertFalse( $token, 'the token option is gone' );
+		$this->assertFalse( $token, 'the token hash option is gone' );
 		$this->assertFalse( $event, 'the cleanup event is gone' );
 		$this->assertFalse( $leftover_left, 'the export file is gone' );
 	}

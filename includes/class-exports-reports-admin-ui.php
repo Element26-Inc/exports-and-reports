@@ -254,9 +254,10 @@ class Exports_Reports_Admin_UI {
 		if ( false !== $order_dir ) {
 			$this->order_dir = $order_dir;
 		}
-		// The export buttons post their form, so the request that writes a file is never an address a browser
-		// keeps or revisits. An export asked for through the address, as the links before 1.1.0 did, writes
-		// nothing (the removal link, which carries no export type, still works).
+		// The export buttons, and the button that removes an export, post their forms, so the request that
+		// writes or removes a file is never an address a browser keeps or revisits. An export or a removal
+		// asked for through the address, as the links before 1.1.0 (and the removal links before 1.2.0) did,
+		// does nothing.
 		$posted_export = '1' === $this->get_var( 'exports_reports_export', false, '1', 'post' );
 		if ( $posted_export && false !== $this->export ) {
 			$this->action = 'export';
@@ -266,7 +267,7 @@ class Exports_Reports_Admin_UI {
 			$export_type = $this->get_var( 'export_type', false, $this->allowed_export_types(), $source );
 			if ( false !== $export_type && $posted_export ) {
 				$this->export_type = $export_type;
-			} elseif ( false !== $this->get_var( 'export_type' ) ) {
+			} elseif ( false !== $this->get_var( 'export_type' ) || false !== $this->get_var( 'remove_export' ) ) {
 				$this->export_from_address = true;
 			}
 			$export_delimiter = $this->get_var( 'export_delimiter', false, false, $source );
@@ -617,10 +618,24 @@ class Exports_Reports_Admin_UI {
 				__( '<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it does not, %1$s.<br /><br />When you are done with your export, %2$s; otherwise the export will be deleted within 24 hours of generation.', 'exports-and-reports' ),
 				/* translators: %s: the export format (CSV, PDF, ...). */
 				'<a href="' . esc_url( $download ) . '" target="_blank">' . esc_html( sprintf( __( 'click here to download your %s export file', 'exports-and-reports' ), strtoupper( $format ) ) ) . '</a>',
-				'<a href="' . esc_url( $this->export_link( array( 'remove_export' => $export_file ) ) ) . '">' . esc_html__( 'click here to remove it', 'exports-and-reports' ) . '</a>'
+				// A button of the removal form on the list screen (see templates/manage.php): a POST, like the export itself.
+				'<button type="submit" class="button-link exports-reports-remove-export" form="exports-reports-remove-export" name="remove_export" value="' . esc_attr( $export_file ) . '">' . esc_html__( 'click here to remove it', 'exports-and-reports' ) . '</button>'
 			)
 		);
 		wp_print_inline_script_tag( 'window.open( ' . wp_json_encode( $download ) . ' );' );
+	}
+
+	/**
+	 * The export file the request asks to remove, posted by the button export_ready() prints: the file name
+	 * alone, or '' when the request removes nothing. An address that names a file (the links before 1.2.0)
+	 * removes nothing; see export_from_address.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return string
+	 */
+	public function removing_export() {
+		return str_replace( '/', '', sanitize_file_name( (string) $this->get_var( 'remove_export', '', false, 'post' ) ) );
 	}
 
 	/**
@@ -647,7 +662,9 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * A link that runs or removes an export: var_update() with the action and the nonce export() checks.
+	 * An address that names an export: var_update() with the action and the nonce export() checks. The
+	 * screen's buttons post their forms instead, and an address like this writes and removes nothing since
+	 * 1.1.2 and 1.2.0 (see export_from_address); kept for code that built such links.
 	 *
 	 * @param array $args The query arguments (export_type, or remove_export).
 	 *
@@ -1225,8 +1242,30 @@ class Exports_Reports_Admin_UI {
 		$msg = apply_filters( 'exports_reports_message', $msg, $this );
 		$msg = $this->legacy_hook( 'message', array( $msg ) );
 		?>
-		<div id="message" class="updated fade"><p><?php echo wp_kses_post( $msg ); ?></p></div>
+		<div id="message" class="updated fade"><p><?php echo wp_kses( $msg, self::message_html() ); ?></p></div>
 		<?php
+	}
+
+	/**
+	 * The HTML a message or an error may carry: what a post may, and a button that submits one of the
+	 * screen's forms (the removal of an export, in export_ready()).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array
+	 */
+	protected static function message_html() {
+		$allowed = wp_kses_allowed_html( 'post' );
+
+		$allowed['button'] = array(
+			'class' => true,
+			'form'  => true,
+			'name'  => true,
+			'type'  => true,
+			'value' => true,
+		);
+
+		return $allowed;
 	}
 
 	public function error( $msg ) {
@@ -1241,7 +1280,7 @@ class Exports_Reports_Admin_UI {
 		$msg = apply_filters( 'exports_reports_error', $msg, $this );
 		$msg = $this->legacy_hook( 'error', array( $msg ) );
 		?>
-		<div id="message" class="error fade"><p><?php echo wp_kses_post( $msg ); ?></p></div>
+		<div id="message" class="error fade"><p><?php echo wp_kses( $msg, self::message_html() ); ?></p></div>
 		<?php
 		return false;
 	}
@@ -1861,17 +1900,6 @@ class Exports_Reports_Admin_UI {
 		if ( isset( $this->custom['export'] ) && function_exists( "{$this->custom['export']}" ) ) {
 			return call_user_func( $this->custom['export'], $this );
 		}
-		if ( empty( $this->full_data ) ) {
-			// Delimited exports read their rows from an unbuffered result; the other formats load the whole result here.
-			$this->stream_sql    = '';
-			$this->stream_export = Exports_Reports_Exporter::streams( $this->export_type ) && $this->can_stream_export();
-			$data                = $this->get_data( true );
-			$this->stream_export = false;
-
-			if ( false === $data ) {
-				return false;
-			}
-		}
 		$dir = dirname( EXPORTS_REPORTS_EXPORT_DIR );
 		if ( ! file_exists( EXPORTS_REPORTS_EXPORT_DIR ) ) {
 			if ( ! $wp_filesystem->is_writable( $dir ) || ! $wp_filesystem->mkdir( EXPORTS_REPORTS_EXPORT_DIR ) ) {
@@ -1888,7 +1916,7 @@ class Exports_Reports_Admin_UI {
 			return false;
 		}
 		self::protect_export_dir();
-		$remove_export = str_replace( '/', '', sanitize_file_name( (string) $this->get_var( 'remove_export', '' ) ) );
+		$remove_export = $this->removing_export();
 		if ( ! $this->api && '' !== $remove_export ) {
 			$remove_export_path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $remove_export;
 
@@ -1949,6 +1977,19 @@ class Exports_Reports_Admin_UI {
 				$this->error( __( '<strong>Error:</strong> That export format is not offered for this report.', 'exports-and-reports' ) );
 
 				return false;
+			}
+
+			if ( empty( $this->full_data ) ) {
+				// Delimited exports read their rows from an unbuffered result; the other formats load the whole result
+				// here. (A removal gets this far without running the report's query.)
+				$this->stream_sql    = '';
+				$this->stream_export = Exports_Reports_Exporter::streams( $this->export_type ) && $this->can_stream_export();
+				$data                = $this->get_data( true );
+				$this->stream_export = false;
+
+				if ( false === $data ) {
+					return false;
+				}
 			}
 
 			$exporter = Exports_Reports_Exporter::create( $this->export_type, $this );
@@ -2069,6 +2110,13 @@ class Exports_Reports_Admin_UI {
 		/** @global wpdb $wpdb */ global $wpdb;
 
 		$statement = $this->query->statement( $full );
+		// The page's row count, when a recent page view of the same rows kept it (count_cache_key()): the query
+		// then runs without the count, which costs a slow query as much again as the page's rows.
+		$count_key = $full || $this->stream_export ? '' : $this->count_cache_key( $statement['count_key'] );
+		$cached    = '' !== $count_key ? get_transient( $count_key ) : false;
+		if ( false !== $cached ) {
+			$statement = $this->query->statement( $full, false );
+		}
 		$sql       = $statement['sql'];
 		$sql_count = $statement['sql_count'];
 		$wheresql  = $statement['where'];
@@ -2124,7 +2172,15 @@ class Exports_Reports_Admin_UI {
 			// The database's complaint, before the count query clears it.
 			$this->query_error = (string) $wpdb->last_error;
 
-			$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+			if ( false !== $cached ) {
+				$total = (int) $cached;
+			} else {
+				$total = current( $wpdb->get_col( 'SELECT FOUND_ROWS()' ) );
+
+				if ( '' !== $count_key && '' === $this->query_error && is_numeric( $total ) ) {
+					set_transient( $count_key, (int) $total, $this->count_cache_ttl() );
+				}
+			}
 		}
 
 		/**
@@ -2194,6 +2250,51 @@ class Exports_Reports_Admin_UI {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * The transient that keeps the row count of a page view: the rows the count describes (the statement with
+	 * its conditions and variables in, without the sort and the page), the user and the counts' generation,
+	 * hashed. '' when counts are not kept (count_cache_ttl()) or the statement gives no key.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $rows The text of the rows the count describes, Exports_Reports_Query::statement()'s count_key.
+	 *
+	 * @return string
+	 */
+	public function count_cache_key( $rows ) {
+		if ( '' === trim( (string) $rows ) || 0 >= $this->count_cache_ttl() ) {
+			return '';
+		}
+
+		$generation = function_exists( 'exports_reports_count_cache_generation' ) ? exports_reports_count_cache_generation() : 0;
+
+		return 'exports_reports_count_' . md5( $generation . '|' . get_current_user_id() . '|' . $rows );
+	}
+
+	/**
+	 * How long the row count of a page view is kept, in seconds: the Settings page's choice (five minutes
+	 * unless changed), 0 for none. A kept count spares the query its count, which runs over every row the
+	 * conditions match, on the page views that follow; rows added or removed meanwhile show in the count
+	 * once it is counted again.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return int
+	 */
+	public function count_cache_ttl() {
+		$ttl = function_exists( 'exports_reports_count_cache_ttl' ) ? exports_reports_count_cache_ttl() : 0;
+
+		/**
+		 * Filters how long the row count of this screen's page views is kept, in seconds; 0 keeps none.
+		 *
+		 * @since 1.2.0
+		 *
+		 * @param int                     $ttl   The seconds, from the Settings page.
+		 * @param Exports_Reports_Admin_UI $admin The screen.
+		 */
+		return (int) apply_filters( 'exports_reports_count_cache_ttl', $ttl, $this );
 	}
 
 	/**

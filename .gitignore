@@ -57,3 +57,4 @@ tests/codeception/_output
 
 # Other files
 bin/strauss.phar
+bin/wp-cli.phar
