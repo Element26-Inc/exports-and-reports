@@ -30,6 +30,20 @@ $back         = $reordering;
 		echo wp_kses( (string) call_user_func( $this->custom['header'], $this ), $this->allowed_html() );
 	}
 
+	if ( false !== $this->export ) {
+		// The export buttons of the table submit this form, which their form attribute names: a POST, which no
+		// browser keeps as an address. The screen's script sends it in the background and shows the answer.
+		?>
+		<form id="exports-reports-export" class="exports-reports-export" method="post" action="<?php echo esc_url( $this->export_form_action() ); ?>" data-ajax="<?php echo esc_url( $this->export_ajax_url() ); ?>" data-preparing="<?php esc_attr_e( 'Preparing your export…', 'exports-and-reports' ); ?>">
+			<input type="hidden" name="exports_reports_export" value="1" />
+			<?php if ( 0 < (int) $this->report_id ) : ?>
+				<input type="hidden" name="report" value="<?php echo esc_attr( (string) (int) $this->report_id ); ?>" />
+			<?php endif; ?>
+			<?php wp_nonce_field( 'exports-reports-export-request', '_wpnonce', false ); ?>
+		</form>
+		<?php
+	}
+
 	if ( false !== $this->export && 'export' === $this->action ) {
 		// The file is written during this request. A note for the wait, sent ahead when the server lets it
 		// through; the screen's script removes it once the page, and with it the export, is done.

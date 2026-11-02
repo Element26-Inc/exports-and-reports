@@ -1,0 +1,333 @@
+<?php
+/**
+ * The export formats a site and a report offer, how the screen, the REST route and the export form follow
+ * them, the Settings page that saves them, the column the upgrade adds, and the refresh of the export
+ * directory's protection files.
+ *
+ * @package Exports_And_Reports
+ */
+
+class Tests_Export_Formats extends Exports_Reports_Test_Case {
+
+	protected $group_id = 0;
+
+	protected $report_id = 0;
+
+	protected $administrator = 0;
+
+	protected function prepare() {
+		parent::prepare();
+
+		global $wpdb;
+
+		$now = current_time( 'mysql' );
+
+		$wpdb->insert(
+			$wpdb->exports_reports_groups,
+			array(
+				'name'        => 'Formats test',
+				'disabled'    => 0,
+				'role_access' => '',
+				'weight'      => 0,
+				'created'     => $now,
+				'updated'     => $now,
+			)
+		);
+
+		$this->group_id = (int) $wpdb->insert_id;
+
+		$wpdb->insert(
+			$wpdb->exports_reports_reports,
+			array(
+				'name'             => 'Formats report',
+				'group'            => $this->group_id,
+				'disabled'         => 0,
+				'disable_export'   => 0,
+				'default_none'     => 0,
+				'role_access'      => '',
+				'sql_query'        => 'SELECT id, channel, title FROM ' . self::videos() . ' ORDER BY id',
+				'sql_query_count'  => '',
+				'page_orientation' => 'L',
+				'field_data'       => '[]',
+				'weight'           => 0,
+				'created'          => $now,
+				'updated'          => $now,
+			)
+		);
+
+		$this->report_id     = (int) $wpdb->insert_id;
+		$this->administrator = self::factory()->user->create( array( 'role' => 'administrator' ) );
+
+		delete_option( 'exports_reports_export_formats' );
+	}
+
+	protected function clean() {
+		global $wpdb;
+
+		$wpdb->delete( $wpdb->exports_reports_reports, array( 'id' => $this->report_id ) );
+		$wpdb->delete( $wpdb->exports_reports_groups, array( 'id' => $this->group_id ) );
+
+		delete_option( 'exports_reports_export_formats' );
+
+		$_POST = array();
+		$_GET  = array();
+
+		parent::clean();
+	}
+
+	/**
+	 * The report row, fresh from the table.
+	 *
+	 * @return object
+	 */
+	protected function report_row() {
+		return exports_reports_get_report( $this->report_id );
+	}
+
+	public function test_the_site_offers_every_format_until_the_setting_narrows_it() {
+		$this->assertSame( array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' ), exports_reports_site_export_formats() );
+
+		update_option( 'exports_reports_export_formats', array( 'pdf', 'csv', 'bogus' ) );
+
+		$this->assertSame( array( 'csv', 'pdf' ), exports_reports_site_export_formats(), 'in the plugin\'s order, unknown types dropped' );
+
+		update_option( 'exports_reports_export_formats', array() );
+
+		$this->assertSame( array(), exports_reports_site_export_formats(), 'none ticked turns the buttons off' );
+	}
+
+	public function test_a_report_narrows_the_site_formats_and_cannot_widen_them() {
+		global $wpdb;
+
+		$this->assertSame( array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' ), exports_reports_report_export_formats( $this->report_row() ) );
+
+		$wpdb->update( $wpdb->exports_reports_reports, array( 'export_formats' => 'pdf,csv' ), array( 'id' => $this->report_id ) );
+
+		$this->assertSame( array( 'csv', 'pdf' ), exports_reports_report_export_formats( $this->report_row() ) );
+
+		update_option( 'exports_reports_export_formats', array( 'csv', 'xlsx' ) );
+
+		$this->assertSame( array( 'csv' ), exports_reports_report_export_formats( $this->report_row() ), 'the report cannot offer what the site turned off' );
+
+		require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-admin-ui.php';
+
+		$this->assertSame( array( 'csv' ), ( new Exports_Reports_Admin_UI( exports_reports_report_options( $this->report_row() ) ) )->export_formats );
+	}
+
+	public function test_the_screen_refuses_a_format_it_does_not_offer_and_writes_one_it_does() {
+		$admin = $this->report( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Narrowed', array( 'export_formats' => array( 'csv', 'tsv' ) ) );
+
+		$this->assertSame( array( 'csv', 'tsv', 'custom' ), $admin->allowed_export_types() );
+		$this->assertSame( array( 'csv' => 'CSV', 'tsv' => 'TSV' ), $admin->export_formats_offered() );
+
+		$admin->action      = 'export';
+		$admin->export_type = 'pdf';
+
+		list( , $output ) = $this->export_from_link( $admin );
+
+		$this->assertStringContainsString( 'not offered for this report', $output );
+		$this->assertFalse( $admin->exported_file );
+
+		$admin->export_type = 'csv';
+
+		list( , $output ) = $this->export_from_link( $admin );
+
+		$this->assertStringContainsString( 'Your export is ready', $output );
+		$this->assertStringEndsWith( '.csv', (string) $admin->exported_file );
+
+		wp_delete_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $admin->exported_file );
+	}
+
+	public function test_the_rest_export_refuses_a_format_the_report_does_not_offer() {
+		wp_set_current_user( $this->administrator );
+		update_option( 'exports_reports_export_formats', array( 'csv' ) );
+
+		$response = $this->rest_request( 'GET', '/exports-reports/v1/reports/' . $this->report_id . '/export', array( 'type' => 'pdf' ) );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 'exports_reports_format_not_offered', $response->get_data()['code'] );
+
+		$response = $this->rest_request( 'GET', '/exports-reports/v1/reports/' . $this->report_id . '/export', array( 'type' => 'csv' ) );
+
+		$this->assertSame( 200, $response->get_status() );
+
+		wp_delete_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $response->get_data()['file'] );
+	}
+
+	/**
+	 * The list screen: the export form names the report and keeps the search and the sort, the buttons
+	 * follow the offered formats and submit that form.
+	 */
+	public function test_the_export_buttons_follow_the_offered_formats_and_submit_the_export_form() {
+		$_GET['search_query'] = 'Video';
+		$_GET['order']        = 'id';
+		$_GET['order_dir']    = 'DESC';
+		$_GET['pg']           = '2';
+
+		$admin = $this->report(
+			'SELECT id, title FROM ' . self::videos() . ' ORDER BY id',
+			'Buttons',
+			array(
+				'export_formats' => array( 'csv', 'xlsx' ),
+				'report_id'      => 42,
+			)
+		);
+
+		ob_start();
+		$admin->manage();
+		$html = (string) ob_get_clean();
+
+		$this->assertSame( 1, preg_match( '/<form id="exports-reports-export"[^>]*action="([^"]*)"/', $html, $form ) );
+		$this->assertStringContainsString( 'report=42', $form[1] );
+		$this->assertStringContainsString( 'search_query=Video', $form[1] );
+		$this->assertStringContainsString( 'order_dir=DESC', $form[1] );
+		$this->assertStringNotContainsString( 'pg=', $form[1] );
+		$this->assertStringContainsString( 'data-ajax="', $html );
+		$this->assertStringContainsString( 'action=exports_reports_export_report', $html );
+		$this->assertStringContainsString( 'name="exports_reports_export" value="1"', $html );
+
+		preg_match_all( '/<button type="submit" class="button" form="exports-reports-export" name="export_type" value="([a-z]+)">/', $html, $buttons );
+
+		$this->assertSame( array( 'csv', 'xlsx' ), $buttons[1] );
+		$this->assertStringNotContainsString( 'action=export&amp;export_type', $html, 'no export link in an address' );
+	}
+
+	public function test_a_posted_export_form_runs_the_export_with_its_nonce() {
+		$_POST = array(
+			'exports_reports_export' => '1',
+			'export_type'            => 'tsv',
+			'_wpnonce'               => wp_create_nonce( 'exports-reports-export-request' ),
+		);
+
+		$admin = $this->report( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Posted' );
+
+		$this->assertSame( 'export', $admin->action );
+		$this->assertSame( 'tsv', $admin->export_type );
+
+		ob_start();
+		$admin->export();
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Your export is ready', $output );
+		$this->assertStringEndsWith( '.tsv', (string) $admin->exported_file );
+
+		wp_delete_file( EXPORTS_REPORTS_EXPORT_DIR . '/' . $admin->exported_file );
+
+		$_POST['_wpnonce'] = 'stale';
+
+		$admin = $this->report( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Posted stale' );
+
+		ob_start();
+		$admin->export();
+		$output = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'The export link has expired', $output );
+		$this->assertFalse( $admin->exported_file );
+	}
+
+	public function test_a_posted_format_the_screen_does_not_offer_is_not_taken() {
+		$_POST = array(
+			'exports_reports_export' => '1',
+			'export_type'            => 'pdf',
+			'_wpnonce'               => wp_create_nonce( 'exports-reports-export-request' ),
+		);
+
+		$admin = $this->report( 'SELECT id FROM ' . self::videos(), 'Posted narrowed', array( 'export_formats' => array( 'csv' ) ) );
+
+		$this->assertSame( 'export', $admin->action );
+		$this->assertFalse( $admin->export_type );
+	}
+
+	public function test_the_settings_page_saves_the_formats() {
+		wp_set_current_user( $this->administrator );
+
+		$_POST = array(
+			'_wpnonce'           => wp_create_nonce( 'exports-reports-settings' ),
+			'export_formats_set' => '1',
+			'export_formats'     => array( 'tsv', 'csv', 'nope' ),
+		);
+		$_REQUEST = $_POST;
+
+		ob_start();
+		exports_reports_settings();
+		$html = (string) ob_get_clean();
+
+		$this->assertSame( array( 'csv', 'tsv' ), get_option( 'exports_reports_export_formats' ) );
+		$this->assertSame( 1, preg_match( '/name="export_formats\[\]" value="csv" checked/', $html ) );
+		$this->assertSame( 1, preg_match( '/name="export_formats\[\]" value="pdf" \/>/', $html ) );
+
+		$_POST = array(
+			'_wpnonce'           => wp_create_nonce( 'exports-reports-settings' ),
+			'export_formats_set' => '1',
+		);
+		$_REQUEST = $_POST;
+
+		ob_start();
+		exports_reports_settings();
+		ob_end_clean();
+
+		$this->assertSame( array(), get_option( 'exports_reports_export_formats' ) );
+
+		$_POST = array(
+			'_wpnonce' => wp_create_nonce( 'exports-reports-settings' ),
+			'reset'    => 'Reset Now',
+		);
+		$_REQUEST = $_POST;
+
+		ob_start();
+		exports_reports_settings();
+		ob_end_clean();
+
+		$this->assertFalse( get_option( 'exports_reports_export_formats' ), 'the reset puts every format back on' );
+	}
+
+	public function test_the_upgrade_adds_the_export_formats_column() {
+		global $wpdb;
+
+		$table = $wpdb->exports_reports_reports;
+
+		$wpdb->query( "ALTER TABLE `{$table}` DROP COLUMN `export_formats`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		$this->assertNotContains( 'export_formats', $wpdb->get_col( "SHOW COLUMNS FROM `{$table}`" ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		update_option( 'exports_reports_version', '1.0.2' );
+		exports_reports_install_upgrade();
+
+		$columns = $wpdb->get_results( "SHOW COLUMNS FROM `{$table}`", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$found   = array_filter(
+			$columns,
+			static function ( $column ) {
+				return 'export_formats' === $column['Field'];
+			}
+		);
+
+		$this->assertCount( 1, $found );
+		$this->assertSame( '', current( $found )['Default'] );
+		$this->assertSame( EXPORTS_REPORTS_VERSION, get_option( 'exports_reports_version' ) );
+		$this->assertSame( '', (string) $this->report_row()->export_formats, 'the rows that were there offer the site\'s formats' );
+	}
+
+	public function test_protect_export_dir_rewrites_its_own_outdated_rules_and_leaves_a_custom_file() {
+		$this->protect_export_dir();
+
+		$htaccess = EXPORTS_REPORTS_EXPORT_DIR . '/.htaccess';
+		$rules    = (string) file_get_contents( $htaccess ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		$this->assertStringContainsString( 'Require all denied', $rules );
+
+		file_put_contents( $htaccess, "# Exports and Reports: an older version's rules\nDeny from all\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$this->protect_export_dir();
+
+		$this->assertSame( $rules, (string) file_get_contents( $htaccess ), 'the plugin\'s own file is brought up to date' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		file_put_contents( $htaccess, "Options -Indexes\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		$this->protect_export_dir();
+
+		$this->assertSame( "Options -Indexes\n", (string) file_get_contents( $htaccess ), 'a file the site wrote stays' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		wp_delete_file( $htaccess );
+		$this->protect_export_dir();
+
+		$this->assertSame( $rules, (string) file_get_contents( $htaccess ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+	}
+}

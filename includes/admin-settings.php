@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function exports_reports_reset() {
 	update_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
+	delete_option( 'exports_reports_export_formats' );
 
 	$token = md5( microtime() . wp_generate_password( 20 ) );
 	update_option( 'exports_reports_token', $token );
@@ -32,12 +33,19 @@ function exports_reports_settings() {
 	$cleared = false;
 	$reset   = false;
 
-	if ( isset( $_POST['cronjob_token'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
+	if ( isset( $_POST['cronjob_token'] ) || isset( $_POST['export_formats_set'] ) || ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
 		check_admin_referer( 'exports-reports-settings' );
 
 		if ( isset( $_POST['cronjob_token'] ) ) {
 			// An empty token turns the token access off.
 			update_option( 'exports_reports_token', sanitize_title( sanitize_text_field( wp_unslash( $_POST['cronjob_token'] ) ) ) );
+		}
+
+		if ( isset( $_POST['export_formats_set'] ) ) {
+			// The boxes ticked; none ticked turns every export button off.
+			$chosen = isset( $_POST['export_formats'] ) ? array_map( 'sanitize_key', (array) wp_unslash( $_POST['export_formats'] ) ) : array();
+
+			update_option( 'exports_reports_export_formats', array_values( array_intersect( array_keys( exports_reports_export_formats() ), $chosen ) ) );
 		}
 
 		if ( ! empty( $_POST['clear'] ) || ! empty( $_POST['reset'] ) ) {
@@ -51,8 +59,9 @@ function exports_reports_settings() {
 		}
 	}
 
-	$rest_base = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
-	$token     = (string) get_option( 'exports_reports_token' );
+	$rest_base    = rest_url( 'exports-reports/v1/reports/YOUR_REPORT_ID' );
+	$token        = (string) get_option( 'exports_reports_token' );
+	$site_formats = exports_reports_site_export_formats();
 
 	wp_enqueue_style( 'exports-reports-admin' );
 	?>
@@ -78,12 +87,24 @@ function exports_reports_settings() {
 					<th scope="row"><label for="clear"><?php esc_html_e( 'Clear Exports Directory', 'exports-and-reports' ); ?></label></th>
 					<td>
 						<input name="clear" type="submit" id="clear" class="button" value="<?php esc_attr_e( 'Clear Now', 'exports-and-reports' ); ?>" />
-						<span class="description">
+						<p class="description">
 							<?php
 							/* translators: %s: the export directory, relative to the WordPress directory. */
 							echo esc_html( sprintf( __( 'This will remove all files from your Exports directory - %s', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
 							?>
-						</span>
+						</p>
+					</td>
+				</tr>
+				<tr valign="top">
+					<th scope="row"><?php esc_html_e( 'Export Formats', 'exports-and-reports' ); ?></th>
+					<td>
+						<fieldset class="er-choices exports-reports-formats">
+							<input type="hidden" name="export_formats_set" value="1" />
+							<?php foreach ( exports_reports_export_formats() as $type => $label ) : ?>
+								<label><input type="checkbox" name="export_formats[]" value="<?php echo esc_attr( $type ); ?>"<?php checked( in_array( $type, $site_formats, true ) ); ?> /> <?php echo esc_html( $label ); ?></label>
+							<?php endforeach; ?>
+						</fieldset>
+						<p class="description"><?php esc_html_e( 'The formats the export buttons offer on every report; a report can narrow them further in its own settings. CSV, TSV and TXT are written row by row and suit very large reports; the other formats hold the whole report in memory while they are written.', 'exports-and-reports' ); ?></p>
 					</td>
 				</tr>
 				<tr valign="top">
@@ -147,12 +168,12 @@ function exports_reports_settings() {
 					<th scope="row"><label for="reset"><?php esc_html_e( 'Reset All Settings', 'exports-and-reports' ); ?></label></th>
 					<td>
 						<input name="reset" type="submit" id="reset" class="button" value="<?php esc_attr_e( 'Reset Now', 'exports-and-reports' ); ?>" />
-						<span class="description">
+						<p class="description">
 							<?php
 							/* translators: %s: the export directory, relative to the WordPress directory. */
-							echo esc_html( sprintf( __( 'This generates a new token, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept.', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
+							echo esc_html( sprintf( __( 'This generates a new token, puts every export format back on, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept.', 'exports-and-reports' ), str_replace( ABSPATH, '', EXPORTS_REPORTS_EXPORT_DIR ) ) );
 							?>
-						</span>
+						</p>
 					</td>
 				</tr>
 				<!--

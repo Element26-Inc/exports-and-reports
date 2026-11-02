@@ -58,11 +58,12 @@ function exports_reports_report_options( $report ) {
 	$options['css']      = EXPORTS_REPORTS_URL . 'assets/css/admin.css';
 	$options['readonly'] = true;
 
-	$options['export']       = ( 0 === (int) $report->disable_export );
-	$options['search']       = ( strlen( (string) $report->field_data ) > 0 ? true : false );
-	$options['default_none'] = ( 1 === (int) $report->default_none ? true : false );
-	$options['sql']          = trim( (string) $report->sql_query );
-	$options['sql_count']    = trim( (string) $report->sql_query_count );
+	$options['export']         = ( 0 === (int) $report->disable_export );
+	$options['export_formats'] = exports_reports_report_export_formats( $report );
+	$options['search']         = ( strlen( (string) $report->field_data ) > 0 ? true : false );
+	$options['default_none']   = ( 1 === (int) $report->default_none ? true : false );
+	$options['sql']            = trim( (string) $report->sql_query );
+	$options['sql_count']      = trim( (string) $report->sql_query_count );
 
 	if ( empty( $options['sql_count'] ) ) {
 		unset( $options['sql_count'] );

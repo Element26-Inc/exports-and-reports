@@ -58,6 +58,14 @@ function exports_reports_reports() {
 		'type'  => 'bool',
 	);
 
+	$form_columns['export_formats'] = array(
+		'label'            => __( 'Export Formats', 'exports-and-reports' ),
+		'type'             => 'related',
+		'related'          => exports_reports_export_formats(),
+		'related_multiple' => true,
+		'comments'         => __( 'Leave every box empty to offer the formats enabled in Settings. A format turned off in Settings is not offered even when checked here. CSV, TSV and TXT are written row by row and suit very large reports; the other formats hold the whole report in memory while they are written.', 'exports-and-reports' ),
+	);
+
 	$form_columns['default_none'] = array(
 		'label'    => __( 'Default to No Results?', 'exports-and-reports' ),
 		'type'     => 'bool',

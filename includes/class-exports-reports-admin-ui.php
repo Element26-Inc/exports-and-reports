@@ -116,6 +116,15 @@ class Exports_Reports_Admin_UI {
 	public $export_url       = false;
 	public $export_type      = false;
 	public $export_delimiter = false;
+	/**
+	 * The export formats the screen offers, by type (see exports_reports_export_formats()); a report's come
+	 * from the Settings page and its own definition.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @var string[]
+	 */
+	public $export_formats   = array( 'csv', 'tsv', 'pipe', 'xlsx', 'xml', 'json', 'pdf' );
 	public $page_orientation = 'P';
 
 	public $base_dir = '';
@@ -227,25 +236,19 @@ class Exports_Reports_Admin_UI {
 		if ( false !== $order_dir ) {
 			$this->order_dir = $order_dir;
 		}
+		// The export buttons post their form, so the request that writes a file is never an address a browser
+		// keeps or revisits; the older links with the action in the address still work.
+		$posted_export = '1' === $this->get_var( 'exports_reports_export', false, '1', 'post' );
+		if ( $posted_export && false !== $this->export ) {
+			$this->action = 'export';
+		}
 		if ( 'export' === $this->action ) {
-			$export_type = $this->get_var(
-				'export_type',
-				false,
-				array(
-					'csv',
-					'tsv',
-					'pipe',
-					'xlsx',
-					'custom',
-					'xml',
-					'json',
-					'pdf',
-				)
-			);
+			$source      = $posted_export ? 'post' : false;
+			$export_type = $this->get_var( 'export_type', false, $this->allowed_export_types(), $source );
 			if ( false !== $export_type ) {
 				$this->export_type = $export_type;
 			}
-			$export_delimiter = $this->get_var( 'export_delimiter' );
+			$export_delimiter = $this->get_var( 'export_delimiter', false, false, $source );
 			if ( 'custom' === $this->export_type && false !== $export_delimiter ) {
 				$this->export_delimiter = $export_delimiter;
 			}
@@ -634,19 +637,106 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * Whether the request carries the nonce export_link() put in it. The REST route does not come through
-	 * here: its token or user is the credential.
+	 * Whether the request carries the nonce of the export form or of export_link(), posted or in the address.
+	 * The REST route does not come through here: its token or user is the credential.
+	 *
+	 * @since 1.1.0 The nonce may be posted.
 	 *
 	 * @return bool
 	 */
 	public function verify_export_request() {
-		$nonce = isset( $_GET['_wpnonce'] ) ? sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- this is the verification.
+		$source = isset( $_POST['_wpnonce'] ) ? $_POST : $_GET;
+		$nonce  = isset( $source['_wpnonce'] ) ? sanitize_key( wp_unslash( $source['_wpnonce'] ) ) : '';
 
 		if ( '' === $nonce || ! wp_verify_nonce( $nonce, 'exports-reports-export-request' ) ) {
 			return false;
 		}
 
 		return true;
+	}
+
+	/**
+	 * Every export format, the label of each by its type.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return array<string, string>
+	 */
+	protected static function format_labels() {
+		if ( function_exists( 'exports_reports_export_formats' ) ) {
+			return exports_reports_export_formats();
+		}
+
+		return array(
+			'csv'  => 'CSV',
+			'tsv'  => 'TSV',
+			'pipe' => 'TXT',
+			'xlsx' => 'XLSX',
+			'xml'  => 'XML',
+			'json' => 'JSON',
+			'pdf'  => 'PDF',
+		);
+	}
+
+	/**
+	 * The export types the screen accepts: its formats, and the custom delimiter when a delimited format
+	 * is among them.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return string[]
+	 */
+	public function allowed_export_types() {
+		$types = array_values( array_intersect( array_keys( self::format_labels() ), array_map( 'strval', (array) $this->export_formats ) ) );
+
+		if ( array_intersect( $types, array( 'csv', 'tsv', 'pipe' ) ) ) {
+			$types[] = 'custom';
+		}
+
+		return $types;
+	}
+
+	/**
+	 * The export buttons the screen shows: the label of each by its type, in the plugin's order.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return array<string, string>
+	 */
+	public function export_formats_offered() {
+		return array_intersect_key( self::format_labels(), array_flip( $this->allowed_export_types() ) );
+	}
+
+	/**
+	 * The address the export form posts to: the screen's current address with its search, sort and filters,
+	 * the report named outright on a report page (the page's default report changes with the order), and
+	 * nothing of an earlier export or a page number.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return string
+	 */
+	public function export_form_action() {
+		$vars = 0 < (int) $this->report_id ? array( 'report' => (string) (int) $this->report_id ) : false;
+
+		return $this->var_update( $vars, array( 'search_query', 'order', 'order_dir' ) );
+	}
+
+	/**
+	 * The admin-ajax address the screen's script posts the export form to: the same query as
+	 * export_form_action(), with the plugin's action.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @return string
+	 */
+	public function export_ajax_url() {
+		parse_str( (string) wp_parse_url( $this->export_form_action(), PHP_URL_QUERY ), $vars );
+
+		$vars['action'] = 'exports_reports_export_report';
+
+		return add_query_arg( $vars, admin_url( 'admin-ajax.php' ) );
 	}
 
 	/**
@@ -1833,6 +1923,12 @@ class Exports_Reports_Admin_UI {
 				return false;
 			}
 		} else {
+			if ( ! in_array( (string) $this->export_type, $this->allowed_export_types(), true ) ) {
+				$this->error( __( '<strong>Error:</strong> That export format is not offered for this report.', 'exports-and-reports' ) );
+
+				return false;
+			}
+
 			$exporter = Exports_Reports_Exporter::create( $this->export_type, $this );
 
 			if ( null === $exporter ) {
@@ -1866,7 +1962,8 @@ class Exports_Reports_Admin_UI {
 
 	/**
 	 * Keeps the export directory from being served directly: an .htaccess that denies every request
-	 * (Apache 2.4 and 2.2 syntax) and an index.php, written once. Downloads go through
+	 * (Apache 2.4 and 2.2 syntax) and an index.php, written when missing and rewritten when the plugin's
+	 * rules have changed since (a file of the site's own is left alone). Downloads go through
 	 * exports_reports_send_export_file() after a nonce or token check; nginx needs the equivalent
 	 * location rule in the server configuration (see the readme).
 	 *
@@ -1881,12 +1978,24 @@ class Exports_Reports_Admin_UI {
 			'index.php' => "<?php\n// Silence is golden.\n",
 		);
 
+		$markers = array(
+			'.htaccess' => 'Exports and Reports',
+			'index.php' => 'Silence is golden',
+		);
+
 		foreach ( $rules as $name => $contents ) {
 			$path = EXPORTS_REPORTS_EXPORT_DIR . '/' . $name;
 
-			if ( ! $wp_filesystem->exists( $path ) ) {
-				$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
+			if ( $wp_filesystem->exists( $path ) ) {
+				$current = (string) $wp_filesystem->get_contents( $path );
+
+				// The plugin's own file is brought up to date when its rules changed; a file the site wrote stays.
+				if ( $current === $contents || false === strpos( $current, $markers[ $name ] ) ) {
+					continue;
+				}
 			}
+
+			$wp_filesystem->put_contents( $path, $contents, FS_CHMOD_FILE );
 		}
 	}
 
@@ -2173,7 +2282,11 @@ class Exports_Reports_Admin_UI {
 			</form>
 			<?php
 		} else {
-			$list->display();
+			?>
+			<div class="exports-reports-table-scroll">
+				<?php $list->display(); ?>
+			</div>
+			<?php
 		}
 
 		return true;
