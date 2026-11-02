@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,10 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.1.4 =
+* The plugin's stylesheet loads in the head of its pages. It was enqueued from the page itself, which put it in the footer, so a report rendered unstyled first and snapped into shape when the stylesheet arrived.
+* On a report page the admin frame is sent as soon as WordPress has written it, before the report's query runs, and the loading note is a plain line under the report selector.
 
 = 1.1.3 =
 * The row count, a sort from a column header, a search or a filter and the page's LIMIT go into the query's main SELECT, found by depth: the one after the WITH clauses, or inside an `EXECUTE IMMEDIATE` string. They went to the first keyword in the text, which in a query with WITH clauses or window functions is the wrong one (the database refused `SQL_CALC_FOUND_ROWS` there, and a sort landed inside a window function). A query with a LIMIT of its own and no `%%LIMIT%%` placeholder shows what it returns as one page instead of a broken LIMIT.

@@ -1257,7 +1257,8 @@ class Exports_Reports_Admin_UI {
 		do_action( 'exports_reports_go', $this );
 		$this->legacy_hook( 'go' );
 
-		if ( false !== $this->css ) {
+		// The plugin's own stylesheet is in the head already (exports_reports_assets()); a stylesheet of a custom screen goes here.
+		if ( false !== $this->css && ! ( EXPORTS_REPORTS_URL . 'assets/css/admin.css' === $this->css && wp_style_is( 'exports-reports-admin', 'enqueued' ) ) ) {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
 		}
 

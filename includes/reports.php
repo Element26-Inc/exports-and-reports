@@ -345,7 +345,7 @@ function exports_reports_view( $group_id = false, $has_full_access = null ) {
 	// The report's query runs while this request renders. A note for the wait, sent ahead when the server
 	// lets it through; the screen's script removes it once the page has loaded.
 	?>
-	<div class="notice notice-info exports-reports-progress"><p><span class="spinner is-active"></span><?php esc_html_e( 'Loading the report…', 'exports-and-reports' ); ?></p></div>
+	<p class="exports-reports-loading"><span class="spinner is-active"></span><?php esc_html_e( 'Loading the report…', 'exports-and-reports' ); ?></p>
 	<?php
 	if ( 0 < ob_get_level() ) {
 		ob_flush();
