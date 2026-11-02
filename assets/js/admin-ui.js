@@ -1,12 +1,87 @@
 /**
  * The report screens: rows dragged into order when the screen reorders, the delete links' confirmation,
- * the note shown while an export was written, and the pagination header's page field, which goes back
- * to page 1 when the form is submitted for anything but a page change.
+ * the export buttons, which run the export in the background and show its message without leaving the
+ * page, and the pagination header's page field, which goes back to page 1 when the form is submitted
+ * for anything but a page change.
  */
 /* global jQuery */
 jQuery( function ( $ ) {
 	// The page has loaded, so the export it was writing is done (or failed, and the screen says so).
 	$( '.exports-reports-export-progress' ).remove();
+
+	const exportForm = $( '#exports-reports-export' );
+
+	if ( exportForm.length && window.fetch && window.FormData ) {
+		const heading = $( '.wp-admin-ui-wrap > h2' ).first();
+		const place = heading.length ? heading : exportForm;
+
+		$( document ).on(
+			'click',
+			'button[form="exports-reports-export"]',
+			function ( event ) {
+				event.preventDefault();
+
+				const buttons = $( 'button[form="exports-reports-export"]' );
+				const body = new FormData( exportForm[ 0 ] );
+				const notice = $(
+					'<div class="notice notice-info exports-reports-export-progress"><p><span class="spinner is-active"></span></p></div>'
+				);
+
+				notice
+					.find( 'p' )
+					.append(
+						document.createTextNode(
+							exportForm.data( 'preparing' )
+						)
+					);
+				body.append( 'export_type', $( this ).val() );
+
+				$(
+					'.exports-reports-export-progress, .exports-reports-export-result'
+				).remove();
+				place.after( notice );
+				buttons.prop( 'disabled', true );
+
+				window
+					.fetch( exportForm.data( 'ajax' ), {
+						method: 'POST',
+						credentials: 'same-origin',
+						body,
+					} )
+					.then( function ( response ) {
+						return response.json();
+					} )
+					.then( function ( answer ) {
+						const data = answer.data || {};
+
+						notice.remove();
+						buttons.prop( 'disabled', false );
+
+						if ( data.html ) {
+							place.after(
+								$( data.html ).addClass(
+									'exports-reports-export-result'
+								)
+							);
+						}
+
+						if ( answer.success && data.download ) {
+							// The file is sent as an attachment: the page stays.
+							window.location.assign( data.download );
+						}
+					} )
+					.catch( function () {
+						// The background request failed before an answer came: the form submits the usual way.
+						notice.remove();
+						buttons.prop( 'disabled', false );
+						$( '<input type="hidden" name="export_type" />' )
+							.val( body.get( 'export_type' ) )
+							.appendTo( exportForm );
+						exportForm[ 0 ].submit();
+					} );
+			}
+		);
+	}
 
 	const sortable = $( '.admin_ui_reorder_form tbody' );
 

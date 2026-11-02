@@ -234,6 +234,10 @@ function exports_reports_rest_export( $request ) {
 		return new WP_Error( 'exports_reports_export_disabled', __( 'Exports are disabled for this report.', 'exports-and-reports' ), array( 'status' => 403 ) );
 	}
 
+	if ( ! in_array( (string) $request['type'], exports_reports_report_export_formats( $report ), true ) ) {
+		return new WP_Error( 'exports_reports_format_not_offered', __( 'That export format is not offered for this report.', 'exports-and-reports' ), array( 'status' => 403 ) );
+	}
+
 	require_once __DIR__ . '/class-exports-reports-admin-ui.php';
 
 	// A large export outlives the request's defaults, and a cronjob that disconnects still gets its file.

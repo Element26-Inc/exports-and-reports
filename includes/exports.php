@@ -295,3 +295,124 @@ function exports_reports_robots_txt( $robots_txt ) {
 
 	return $robots_txt . "\nDisallow: /" . $exclude_path . '/';
 }
+
+/**
+ * The export formats the plugin offers: the label of each button by the type behind it.
+ *
+ * @since 1.1.0
+ *
+ * @return array<string, string>
+ */
+function exports_reports_export_formats() {
+	return array(
+		'csv'  => 'CSV',
+		'tsv'  => 'TSV',
+		'pipe' => 'TXT',
+		'xlsx' => 'XLSX',
+		'xml'  => 'XML',
+		'json' => 'JSON',
+		'pdf'  => 'PDF',
+	);
+}
+
+/**
+ * The formats the site offers, as the Settings page has them: every format until the setting is saved.
+ *
+ * @since 1.1.0
+ *
+ * @return string[] The types, in the order of exports_reports_export_formats().
+ */
+function exports_reports_site_export_formats() {
+	$all   = array_keys( exports_reports_export_formats() );
+	$saved = get_option( 'exports_reports_export_formats', null );
+
+	if ( ! is_array( $saved ) ) {
+		return $all;
+	}
+
+	return array_values( array_intersect( $all, array_map( 'strval', $saved ) ) );
+}
+
+/**
+ * The formats a report offers: the site's, narrowed to the report's own list when its definition has one.
+ *
+ * @since 1.1.0
+ *
+ * @param object $report A row of the reports table.
+ *
+ * @return string[] The types.
+ */
+function exports_reports_report_export_formats( $report ) {
+	$formats = exports_reports_site_export_formats();
+	$own     = isset( $report->export_formats ) ? array_filter( array_map( 'trim', explode( ',', (string) $report->export_formats ) ) ) : array();
+
+	if ( ! empty( $own ) ) {
+		$formats = array_values( array_intersect( $formats, $own ) );
+	}
+
+	/**
+	 * Filters the export formats a report offers.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param string[] $formats The types (csv, tsv, pipe, xlsx, xml, json, pdf).
+	 * @param object   $report  The row of the reports table.
+	 */
+	return apply_filters( 'exports_reports_report_export_formats', $formats, $report );
+}
+
+/**
+ * Writes an export for the report screen's buttons over admin-ajax: the screen's own export, with the
+ * page's search, sort and filters from the query string and the format from the posted form. The answer
+ * carries the message the screen would show and the address of the download.
+ *
+ * @since 1.1.0
+ */
+function exports_reports_ajax_export() {
+	check_ajax_referer( 'exports-reports-export-request' );
+
+	// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- checked above.
+	$report_id = isset( $_POST['report'] ) ? absint( wp_unslash( $_POST['report'] ) ) : 0;
+
+	if ( 0 === $report_id && isset( $_GET['report'] ) ) {
+		$report_id = absint( wp_unslash( $_GET['report'] ) );
+	}
+	// phpcs:enable
+
+	$report = exports_reports_get_report( $report_id );
+	$group  = $report ? exports_reports_get_group( (int) $report->group ) : null;
+
+	if ( ! $report || ! $group || ! exports_reports_user_can_view_report( $report, $group ) ) {
+		wp_send_json_error( array( 'html' => '<div id="message" class="error fade"><p>' . esc_html__( 'You are not allowed to export this report.', 'exports-and-reports' ) . '</p></div>' ), 403 );
+	}
+
+	require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-admin-ui.php';
+
+	// A large export outlives the request's defaults.
+	// phpcs:ignore Squiz.PHP.DiscouragedFunctions.Discouraged -- a large export may need longer than max_execution_time.
+	set_time_limit( 6000 );
+	ignore_user_abort( true );
+
+	$admin = new Exports_Reports_Admin_UI( exports_reports_report_options( $report ) );
+
+	if ( 'export' !== $admin->action || false === $admin->export_type ) {
+		wp_send_json_error( array( 'html' => '<div id="message" class="error fade"><p>' . esc_html__( 'That export format is not offered for this report.', 'exports-and-reports' ) . '</p></div>' ), 403 );
+	}
+
+	ob_start();
+	$admin->export();
+	// The screen's messages, without the script that opens the download: the page's script does that itself.
+	$html = (string) preg_replace( '#<script\b[^>]*>.*?</script>#is', '', (string) ob_get_clean() );
+
+	if ( empty( $admin->exported_file ) ) {
+		wp_send_json_error( array( 'html' => $html ) );
+	}
+
+	wp_send_json_success(
+		array(
+			'html'     => $html,
+			'file'     => (string) $admin->exported_file,
+			'download' => $admin->export_url . rawurlencode( (string) $admin->exported_file ),
+		)
+	);
+}

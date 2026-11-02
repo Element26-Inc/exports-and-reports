@@ -65,6 +65,12 @@ function exports_reports_sql_install( $upgrade = false ) {
 	if ( $upgrade ) {
 		exports_reports_convert_tables_charset();
 		exports_reports_move_legacy_export_dir();
+
+		// The files that keep the export directory from being served, brought up to date when their rules changed.
+		if ( is_dir( EXPORTS_REPORTS_EXPORT_DIR ) ) {
+			require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-admin-ui.php';
+			Exports_Reports_Admin_UI::protect_export_dir();
+		}
 	}
 
 	delete_option( 'exports_reports_version' );

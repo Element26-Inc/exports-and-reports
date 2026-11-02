@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.0.2
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,10 @@ The plugin places its paging and its row count into statements that begin with S
 = Can a report run more than one statement? =
 
 Yes. End each with a semicolon: session variables first (`SET @day = CURRENT_DATE();`), a dynamic statement if the report builds one (`EXECUTE IMMEDIATE CONCAT( ... );`), and last the query that returns the rows. They run in order on one connection, so the last statement reads what the ones before it set up. The plugin's paging, search and filters go into the last statement only.
+
+= Can I limit the export formats? =
+
+Yes. The Settings page lists the formats the export buttons offer on every report; untick the ones the site does not need. A report can narrow that list further in its own settings (Export Formats), but not widen it. A format that is not offered is refused by the export and by the REST route, not only hidden. CSV, TSV and TXT are written row by row and suit very large reports; XLSX, XML, JSON and PDF hold the whole report in memory while they are written. Code can adjust a report's list with the `exports_reports_report_export_formats` filter.
 
 = Where do the export files go, and who can download them? =
 
@@ -122,6 +126,13 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.1.0 =
+* The export formats offered can be limited: for the whole site on the Settings page, and per report in its settings (a report narrows the site's list, it cannot widen it). A format that is not offered is refused by the export and by the REST route, not only hidden. CSV, TSV and TXT are written row by row; the other formats hold the whole report in memory, which matters for very large reports.
+* The export buttons post a form, and the screen's script runs the export in the background: the page's address never changes, so going back or reloading never writes another file, and the note with the spinner shows at once. The form names the report outright (the group page's default report went unnamed before) and carries the search term and the sort order, so an export holds what the page shows, every row of it.
+* A report with more than ten columns lays its columns out by their content and scrolls sideways in its box instead of squeezing them into the window; long values end in an ellipsis.
+* The .htaccess and index.php that keep the export directory from being served are rewritten when the plugin's rules change, on upgrade and with each export; a file the site wrote itself is left alone.
+* On the Settings page the descriptions sit below their buttons.
 
 = 1.0.2 =
 * A report may be several statements: session variables set before the query, a dynamic statement prepared with `EXECUTE IMMEDIATE` (`SET @day = CURRENT_DATE(); EXECUTE IMMEDIATE CONCAT( ... )`). They run one at a time on the same connection, and the paging, the search and the filters go into the last one, the query that returns the rows. Such a report no longer stops with a syntax error at its second statement.

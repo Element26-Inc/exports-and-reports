@@ -185,7 +185,14 @@ class Exports_Reports_List_Table extends WP_List_Table {
 	 * @return string[]
 	 */
 	protected function get_table_classes() {
-		return array( 'widefat', 'striped', 'page', 'fixed', 'admin_ui_table', $this->_args['plural'] );
+		$classes = array( 'widefat', 'striped', 'page', 'fixed', 'admin_ui_table', $this->_args['plural'] );
+
+		// A table of many columns gives each the width its content needs and scrolls sideways (see admin.css).
+		if ( 10 < count( $this->shown ) ) {
+			$classes[] = 'exports-reports-wide';
+		}
+
+		return $classes;
 	}
 
 	/**
@@ -328,10 +335,15 @@ class Exports_Reports_List_Table extends WP_List_Table {
 				<a class="button" href="<?php echo esc_url( $this->admin->var_update( array( 'action' => 'reorder' ) ) ); ?>"><?php esc_html_e( 'Reorder', 'exports-and-reports' ); ?></a>
 			<?php } ?>
 
-			<?php if ( $this->admin->export && $this->has_items() ) { ?>
+			<?php
+			$offered = $this->admin->export && $this->has_items() ? $this->admin->export_formats_offered() : array();
+
+			// The buttons submit the export form of the list screen (manage.php), which their form attribute names.
+			if ( ! empty( $offered ) ) {
+				?>
 				<strong><?php esc_html_e( 'Export:', 'exports-and-reports' ); ?></strong>
-				<?php foreach ( self::export_formats() as $text => $type ) { ?>
-					<a class="button" href="<?php echo esc_url( $this->admin->export_link( array( 'export_type' => $type ) ) ); ?>"><?php echo esc_html( $text ); ?></a>
+				<?php foreach ( $offered as $type => $text ) { ?>
+					<button type="submit" class="button" form="exports-reports-export" name="export_type" value="<?php echo esc_attr( $type ); ?>"><?php echo esc_html( $text ); ?></button>
 				<?php } ?>
 			<?php } ?>
 		</div>
@@ -339,20 +351,15 @@ class Exports_Reports_List_Table extends WP_List_Table {
 	}
 
 	/**
-	 * The export buttons: the label of each and the export type behind it.
+	 * Every export format, the label of each and the export type behind it. The buttons a screen shows are
+	 * Exports_Reports_Admin_UI::export_formats_offered(): the formats the site and the report allow.
+	 *
+	 * @since 1.1.0 The buttons come from the screen; this is the full list.
 	 *
 	 * @return array<string, string>
 	 */
 	public static function export_formats() {
-		return array(
-			'CSV'  => 'csv',
-			'TSV'  => 'tsv',
-			'TXT'  => 'pipe',
-			'XLSX' => 'xlsx',
-			'XML'  => 'xml',
-			'JSON' => 'json',
-			'PDF'  => 'pdf',
-		);
+		return array_flip( exports_reports_export_formats() );
 	}
 
 	/**
