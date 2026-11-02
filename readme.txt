@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.1.1 =
+* The Settings page stores the export formats that are turned off rather than the ones that are on, so a format a later version adds is on everywhere until someone turns it off. The list 1.1.0 saved is converted on upgrade.
 
 = 1.1.0 =
 * The export formats offered can be limited: for the whole site on the Settings page, and per report in its settings (a report narrows the site's list, it cannot widen it). A format that is not offered is refused by the export and by the REST route, not only hidden. CSV, TSV and TXT are written row by row; the other formats hold the whole report in memory, which matters for very large reports.

@@ -247,6 +247,10 @@ function exports_reports_upgrade() {
 	if ( version_compare( $installed, '1.0.0', '<' ) ) {
 		exports_reports_add_role_capabilities();
 	}
+
+	if ( version_compare( $installed, '1.1.1', '<' ) ) {
+		exports_reports_convert_export_formats_setting();
+	}
 }
 
 /**
