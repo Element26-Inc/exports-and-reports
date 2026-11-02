@@ -135,7 +135,7 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 	public function test_the_screen_refuses_a_format_it_does_not_offer_and_writes_one_it_does() {
 		$admin = $this->report( 'SELECT id, title FROM ' . self::videos() . ' ORDER BY id', 'Narrowed', array( 'export_formats' => array( 'csv', 'tsv' ) ) );
 
-		$this->assertSame( array( 'csv', 'tsv', 'custom' ), $admin->allowed_export_types() );
+		$this->assertSame( array( 'csv', 'tsv' ), $admin->allowed_export_types() );
 		$this->assertSame( array( 'csv' => 'CSV', 'tsv' => 'TSV' ), $admin->export_formats_offered() );
 
 		$admin->action      = 'export';

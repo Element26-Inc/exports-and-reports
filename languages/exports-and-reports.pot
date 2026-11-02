@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Exports and Reports 1.2.1\n"
+"Project-Id-Version: Exports and Reports 1.2.2\n"
 "Report-Msgid-Bugs-To: https://github.com/Element26-Inc/exports-and-reports/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-02T22:27:37+00:00\n"
+"POT-Creation-Date: 2026-11-02T22:38:57+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: exports-and-reports\n"
@@ -114,7 +114,7 @@ msgid "Disable Export?"
 msgstr ""
 
 #: includes/admin-reports.php:64
-#: includes/admin-settings.php:153
+#: includes/admin-settings.php:158
 msgid "Export Formats"
 msgstr ""
 
@@ -151,11 +151,11 @@ msgid "Available Variables: %%WHERE%% %%HAVING%% %%ORDERBY%% %%LIMIT%%<br />(exa
 msgstr ""
 
 #: includes/admin-reports.php:107
-msgid "SQL Query for Count (advanced, optional)"
+msgid "SQL Query for Totals (advanced, optional)"
 msgstr ""
 
 #: includes/admin-reports.php:109
-msgid "For advanced/complex queries above, you can SELECT minimal fields here for better \"Total Count\" performance.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)"
+msgid "Runs after the report query with the same search and filters and returns one row, whose values show in the Totals row under the last page of the report and as the totals of the REST data (for example SELECT SUM(amount) AS amount, COUNT(*) AS id FROM ...). It does not count the rows: the report query does.<br />Available Variables: %%WHERE%% %%HAVING%%<br />(example: WHERE %%WHERE%% my_field=1)"
 msgstr ""
 
 #: includes/admin-reports.php:113
@@ -389,381 +389,403 @@ msgid_plural "%s minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin-settings.php:110
+#: includes/admin-settings.php:111
 msgid "Exports and Reports - Settings"
 msgstr ""
 
-#: includes/admin-settings.php:114
+#: includes/admin-settings.php:115
 msgid "Your Exports directory has been cleaned up and all export files have been removed."
 msgstr ""
 
-#: includes/admin-settings.php:120
+#: includes/admin-settings.php:121
 msgid "Your Settings have been reset."
 msgstr ""
 
-#: includes/admin-settings.php:126
+#: includes/admin-settings.php:127
 msgid "The kept row counts are forgotten; the next page view of each report counts again."
 msgstr ""
 
-#: includes/admin-settings.php:132
+#: includes/admin-settings.php:134
 msgid "Your API token:"
 msgstr ""
 
-#: includes/admin-settings.php:133
+#: includes/admin-settings.php:136
+msgid "Copied"
+msgstr ""
+
+#: includes/admin-settings.php:136
+msgid "Copy"
+msgstr ""
+
+#: includes/admin-settings.php:138
 msgid "Copy it now and put it in your scripts and cronjobs: the plugin keeps only its hash, like a password, and cannot show it again."
 msgstr ""
 
-#: includes/admin-settings.php:141
+#: includes/admin-settings.php:146
 msgid "Clear Exports Directory"
 msgstr ""
 
-#: includes/admin-settings.php:143
+#: includes/admin-settings.php:148
 msgid "Clear Now"
 msgstr ""
 
 #. translators: %s: the export directory, relative to the WordPress directory.
-#: includes/admin-settings.php:147
+#: includes/admin-settings.php:152
 #, php-format
 msgid "This will remove all files from your Exports directory - %s"
 msgstr ""
 
-#: includes/admin-settings.php:161
+#: includes/admin-settings.php:166
 msgid "The formats the export buttons offer on every report; a report can narrow them further in its own settings. CSV, TSV and TXT are written row by row and suit very large reports; the other formats hold the whole report in memory while they are written."
 msgstr ""
 
-#: includes/admin-settings.php:165
+#: includes/admin-settings.php:170
 msgid "Row Count Cache"
 msgstr ""
 
-#: includes/admin-settings.php:172
+#: includes/admin-settings.php:177
 msgid "Forget the Counts Now"
 msgstr ""
 
-#: includes/admin-settings.php:173
+#: includes/admin-settings.php:178
 msgid "How long the row count of a report page (\"1,234 items\") is kept for the same query, search and filters. The count runs with the first page over every row the query matches, which costs a slow query as much again; while a count is kept, the page views that follow run the query without it. Rows added or removed meanwhile show in the count once it is counted again; the button makes every report count again now."
 msgstr ""
 
-#: includes/admin-settings.php:177
+#: includes/admin-settings.php:182
 msgid "Export Directory"
 msgstr ""
 
-#: includes/admin-settings.php:181
+#: includes/admin-settings.php:186
 msgid "Downloads are served by the plugin after an access check; the directory itself should not be reachable by URL."
 msgstr ""
 
-#: includes/admin-settings.php:183
+#: includes/admin-settings.php:188
 msgid "Apache: the plugin's .htaccess denies direct requests."
 msgstr ""
 
-#: includes/admin-settings.php:185
+#: includes/admin-settings.php:190
 msgid "Apache: the plugin writes an .htaccess that denies direct requests with the first export."
 msgstr ""
 
 #. translators: 1: the nginx location rule, 2: the EXPORTS_REPORTS_EXPORT_DIR constant.
-#: includes/admin-settings.php:191
+#: includes/admin-settings.php:196
 #, php-format
 msgid "nginx ignores .htaccess; add %1$s to the server block, or define %2$s in wp-config.php with a directory outside the web root, which works on any server."
 msgstr ""
 
-#: includes/admin-settings.php:202
+#: includes/admin-settings.php:207
 msgid "Cronjob/JSON API Token"
 msgstr ""
 
-#: includes/admin-settings.php:206
+#: includes/admin-settings.php:211
 msgid "Token access is on. The token is stored as a hash, like a password, so it cannot be shown here; generate a new one if it is lost."
 msgstr ""
 
-#: includes/admin-settings.php:208
+#: includes/admin-settings.php:213
 msgid "Token access is off: the REST routes answer logged-in users only. Generate a token to let a script or a cronjob in."
 msgstr ""
 
-#: includes/admin-settings.php:212
+#: includes/admin-settings.php:217
 msgid "Generate a New Token"
 msgstr ""
 
-#: includes/admin-settings.php:212
+#: includes/admin-settings.php:217
 msgid "Generate a Token"
 msgstr ""
 
-#: includes/admin-settings.php:214
+#: includes/admin-settings.php:219
 msgid "Turn Token Access Off"
 msgstr ""
 
-#: includes/admin-settings.php:217
+#: includes/admin-settings.php:222
 msgid "Or set a token of your own, then save the settings:"
 msgstr ""
 
 #. translators: 1: the Authorization header, 2: the token query parameter, both as code.
-#: includes/admin-settings.php:224
+#: includes/admin-settings.php:229
 #, php-format
 msgid "Keep the token secret: it lets a script or a cronjob run and download exports and read report data through the REST API, without a logged-in user. Send it as the header %1$s, or as a %2$s query parameter; the header is the better choice, since a query parameter ends up in server logs."
 msgstr ""
 
-#: includes/admin-settings.php:233
+#: includes/admin-settings.php:238
 msgid "URL to Export (useful for Cronjobs):"
 msgstr ""
 
-#: includes/admin-settings.php:236
+#: includes/admin-settings.php:241
 msgid "URL to Export and then Download File:"
 msgstr ""
 
-#: includes/admin-settings.php:239
+#: includes/admin-settings.php:244
 msgid "URL to JSON API (paginated):"
 msgstr ""
 
-#: includes/admin-settings.php:242
+#: includes/admin-settings.php:247
 msgid "URL to JSON API (full data):"
 msgstr ""
 
-#: includes/admin-settings.php:248
+#: includes/admin-settings.php:253
 msgid "Reset All Settings"
 msgstr ""
 
-#: includes/admin-settings.php:250
+#: includes/admin-settings.php:255
 msgid "Reset Now"
 msgstr ""
 
 #. translators: %s: the export directory, relative to the WordPress directory.
-#: includes/admin-settings.php:254
+#: includes/admin-settings.php:259
 #, php-format
 msgid "This generates a new token, puts every export format back on and the row count cache back to five minutes, clears the export log and removes the export files from your Exports directory - %s. Groups and reports are kept."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:188
+#: includes/admin-settings.php:265
+msgid "Save Settings"
+msgstr ""
+
+#: includes/class-exports-reports-admin-ui.php:197
 msgid "Item"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:189
+#: includes/class-exports-reports-admin-ui.php:198
 msgid "Items"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:191
+#: includes/class-exports-reports-admin-ui.php:200
 msgid "Manage"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:192
+#: includes/class-exports-reports-admin-ui.php:201
 msgid "Add New"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:193
+#: includes/class-exports-reports-admin-ui.php:202
 #: includes/class-exports-reports-list-table.php:571
 msgid "Edit"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:194
+#: includes/class-exports-reports-admin-ui.php:203
 #: includes/class-exports-reports-list-table.php:582
 msgid "Duplicate"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:195
+#: includes/class-exports-reports-admin-ui.php:204
 #: includes/class-exports-reports-list-table.php:560
 msgid "View"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:196
+#: includes/class-exports-reports-admin-ui.php:205
 #: includes/class-exports-reports-list-table.php:332
 msgid "Reorder"
 msgstr ""
 
 #. translators: 1: a link to the export file, 2: a link that removes it.
-#: includes/class-exports-reports-admin-ui.php:618
+#: includes/class-exports-reports-admin-ui.php:623
 #, php-format
 msgid "<strong>Success:</strong> Your export is ready, the download should begin in a few moments. If it does not, %1$s.<br /><br />When you are done with your export, %2$s; otherwise the export will be deleted within 24 hours of generation."
 msgstr ""
 
 #. translators: %s: the export format (CSV, PDF, ...).
-#: includes/class-exports-reports-admin-ui.php:620
+#: includes/class-exports-reports-admin-ui.php:625
 #, php-format
 msgid "click here to download your %s export file"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:622
+#: includes/class-exports-reports-admin-ui.php:627
 msgid "click here to remove it"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1329
-#: includes/class-exports-reports-admin-ui.php:1415
-#: includes/class-exports-reports-admin-ui.php:1463
-#: includes/class-exports-reports-admin-ui.php:1490
-#: includes/class-exports-reports-admin-ui.php:1669
-#: includes/class-exports-reports-admin-ui.php:2070
-#: includes/class-exports-reports-admin-ui.php:2107
+#: includes/class-exports-reports-admin-ui.php:1326
+#: includes/class-exports-reports-admin-ui.php:1412
+#: includes/class-exports-reports-admin-ui.php:1460
+#: includes/class-exports-reports-admin-ui.php:1487
+#: includes/class-exports-reports-admin-ui.php:1666
+#: includes/class-exports-reports-admin-ui.php:2067
+#: includes/class-exports-reports-admin-ui.php:2104
 msgid "<strong>Error:</strong> Invalid Configuration - Missing \"table\" definition."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1332
-#: includes/class-exports-reports-admin-ui.php:1672
+#: includes/class-exports-reports-admin-ui.php:1329
+#: includes/class-exports-reports-admin-ui.php:1669
 msgid "<strong>Error:</strong> Invalid Configuration - Missing \"identifier\" definition."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1421
+#: includes/class-exports-reports-admin-ui.php:1418
 #, php-format
 msgid "Add %s"
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1434
-#: includes/class-exports-reports-admin-ui.php:1470
+#: includes/class-exports-reports-admin-ui.php:1431
+#: includes/class-exports-reports-admin-ui.php:1467
 #, php-format
 msgid "<strong>Error:</strong> %s not found."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1437
+#: includes/class-exports-reports-admin-ui.php:1434
 msgid "Save Changes"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1493
-#: includes/class-exports-reports-admin-ui.php:2073
+#: includes/class-exports-reports-admin-ui.php:1490
+#: includes/class-exports-reports-admin-ui.php:2070
 msgid "<strong>Error:</strong> Invalid Configuration - Missing \"id\" definition."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1502
+#: includes/class-exports-reports-admin-ui.php:1499
 #, php-format
 msgid "<strong>Deleted:</strong> %s has been deleted."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1505
+#: includes/class-exports-reports-admin-ui.php:1502
 #, php-format
 msgid "<strong>Error:</strong> %s has not been deleted."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1521
+#: includes/class-exports-reports-admin-ui.php:1518
 msgid "<strong>Error:</strong> The form has expired; reload the page and try again."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1625
+#: includes/class-exports-reports-admin-ui.php:1622
 #, php-format
 msgid "<strong>Success!</strong> %s created successfully."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1628
+#: includes/class-exports-reports-admin-ui.php:1625
 #, php-format
 msgid "<strong>Success!</strong> %s saved successfully."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1632
+#: includes/class-exports-reports-admin-ui.php:1629
 #, php-format
 msgid "<strong>Error:</strong> %s has not been created."
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-admin-ui.php:1635
+#: includes/class-exports-reports-admin-ui.php:1632
 #, php-format
 msgid "<strong>Error:</strong> %s has not been saved."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1653
+#: includes/class-exports-reports-admin-ui.php:1650
 msgid "<strong>Error:</strong> The order was not saved: the page has expired, reload it and try again."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1688
+#: includes/class-exports-reports-admin-ui.php:1685
 msgid "<strong>Success!</strong> Order updated successfully."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1690
+#: includes/class-exports-reports-admin-ui.php:1687
 msgid "<strong>Error:</strong> Order has not been updated."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1765
+#: includes/class-exports-reports-admin-ui.php:1762
 #: includes/templates/list-filters.php:90
 #: includes/templates/view.php:58
 msgid "Yes"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1765
+#: includes/class-exports-reports-admin-ui.php:1762
 #: includes/templates/list-filters.php:91
 #: includes/templates/view.php:58
 msgid "No"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1875
-#: includes/class-exports-reports-admin-ui.php:1881
+#: includes/class-exports-reports-admin-ui.php:1872
+#: includes/class-exports-reports-admin-ui.php:1878
 msgid "<strong>Error:</strong> Your hosting configuration does not allow access to add files to your site."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1896
+#: includes/class-exports-reports-admin-ui.php:1893
 msgid "<strong>Error:</strong> The export link has expired. Go back to the report and use its export buttons again."
 msgstr ""
 
 #. translators: %s: the export directory.
-#: includes/class-exports-reports-admin-ui.php:1907
+#: includes/class-exports-reports-admin-ui.php:1904
 #, php-format
 msgid "<strong>Error:</strong> Your export directory (<strong>%s</strong>) did not exist and could not be created by the web server. Check the directory permissions and try again."
 msgstr ""
 
 #. translators: %s: the export directory.
-#: includes/class-exports-reports-admin-ui.php:1914
-#: includes/class-exports-reports-admin-ui.php:1966
+#: includes/class-exports-reports-admin-ui.php:1911
+#: includes/class-exports-reports-admin-ui.php:1963
 #, php-format
 msgid "<strong>Error:</strong> Your export directory (<strong>%s</strong>) needs to be writable for this plugin to work. Double-check it and try again."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1924
+#: includes/class-exports-reports-admin-ui.php:1921
 msgid "<strong>Error:</strong> That is not an export file."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1956
+#: includes/class-exports-reports-admin-ui.php:1953
 msgid "<strong>Success:</strong> Export removed successfully."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1971
+#: includes/class-exports-reports-admin-ui.php:1968
 msgid "<strong>Error:</strong> That file does not exist in the export directory."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1977
+#: includes/class-exports-reports-admin-ui.php:1974
 msgid "<strong>Error:</strong> That export format is not offered for this report."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:1998
+#: includes/class-exports-reports-admin-ui.php:1995
 msgid "<strong>Error:</strong> Invalid export type."
 msgstr ""
 
 #. translators: %s: the database's error message.
-#: includes/class-exports-reports-admin-ui.php:2317
+#: includes/class-exports-reports-admin-ui.php:2324
 #, php-format
 msgid "<strong>Error:</strong> The report's query failed: %s"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2320
+#: includes/class-exports-reports-admin-ui.php:2327
 msgid "<strong>Error:</strong> The report's query failed. Ask an administrator to check its definition."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2423
+#: includes/class-exports-reports-admin-ui.php:2430
 msgid "The report returned no rows."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2428
+#: includes/class-exports-reports-admin-ui.php:2435
 msgid "<strong>Error:</strong> Invalid Configuration - Missing \"columns\" definition."
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2528
+#: includes/class-exports-reports-admin-ui.php:2534
+msgid "The row count is kept for a while (Settings: Row Count Cache); rows added or removed since show once it is counted again."
+msgstr ""
+
+#. translators: %s: a length of time, e.g. "3 mins".
+#: includes/class-exports-reports-admin-ui.php:2537
+#, php-format
+msgid "(counted %s ago)"
+msgstr ""
+
+#: includes/class-exports-reports-admin-ui.php:2546
 msgid "Go to the first page"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2529
+#: includes/class-exports-reports-admin-ui.php:2547
 msgid "Go to the previous page"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2533
+#: includes/class-exports-reports-admin-ui.php:2551
 msgid "Current page"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2533
-#: includes/class-exports-reports-admin-ui.php:2538
+#: includes/class-exports-reports-admin-ui.php:2551
+#: includes/class-exports-reports-admin-ui.php:2556
 msgid "of"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2543
+#: includes/class-exports-reports-admin-ui.php:2561
 msgid "Go to the next page"
 msgstr ""
 
-#: includes/class-exports-reports-admin-ui.php:2544
+#: includes/class-exports-reports-admin-ui.php:2562
 msgid "Go to the last page"
 msgstr ""
 
@@ -841,8 +863,8 @@ msgstr ""
 msgid "This report has no columns to show."
 msgstr ""
 
-#: includes/exporters/class-exports-reports-exporter-delimited.php:141
-#: includes/exporters/class-exports-reports-exporter-delimited.php:208
+#: includes/exporters/class-exports-reports-exporter-delimited.php:136
+#: includes/exporters/class-exports-reports-exporter-delimited.php:203
 msgid "Error:"
 msgstr ""
 

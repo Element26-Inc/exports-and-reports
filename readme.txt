@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,7 +15,7 @@ Define custom exports / reports for users, based off of any custom MySQL SELECT 
 
 Define custom exports / reports for users, based off of any MySQL SELECT query you create. This plugin interacts with your SELECT query and does all the hard work for you: exporting, pagination, ordering, searching/filtering, and display formatting for you.
 
-All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, XLSX, XML, JSON, PDF and custom delimiter separated formats, from the admin screens or through the REST API with a token, for cronjobs.
+All you do is install the plugin, create your Groups, create your Reports, and hand it off to your clients. Exportable reports in CSV, TSV, pipe-separated TXT, XLSX, XML, JSON and PDF, from the admin screens or through the REST API with a token, for cronjobs.
 
 Requires PHP 7.2 and WordPress 5.7 or later. PDF exports render with tc-lib-pdf on PHP 8.2 and later and with TCPDF below that.
 
@@ -77,7 +77,7 @@ The plugin registers three capabilities: `exports_reports_full_access` (everythi
 
 Every hook is documented where it runs; these are the ones sites use most. Filters receive the value first and the report screen (`Exports_Reports_Admin_UI`) last.
 
-* The report query: `exports_reports_get_data_sql( $sql, $full, $admin )` and `exports_reports_get_data_sql_count( $sql, $full, $admin )` right before the query and its count query run (return false to run nothing); `exports_reports_get_data_total( $total, $full, $admin )` for the row count and `exports_reports_count_cache_ttl( $seconds, $admin )` for how long it is kept; `exports_reports_data_filter_sql( $condition, $filter, $column, $field, $related_field, $value, $admin )` for the condition a filter adds.
+* The report query: `exports_reports_get_data_sql( $sql, $full, $admin )` and `exports_reports_get_data_sql_count( $sql, $full, $admin )` right before the query and its totals query run (return false to run nothing); `exports_reports_get_data_total( $total, $full, $admin )` for the row count and `exports_reports_count_cache_ttl( $seconds, $admin )` for how long it is kept; `exports_reports_data_filter_sql( $condition, $filter, $column, $field, $related_field, $value, $admin )` for the condition a filter adds.
 * Exports: `exports_reports_export_file( $file, $type, $extension, $items, $admin )` for the file name; `exports_reports_export_escape_formulas( $escape, $admin )`; `exports_reports_export_pdf_engine( $engine )` and `exports_reports_export_pdf_report_file( $file, $admin )`; the actions `exports_reports_pre_export( $admin )`, `exports_reports_post_export( $file, $admin )`, `exports_reports_pre_remove_export( $file, $path, $admin )`, `exports_reports_post_remove_export( $file, $removed, $path, $admin )` and `exports_reports_export_download`.
 * The screens: `exports_reports_report_options( $options, $report_id )` and `exports_reports_options( $options, $admin )` for a screen's settings; `exports_reports_setup_columns( $columns, $which, $init, $admin )` and `exports_reports_setup_column( $attributes, $column, $filterable, $admin )`; `exports_reports_row_actions( $links, $row, $admin )`; `exports_reports_limit( $sizes, $admin )` for the page sizes; `exports_reports_allowed_html( $allowed )` for the HTML a display callback may return; `exports_reports_allowed_callback( $allowed, $callback, $admin )` for the functions a field definition may name; the actions `exports_reports_pre_init( $options )`, `exports_reports_post_init( $options, $admin )`, `exports_reports_pre_save( $create, $admin )`, `exports_reports_post_save( $id, $data, $create, $admin )`, `exports_reports_pre_delete( $id, $admin )`, `exports_reports_post_delete( $id, $admin )`, `exports_reports_post_reorder( $id, $admin )`.
 * Capabilities: `exports_reports_capabilities( $caps )`.
@@ -119,7 +119,6 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 * XML - XML 1.0 UTF-8 data
 * JSON - JSON format
 * PDF - PDF printer friendly views, using [tc-lib-pdf](https://github.com/tecnickcom/tc-lib-pdf) on PHP 8.2 and later and [TCPDF](https://tcpdf.org/) below that
-* Custom - Custom delimiter separated Values (Update the report screen URL parameters to `&action=export&export_type=custom&export_delimiter=#` and change # to whatever delimiter you want)
 
 = REST API / Cronjob =
 * Run the Export action for a specific report to any supported export type, and download the file
@@ -131,13 +130,20 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 1. View the report, export data, search content, filter by date, and paginate through the records
 2. Create and manage report groups that can contain their own sets of reports
 3. Create and manage reports
-4. Specify the SQL query to use to select data from the database -- you can customize a special query used only for counting the total number of records
-5. Specify the fields to display on the report and what kind of data they are
-6. The list of supported data types for each field
+4. Specify the SQL query that selects the data; placeholders put the search, the filters, the sort and the page where you want them, and an optional totals query feeds the Totals row
+5. Specify the fields to display on the report and what kind of data they are, or detect them from the query
+6. Exports run in the background: the message with the download and the button that removes the file
 7. Set advanced field options to further customize how fields will be displayed, exported, searched, filtered, or related to other tables
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.2 =
+* The pagination says when a row count comes from an earlier page view ("counted 3 mins ago"); the Manage Groups and Manage Reports screens keep no count, and the uninstall removes the kept counts.
+* Detect Fields marks text columns searchable and the others not: a LIKE over a date or a number finds nothing worth its cost.
+* The report form's second query is labelled for what it does, "SQL Query for Totals": its row feeds the Totals row under the last page and the totals of the REST data; the row count comes from the report query.
+* The custom-delimiter export is gone. It was reachable only through an address, and no address has written an export since 1.1.2; CSV, TSV and the pipe-separated TXT remain.
+* A Copy button beside the token the Settings page shows once, the Save Settings button through the core helper, and the screenshots retaken.
 
 = 1.2.1 =
 * The example group and its two reports are written on a first install only when the groups and reports tables are empty. A site whose version option was missing while it had groups and reports of its own got the examples added on the next admin visit.

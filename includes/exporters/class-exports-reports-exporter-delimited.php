@@ -1,6 +1,6 @@
 <?php
 /**
- * The delimited exports: CSV, TSV, the pipe-separated TXT and a custom delimiter.
+ * The delimited exports: CSV, TSV and the pipe-separated TXT.
  *
  * @package Exports_And_Reports
  * @since   1.0.0
@@ -24,14 +24,13 @@ class Exports_Reports_Exporter_Delimited extends Exports_Reports_Exporter {
 	 * @var array<string, string>
 	 */
 	const EXTENSIONS = array(
-		'csv'    => 'csv',
-		'tsv'    => 'tsv',
-		'pipe'   => 'txt',
-		'custom' => 'txt',
+		'csv'  => 'csv',
+		'tsv'  => 'tsv',
+		'pipe' => 'txt',
 	);
 
 	/**
-	 * The delimiter of each type; a custom export names its own on the screen.
+	 * The delimiter of each type.
 	 *
 	 * @var array<string, string>
 	 */
@@ -53,15 +52,11 @@ class Exports_Reports_Exporter_Delimited extends Exports_Reports_Exporter {
 	}
 
 	/**
-	 * The delimiter between values: the screen's own, or the one of the export type.
+	 * The delimiter between values, by the export type.
 	 *
 	 * @return string
 	 */
 	public function delimiter() {
-		if ( $this->admin->export_delimiter ) {
-			return $this->admin->export_delimiter;
-		}
-
 		$type = $this->admin->export_type;
 
 		return isset( self::DELIMITERS[ $type ] ) ? self::DELIMITERS[ $type ] : ',';
