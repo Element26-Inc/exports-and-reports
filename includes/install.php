@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Creates the plugin's tables from includes/schema.sql, or brings them up to date through dbDelta() on an
- * upgrade; records the version and schedules the daily
+ * upgrade (the example group and reports only when the tables are empty); records the version and schedules the daily
  * cleanup.
  *
  * @param bool $upgrade Whether the tables exist already.
@@ -39,6 +39,10 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 	$sql = explode( ";\n", str_replace( array( "\r", 'wp_' ), array( "\n", $wpdb->prefix ), $sql ) );
 
+	// The example group and reports go in on a first install only, and only when there is nothing of the
+	// site's own in the tables (the version option may be missing while groups and reports are not).
+	$seed = null;
+
 	foreach ( $sql as $query ) {
 		$query = trim( $query );
 
@@ -48,6 +52,14 @@ function exports_reports_sql_install( $upgrade = false ) {
 
 		if ( 0 !== stripos( $query, 'CREATE TABLE' ) ) {
 			if ( $upgrade ) {
+				continue;
+			}
+
+			if ( null === $seed ) {
+				$seed = exports_reports_tables_are_empty();
+			}
+
+			if ( ! $seed ) {
 				continue;
 			}
 
@@ -77,6 +89,22 @@ function exports_reports_sql_install( $upgrade = false ) {
 	add_option( 'exports_reports_version', EXPORTS_REPORTS_VERSION );
 
 	exports_reports_schedule_cleanup();
+}
+
+/**
+ * Whether the groups and the reports tables hold no rows: the examples are written only then.
+ *
+ * @since 1.2.1
+ *
+ * @return bool
+ */
+function exports_reports_tables_are_empty() {
+	/** @var wpdb $wpdb */ global $wpdb;
+
+	$groups  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->exports_reports_groups}" );
+	$reports = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->exports_reports_reports}" );
+
+	return 0 === $groups && 0 === $reports && '' === (string) $wpdb->last_error;
 }
 
 /**

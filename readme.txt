@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -138,6 +138,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.1 =
+* The example group and its two reports are written on a first install only when the groups and reports tables are empty. A site whose version option was missing while it had groups and reports of its own got the examples added on the next admin visit.
 
 = 1.2.0 =
 * The API token is stored as a hash, like a password, and shown once when it is generated or set. The Settings page has buttons to generate a token and to turn token access off, and a field for a token of your own; the example addresses carry a placeholder. A token an earlier version stored in the clear is replaced by its hash on the first request that uses it, so scripts and cronjobs keep working through the update. A fresh install has token access off until a token is generated.

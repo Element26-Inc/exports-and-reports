@@ -30,6 +30,50 @@ class Tests_Install extends Exports_Reports_Test_Case {
 	}
 
 	/**
+	 * The example group and reports are written on a first install into empty tables only: a site whose version
+	 * option is missing while it has groups or reports of its own gets none, and an upgrade never writes them.
+	 */
+	public function test_the_examples_are_written_into_empty_tables_only() {
+		global $wpdb;
+
+		$count = function () use ( $wpdb ) {
+			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->exports_reports_reports} WHERE `name` LIKE 'Example %'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		};
+
+		$wpdb->query( "DELETE FROM {$wpdb->exports_reports_reports}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DELETE FROM {$wpdb->exports_reports_groups}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->insert(
+			$wpdb->exports_reports_groups,
+			array(
+				'name'        => 'Mine',
+				'disabled'    => 0,
+				'role_access' => '',
+				'weight'      => 0,
+				'created'     => current_time( 'mysql' ),
+				'updated'     => current_time( 'mysql' ),
+			)
+		);
+
+		delete_option( 'exports_reports_version' );
+		exports_reports_install_upgrade();
+		$with_a_group = $count();
+
+		update_option( 'exports_reports_version', '1.1.4' );
+		exports_reports_install_upgrade();
+		$on_upgrade = $count();
+
+		$wpdb->query( "DELETE FROM {$wpdb->exports_reports_groups}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		delete_option( 'exports_reports_version' );
+		exports_reports_install_upgrade();
+		$into_empty_tables = $count();
+
+		$this->assertSame( 0, $with_a_group, 'a site with a group of its own gets no examples' );
+		$this->assertSame( 0, $on_upgrade, 'an upgrade writes none' );
+		$this->assertSame( 2, $into_empty_tables, 'a first install into empty tables gets the two examples' );
+		$this->assertSame( EXPORTS_REPORTS_VERSION, get_option( 'exports_reports_version' ) );
+	}
+
+	/**
 	 * Installs before 0.9.5 created the tables in three-byte utf8 whatever the site used; the upgrade converts them.
 	 */
 	public function test_a_three_byte_utf8_table_is_converted_on_upgrade() {
