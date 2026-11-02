@@ -112,20 +112,153 @@ class Exports_Reports_Query {
 	}
 
 	/**
+	 * Splits SQL into its statements, at the semicolons outside quoted strings, quoted identifiers and
+	 * comments. A report may set session variables, or prepare a dynamic statement, before the query that
+	 * returns its rows (SET @day = CURRENT_DATE(); EXECUTE IMMEDIATE CONCAT( ... )). The database takes one
+	 * statement per call, so the plugin runs them one at a time, in order. A statement that is empty or only a
+	 * comment (a doubled or a trailing semicolon) is left out.
+	 *
+	 * @since 1.0.2
+	 *
+	 * @param string $sql The SQL.
+	 *
+	 * @return string[] The statements, trimmed, in order.
+	 */
+	public static function statements( $sql ) {
+		$sql        = (string) $sql;
+		$length     = strlen( $sql );
+		$statements = array();
+		$statement  = '';
+		$quote      = '';
+
+		for ( $i = 0; $i < $length; $i++ ) {
+			$char = $sql[ $i ];
+
+			if ( '' !== $quote ) {
+				// Inside a quoted string or identifier; in a string, a backslash escapes the character after it.
+				if ( '\\' === $char && '`' !== $quote && $i + 1 < $length ) {
+					$statement .= $char . $sql[ $i + 1 ];
+					++$i;
+					continue;
+				}
+
+				if ( $char === $quote ) {
+					$quote = '';
+				}
+
+				$statement .= $char;
+				continue;
+			}
+
+			if ( "'" === $char || '"' === $char || '`' === $char ) {
+				$quote      = $char;
+				$statement .= $char;
+				continue;
+			}
+
+			$end = false;
+
+			if ( '#' === $char || ( '-' === $char && '--' === substr( $sql, $i, 2 ) && ( $i + 2 === $length || '' === trim( $sql[ $i + 2 ] ) ) ) ) {
+				// A comment to the end of its line.
+				$end = strpos( $sql, "\n", $i );
+				$end = false === $end ? $length : $end;
+			} elseif ( '/' === $char && '/*' === substr( $sql, $i, 2 ) ) {
+				// A block comment.
+				$end = strpos( $sql, '*/', $i + 2 );
+				$end = false === $end ? $length : $end + 2;
+			}
+
+			if ( false !== $end ) {
+				$statement .= substr( $sql, $i, $end - $i );
+				$i          = $end - 1;
+				continue;
+			}
+
+			if ( ';' !== $char ) {
+				$statement .= $char;
+				continue;
+			}
+
+			if ( self::has_sql( $statement ) ) {
+				$statements[] = trim( $statement );
+			}
+
+			$statement = '';
+		}
+
+		if ( self::has_sql( $statement ) ) {
+			$statements[] = trim( $statement );
+		}
+
+		return $statements;
+	}
+
+	/**
+	 * Whether a statement has anything in it besides whitespace and comments.
+	 *
+	 * @since 1.0.2
+	 *
+	 * @param string $statement The statement.
+	 *
+	 * @return bool
+	 */
+	protected static function has_sql( $statement ) {
+		return '' !== trim( (string) preg_replace( '~/\\*.*?\\*/|(?:--[ \\t]|#)[^\\n]*|--$~ms', '', $statement ) );
+	}
+
+	/**
+	 * Runs every statement of the SQL but the last on wpdb's connection, where the last one finds the session
+	 * variables and temporary tables they set up, and returns the last for the caller to run the way it
+	 * needs: buffered, or unbuffered for a streamed export.
+	 *
+	 * @since 1.0.2
+	 *
+	 * @param string $sql The SQL, one statement or several.
+	 *
+	 * @return string|false The last statement; false when one before it failed ($wpdb->last_error says how) or when there is none.
+	 */
+	public function run_leading_statements( $sql ) {
+		global $wpdb;
+
+		$statements = self::statements( $sql );
+		$last       = array_pop( $statements );
+
+		if ( null === $last ) {
+			return false;
+		}
+
+		foreach ( $statements as $statement ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the administrator's own statement; see rows().
+			if ( false === $wpdb->query( $statement ) ) {
+				return false;
+			}
+		}
+
+		return $last;
+	}
+
+	/**
 	 * Runs a statement and returns its rows. The one place the plugin runs SQL it did not prepare in full: the
 	 * report's query and count query as the administrator wrote them, with the plugin's clauses around prepared
 	 * values; a lookup on a related table the definition names; the screen's own table. Only a user with the
 	 * plugin's settings capability writes a definition.
 	 *
 	 * @since 0.9.5
+	 * @since 1.0.2 Several statements run one at a time; the rows are the last one's.
 	 *
-	 * @param string $sql    The statement.
+	 * @param string $sql    The statement, or several (see statements()).
 	 * @param string $output OBJECT or ARRAY_A, as $wpdb->get_results() takes it.
 	 *
-	 * @return array<int, mixed>
+	 * @return array<int, mixed> Empty when a statement before the last failed.
 	 */
 	public function rows( $sql, $output = OBJECT ) {
 		global $wpdb;
+
+		$sql = $this->run_leading_statements( $sql );
+
+		if ( false === $sql ) {
+			return array();
+		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the administrator's own statement, or one of the plugin's with its values prepared; see the method's description.
 		return $wpdb->get_results( $sql, $output );
@@ -136,13 +269,20 @@ class Exports_Reports_Query {
 	 * quoted by quote() or cast.
 	 *
 	 * @since 0.9.5
+	 * @since 1.0.2 Several statements run one at a time; the result is the last one's.
 	 *
-	 * @param string $sql The statement.
+	 * @param string $sql The statement, or several (see statements()).
 	 *
 	 * @return int|bool Rows affected, or false on error.
 	 */
 	public function execute( $sql ) {
 		global $wpdb;
+
+		$sql = $this->run_leading_statements( $sql );
+
+		if ( false === $sql ) {
+			return false;
+		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- the screen's own table; the values are quoted or cast by the caller.
 		return $wpdb->query( $sql );
@@ -284,6 +424,7 @@ class Exports_Reports_Query {
 	 * sql_count, order, order_dir and order_from_request settings are normalised on the way.
 	 *
 	 * @since 1.0.0 Out of Exports_Reports_Admin_UI::get_data().
+	 * @since 1.0.2 A definition of several statements keeps the ones before the last as they are.
 	 *
 	 * @param bool $full Whether every row is wanted, as for an export: no count and no LIMIT.
 	 *
@@ -301,7 +442,10 @@ class Exports_Reports_Query {
 		if ( false === $admin->sql ) {
 			$admin->sql = "SELECT * FROM {$admin->table}";
 		}
-		$sql = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . $admin->sql ) . ' ';
+		// The statements before the last, if any (session variables, a prepared dynamic statement), run as they
+		// are; the plugin's additions go into the last, the one that returns the rows.
+		$leading = self::statements( $admin->sql );
+		$sql     = ' ' . str_replace( array( "\n", "\r", "\t", '  ' ), ' ', ' ' . (string) array_pop( $leading ) ) . ' ';
 		// The author's own SQL_CALC_FOUND_ROWS, if any, comes off; the select list is read before anything is added to it.
 		$sql = preg_replace( '/ SELECT SQL_CALC_FOUND_ROWS /i', ' SELECT ', $sql, 1 );
 		preg_match( '/SELECT (.*) FROM/i', $sql, $selectmatches );
@@ -591,9 +735,10 @@ class Exports_Reports_Query {
 		);
 		if ( false !== $admin->sql_count ) {
 			// The count query takes the same conditions, placed by its own shape, and one row.
-			$sql_count = ' ' . preg_replace( '/\s+/', ' ', ' ' . $admin->sql_count ) . ' ';
-			$sql_count = str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count );
-			$sql_count = $this->place_clauses(
+			$leading_count = self::statements( $admin->sql_count );
+			$sql_count     = ' ' . preg_replace( '/\s+/', ' ', ' ' . (string) array_pop( $leading_count ) ) . ' ';
+			$sql_count     = str_ireplace( ' SELECT SQL_CALC_FOUND_ROWS ', ' SELECT ', $sql_count );
+			$sql_count     = $this->place_clauses(
 				$sql_count,
 				array(
 					'WHERE'  => $this->clause_sql( $sql_count, 'WHERE', $other_sql ),
@@ -602,6 +747,14 @@ class Exports_Reports_Query {
 				),
 				$replace_variables
 			);
+
+			if ( ! empty( $leading_count ) ) {
+				$sql_count = implode( ";\n", $leading_count ) . ";\n" . $sql_count;
+			}
+		}
+
+		if ( ! empty( $leading ) ) {
+			$sql = implode( ";\n", $leading ) . ";\n" . $sql;
 		}
 
 		return array(

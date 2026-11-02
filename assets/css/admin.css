@@ -181,3 +181,11 @@ select.admin_ui_filter_multiple {
 	margin: 1px 8px 0 0;
 }
 /* stylelint-enable font-family-no-missing-generic-family-keyword */
+
+/* The note shown while an export is written: the spinner sits in the
+   line, before the text. */
+.exports-reports-export-progress .spinner {
+	float: none;
+	margin: 0 8px 0 0;
+	vertical-align: middle;
+}

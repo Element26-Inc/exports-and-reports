@@ -57,6 +57,22 @@ class Tests_Delimited_Exports extends Exports_Reports_Test_Case {
 		$this->assertSame( $this->csv_of_the_table( false ), $this->csv_of_the_table( true ) );
 	}
 
+	/**
+	 * A definition of several statements streams too: the ones before the query run first, buffered; the query
+	 * is the unbuffered one.
+	 */
+	public function test_a_streamed_export_runs_the_statements_before_the_query_first() {
+		list( $admin, , $error ) = $this->run_report( "SET @remainder = 2;\nSELECT id, title FROM " . self::videos() . " WHERE id % 3 = @remainder ORDER BY id", 'Streamed variables', true );
+
+		$this->assertSame( '', $error );
+		$this->assertStringContainsString( ";\n", $admin->stream_sql, 'the statements reach the exporter together' );
+
+		$lines = explode( "\n", rtrim( $this->export_contents( $admin ), "\n" ) );
+
+		$this->assertCount( 21, $lines );
+		$this->assertStringStartsWith( '"2",', $lines[1] );
+	}
+
 	public function test_tsv_export_is_the_same_writer_with_a_tab() {
 		list( $admin, , $error ) = $this->run_report( 'SELECT id, channel FROM ' . self::videos() . ' WHERE id <= 2 ORDER BY id', 'Export tsv', true, array(), 'tsv' );
 
