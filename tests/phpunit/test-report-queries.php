@@ -294,6 +294,8 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	 * The scanner: the main SELECT and its clauses by depth, placeholders where they stand, the end of a dynamic statement's text.
 	 */
 	public function test_the_outline_finds_the_main_select_and_its_clauses() {
+		require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-query.php';
+
 		$outline = Exports_Reports_Query::outline( " WITH a AS (SELECT x FROM t WHERE y = 1 ORDER BY z) SELECT a.x, (SELECT 1) AS one FROM a WHERE a.x > 0 GROUP BY a.x HAVING COUNT(*) > 1 ORDER BY a.x LIMIT 5 " );
 
 		$plain = " WITH a AS (SELECT x FROM t WHERE y = 1 ORDER BY z) SELECT a.x, (SELECT 1) AS one FROM a WHERE a.x > 0 GROUP BY a.x HAVING COUNT(*) > 1 ORDER BY a.x LIMIT 5 ";
@@ -323,6 +325,8 @@ class Tests_Report_Queries extends Exports_Reports_Test_Case {
 	 * parenthesis, with or without a space, is read the same; the words are matched whole and in any case.
 	 */
 	public function test_the_outline_ignores_comments_and_strings_and_reads_select_after_a_parenthesis() {
+		require_once EXPORTS_REPORTS_DIR . 'includes/class-exports-reports-query.php';
+
 		$sql = "-- SELECT nothing FROM here\n# SELECT nothing either\n/* SELECT * FROM nowhere; */\nSELECT 'SELECT a FROM b' AS quoted, `select` AS backticked, (SELECT 1) AS tight, ( SELECT 2 ) AS spaced, selectors FROM t -- WHERE commented\nWHERE x = '(' ORDER BY y";
 
 		$outline = Exports_Reports_Query::outline( $sql );
