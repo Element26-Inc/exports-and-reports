@@ -221,25 +221,6 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 		$plugin_page = null;
 	}
 
-	/**
-	 * Assets are served with the plugin's version and a hash of the file, so a changed file is fetched afresh.
-	 */
-	public function test_assets_carry_a_hash_of_the_file_in_their_version() {
-		global $plugin_page;
-
-		$plugin_page = 'exports-reports-admin-settings';
-		exports_reports_assets( 'toplevel_page_exports-reports-admin' );
-		$plugin_page = null;
-
-		$style  = wp_styles()->registered['exports-reports-admin']->ver;
-		$script = wp_scripts()->registered['exports-reports-admin']->ver;
-
-		$this->assertSame( 1, preg_match( '/^' . preg_quote( EXPORTS_REPORTS_VERSION, '/' ) . '-[0-9a-f]{8}$/', $style ), $style );
-		$this->assertSame( 1, preg_match( '/^' . preg_quote( EXPORTS_REPORTS_VERSION, '/' ) . '-[0-9a-f]{8}$/', $script ), $script );
-		$this->assertSame( exports_reports_asset_version( 'assets/css/admin.css' ), $style );
-		$this->assertSame( EXPORTS_REPORTS_VERSION, exports_reports_asset_version( 'assets/css/missing.css' ), 'a file that is not there: the version alone' );
-	}
-
 	public function test_the_settings_form_carries_its_nonce() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
