@@ -122,8 +122,8 @@ function exports_reports_is_plugin_page() {
  * @param string $hook_suffix The admin page, as admin_enqueue_scripts passes it.
  */
 function exports_reports_assets( $hook_suffix ) {
-	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/js/admin.js', array( 'jquery' ), exports_reports_asset_version( 'assets/js/admin.js' ), true );
-	wp_register_style( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/css/admin.css', array(), exports_reports_asset_version( 'assets/css/admin.css' ) );
+	wp_register_script( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/js/admin.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
+	wp_register_style( 'exports-reports-admin', EXPORTS_REPORTS_URL . 'assets/css/admin.css', array(), EXPORTS_REPORTS_VERSION );
 
 	if ( exports_reports_is_plugin_page() ) {
 		wp_enqueue_style( 'dashicons' );
@@ -132,32 +132,9 @@ function exports_reports_assets( $hook_suffix ) {
 
 	if ( get_plugin_page_hookname( 'exports-reports-admin-reports', 'exports-reports-admin' ) === $hook_suffix ) {
 		wp_enqueue_style( 'dashicons' );
-		wp_enqueue_script( 'exports-reports-report-fields', EXPORTS_REPORTS_URL . 'assets/js/report-fields.js', array( 'jquery', 'jquery-ui-sortable' ), exports_reports_asset_version( 'assets/js/report-fields.js' ), true );
+		wp_enqueue_script( 'exports-reports-report-fields', EXPORTS_REPORTS_URL . 'assets/js/report-fields.js', array( 'jquery', 'jquery-ui-sortable' ), EXPORTS_REPORTS_VERSION, true );
 		exports_reports_sql_editor();
 	}
-}
-
-/**
- * The version an asset is served with: the plugin's version and a hash of the file's contents, so that a
- * browser or a proxy fetches the file again whenever it changes, within one version too (a build from a
- * branch, say), and never serves a stale copy against a changed plugin.
- *
- * @since 1.2.3
- *
- * @param string $file The file, relative to the plugin directory (assets/css/admin.css).
- * @return string
- */
-function exports_reports_asset_version( $file ) {
-	static $versions = array();
-
-	if ( ! isset( $versions[ $file ] ) ) {
-		$path = EXPORTS_REPORTS_DIR . $file;
-		$hash = is_readable( $path ) ? (string) hash_file( 'crc32b', $path ) : '';
-
-		$versions[ $file ] = EXPORTS_REPORTS_VERSION . ( '' !== $hash ? '-' . $hash : '' );
-	}
-
-	return $versions[ $file ];
 }
 
 /**

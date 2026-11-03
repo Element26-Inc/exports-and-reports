@@ -1298,7 +1298,7 @@ class Exports_Reports_Admin_UI {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
 		}
 
-		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/js/admin-ui.js', array( 'jquery' ), function_exists( 'exports_reports_asset_version' ) ? exports_reports_asset_version( 'assets/js/admin-ui.js' ) : EXPORTS_REPORTS_VERSION, true );
+		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/js/admin-ui.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
 
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );

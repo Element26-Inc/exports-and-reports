@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -137,6 +137,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.4 =
+* The hash of the file is gone again from the version the stylesheet and the scripts are served with: the plugin's version, which changes with every release, is enough, and the hash cost a read of each file on every admin page.
 
 = 1.2.3 =
 * A report whose fields are none of them searchable (or are dates and times, which the search skips) and has no filter shows no search box: it did nothing but push the table down. The page field of the pagination keeps its form.
