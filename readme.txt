@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.2
+Stable tag: 1.2.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -137,6 +137,12 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.3 =
+* A report whose fields are none of them searchable (or are dates and times, which the search skips) and has no filter shows no search box: it did nothing but push the table down. The page field of the pagination keeps its form.
+* The "Export:" label sits on the centre line of its buttons.
+* The "Loading the report…" line goes as soon as the report is in the page, by a line of script printed right after it, instead of waiting for every script of the page to load.
+* The plugin's stylesheet and scripts are served with a hash of the file in their version, so a browser or a proxy fetches a changed file afresh even within one plugin version.
 
 = 1.2.2 =
 * The pagination says when a row count comes from an earlier page view ("counted 3 mins ago"); the Manage Groups and Manage Reports screens keep no count, and the uninstall removes the kept counts.

@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- included from a method of Exports_Reports_Admin_UI: the variables are local to that call, not globals.
 
 $reordering   = 1 === $reorder && false !== $this->reorder;
-$searchable   = ( ! empty( $this->data ) || false !== $this->search_query || false !== $this->default_none ) && false !== $this->search;
+$searchable   = ( ! empty( $this->data ) || false !== $this->search_query || false !== $this->default_none ) && $this->has_search_fields();
 $screen_title = ( $reordering ? $this->heading['reorder'] : $this->heading['manage'] ) . ' ' . $this->items;
 $back         = $reordering;
 
@@ -73,27 +73,36 @@ $back         = $reordering;
 		$this->export();
 	}
 
-	if ( $searchable ) {
+	if ( $reordering ) {
+		if ( $searchable ) {
+			?>
+			<form id="posts-filter" action="" method="get">
+				<p class="search-box">
+					<?php require __DIR__ . '/list-filters.php'; ?>
+				</p>
+			</form>
+			<?php
+		} else {
+			?>
+			<br class="clear" />
+			<?php
+		}
+		require __DIR__ . '/list-body.php'; // The reorder form is a form of its own, after the search form.
+	} else {
+		// The table's form: the search box and the filters when there is something to search, and in any case
+		// the page field of the pagination, with the request's other values carried along.
 		?>
 		<form id="posts-filter" action="" method="get">
-			<p class="search-box">
-				<?php require __DIR__ . '/list-filters.php'; ?>
-			</p>
-			<?php
-			if ( ! $reordering ) {
-				require __DIR__ . '/list-body.php';
-			}
-			?>
+			<?php if ( $searchable ) { ?>
+				<p class="search-box">
+					<?php require __DIR__ . '/list-filters.php'; ?>
+				</p>
+			<?php } else { ?>
+				<?php $this->hidden_vars( array( 'pg' . $this->num ) ); ?>
+			<?php } ?>
+			<?php require __DIR__ . '/list-body.php'; ?>
 		</form>
 		<?php
-		if ( $reordering ) {
-			require __DIR__ . '/list-body.php'; // The reorder form is a form of its own, after the search form.
-		}
-	} else {
-		?>
-		<br class="clear" />
-		<?php
-		require __DIR__ . '/list-body.php';
 	}
 
 	if ( ! empty( $this->data ) && 1 !== $reorder && false !== $this->totals ) {
@@ -141,5 +150,9 @@ $back         = $reordering;
 		</table>
 		<?php
 	}
+
+	// The note printed while the report loaded (reports.php) goes as soon as the report is in the page, whatever
+	// else the page is still loading; the screen's script removes it as well, once the page has loaded.
+	wp_print_inline_script_tag( 'document.querySelectorAll( ".exports-reports-loading, .exports-reports-progress" ).forEach( function ( note ) { note.parentNode.removeChild( note ); } );' );
 	?>
 </div>
