@@ -99,10 +99,11 @@ foreach ( $this->filters as $filter ) {
 	}
 }
 ?>
-	&nbsp;&nbsp;
+	<span class="exports-reports-search">
 	<label<?php echo( empty( $this->filters ) ? ' class="screen-reader-text"' : '' ); ?> for="page-search-input"><?php esc_html_e( 'Search:', 'exports-and-reports' ); ?></label>
 	<input type="text" name="search_query" id="page-search-input" value="<?php echo esc_attr( $this->search_query ); ?>" />
 	<input type="submit" value="<?php esc_attr_e( 'Search', 'exports-and-reports' ); ?>" class="button" />
+	</span>
 	<?php
 	if ( false !== $this->search_query ) {
 		$clear_filters = array();

@@ -286,7 +286,11 @@ class Exports_Reports_List_Table extends WP_List_Table {
 			<?php
 			esc_html_e( 'Show per page:', 'exports-and-reports' );
 			$this->admin->limit();
-			echo ' &nbsp;|&nbsp; ';
+
+			// The separator only when the count or the page links follow: the bar under a one-row report has neither.
+			if ( 'top' === $which || 1 !== (int) $this->admin->total ) {
+				echo ' &nbsp;|&nbsp; ';
+			}
 
 			$this->admin->pagination( 'top' === $which );
 			?>

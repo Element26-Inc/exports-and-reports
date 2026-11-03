@@ -134,13 +134,6 @@
 	font-size: 13px;
 }
 
-/* The "Export:" label sits on the centre line of its buttons. */
-.tablenav .actions > strong {
-	display: inline-block;
-	line-height: 30px;
-	vertical-align: top;
-}
-
 /* The pagination's note on a row count kept from an earlier page view. */
 .exports-reports-counted {
 	color: #646970;
@@ -156,20 +149,35 @@
 	width: 100%;
 }
 
-/* The report selector above a report, when the user may see more than one. */
+/* The report selector above a report, when the user may see more than one:
+   a flex row, its label and its select centred on one line whatever height an
+   admin theme gives the select. */
 .exports-reports-selector {
+	align-items: center;
 	background-color: #e7e7e7;
 	border: 1px solid #d7d7d7;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
 	margin: 15px 15px 0 5px;
 	padding: 5px 15px;
 }
 
-.exports-reports-selector strong {
-	padding-right: 10px;
+/* The filters and the search box: a flex row that wraps, each control
+   centred on the line; the search field and its button wrap as one. */
+.exports-reports-filters {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 8px;
+	justify-content: flex-end;
+	max-width: 100%;
 }
 
-.exports-reports-selector label {
-	vertical-align: baseline;
+.exports-reports-search {
+	align-items: center;
+	display: inline-flex;
+	gap: 6px;
 }
 
 /* The report screens' totals table. */
@@ -230,10 +238,39 @@ select.admin_ui_filter_multiple {
 }
 
 /* The bars with the buttons and the paging stay in place while the table
-   scrolls under them. */
+   scrolls under them. They are flex rows: the buttons on the left, the paging
+   on the right, every control centred on the bar's middle line, so an admin
+   theme that changes the height of buttons or inputs leaves labels, counts
+   and page links centred (core sets the bar a fixed height and floats its
+   parts, which centres nothing). */
 .exports-reports-table-scroll .tablenav {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 12px;
+	height: auto;
 	left: 0;
+	min-height: 30px;
 	position: sticky;
+}
+
+.exports-reports-table-scroll .tablenav > .clear {
+	display: none;
+}
+
+.exports-reports-table-scroll .tablenav .actions {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	float: none;
+	gap: 4px;
+	padding: 0;
+}
+
+.exports-reports-table-scroll .tablenav .tablenav-pages {
+	float: none;
+	margin: 0 0 0 auto;
+	order: 2;
 }
 
 .wp-list-table.exports-reports-wide {

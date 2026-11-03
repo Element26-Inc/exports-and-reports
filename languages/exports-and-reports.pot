@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Exports and Reports 1.2.4\n"
+"Project-Id-Version: Exports and Reports 1.2.5\n"
 "Report-Msgid-Bugs-To: https://github.com/Element26-Inc/exports-and-reports/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-03T23:18:26+00:00\n"
+"POT-Creation-Date: 2026-11-03T23:34:32+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: exports-and-reports\n"
@@ -558,22 +558,22 @@ msgid "Add New"
 msgstr ""
 
 #: includes/class-exports-reports-admin-ui.php:202
-#: includes/class-exports-reports-list-table.php:571
+#: includes/class-exports-reports-list-table.php:575
 msgid "Edit"
 msgstr ""
 
 #: includes/class-exports-reports-admin-ui.php:203
-#: includes/class-exports-reports-list-table.php:582
+#: includes/class-exports-reports-list-table.php:586
 msgid "Duplicate"
 msgstr ""
 
 #: includes/class-exports-reports-admin-ui.php:204
-#: includes/class-exports-reports-list-table.php:560
+#: includes/class-exports-reports-list-table.php:564
 msgid "View"
 msgstr ""
 
 #: includes/class-exports-reports-admin-ui.php:205
-#: includes/class-exports-reports-list-table.php:332
+#: includes/class-exports-reports-list-table.php:336
 msgid "Reorder"
 msgstr ""
 
@@ -793,68 +793,68 @@ msgstr ""
 msgid "Show per page:"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:310
+#: includes/class-exports-reports-list-table.php:314
 msgid "Update Order"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:311
+#: includes/class-exports-reports-list-table.php:315
 msgid "Cancel"
 msgstr ""
 
 #. translators: %s: the item's name, as the screen calls it (Report, Report Group).
-#: includes/class-exports-reports-list-table.php:326
+#: includes/class-exports-reports-list-table.php:330
 #, php-format
 msgid "Add New %s"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:341
+#: includes/class-exports-reports-list-table.php:345
 msgid "Export:"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:366
+#: includes/class-exports-reports-list-table.php:370
 msgid "No items found"
 msgstr ""
 
 #. translators: %s: the row's title.
-#: includes/class-exports-reports-list-table.php:488
+#: includes/class-exports-reports-list-table.php:492
 #, php-format
 msgid "View &#8220;%s&#8221;"
 msgstr ""
 
 #. translators: %s: the row's title.
-#: includes/class-exports-reports-list-table.php:497
+#: includes/class-exports-reports-list-table.php:501
 #, php-format
 msgid "Edit &#8220;%s&#8221;"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:560
+#: includes/class-exports-reports-list-table.php:564
 msgid "View this item"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:571
+#: includes/class-exports-reports-list-table.php:575
 msgid "Edit this item"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:582
+#: includes/class-exports-reports-list-table.php:586
 msgid "Duplicate this item"
 msgstr ""
 
 #. translators: %s: the item's title, as the row shows it.
-#: includes/class-exports-reports-list-table.php:587
+#: includes/class-exports-reports-list-table.php:591
 #, php-format
 msgid "You are about to delete \"%s\". Cancel to stop, OK to delete."
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:596
+#: includes/class-exports-reports-list-table.php:600
 msgid "Delete this item"
 msgstr ""
 
-#: includes/class-exports-reports-list-table.php:596
+#: includes/class-exports-reports-list-table.php:600
 msgid "Delete"
 msgstr ""
 
 #. translators: %s: the action's label (Download, Run, ...).
-#: includes/class-exports-reports-list-table.php:612
+#: includes/class-exports-reports-list-table.php:616
 #, php-format
 msgid "%s this item"
 msgstr ""
@@ -966,7 +966,7 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
-#: includes/templates/list-filters.php:129
+#: includes/templates/list-filters.php:130
 msgid "Reset Filters"
 msgstr ""
 
