@@ -1298,7 +1298,7 @@ class Exports_Reports_Admin_UI {
 			wp_enqueue_style( 'exports-reports-admin-ui-css', $this->css, array(), EXPORTS_REPORTS_VERSION );
 		}
 
-		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/js/admin-ui.js', array( 'jquery' ), EXPORTS_REPORTS_VERSION, true );
+		wp_enqueue_script( 'exports-reports-admin-ui', $this->assets_url . '/js/admin-ui.js', array( 'jquery' ), function_exists( 'exports_reports_asset_version' ) ? exports_reports_asset_version( 'assets/js/admin-ui.js' ) : EXPORTS_REPORTS_VERSION, true );
 
 		if ( isset( $this->custom[ $this->action ] ) && function_exists( "{$this->custom[$this->action]}" ) ) {
 			call_user_func( $this->custom[ $this->action ], $this );
@@ -2328,6 +2328,37 @@ class Exports_Reports_Admin_UI {
 		}
 
 		return __( '<strong>Error:</strong> The report\'s query failed. Ask an administrator to check its definition.', 'exports-and-reports' );
+	}
+
+	/**
+	 * Whether the search box has anything to search: a filter, or a column the search reads (one not marked
+	 * unsearchable, and not a date or time, which the search skips). A screen with neither shows no search
+	 * box, which would only push the table down.
+	 *
+	 * @since 1.2.3
+	 *
+	 * @return bool
+	 */
+	public function has_search_fields() {
+		if ( false === $this->search ) {
+			return false;
+		}
+
+		if ( ! empty( $this->filters ) ) {
+			return true;
+		}
+
+		foreach ( $this->search_columns as $key => $column ) {
+			$attributes = is_array( $column ) ? $column : $this->setup_column( $column );
+
+			if ( false === $attributes['search'] || in_array( $attributes['type'], array( 'date', 'time', 'datetime' ), true ) ) {
+				continue;
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	public function set_filter_lookups() {

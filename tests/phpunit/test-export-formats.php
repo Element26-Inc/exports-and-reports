@@ -211,6 +211,51 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 		$this->assertStringNotContainsString( 'action=export&amp;export_type', $html, 'no export link in an address' );
 	}
 
+	/**
+	 * The search box shows when something can be searched: a column the search reads, or a filter. A report
+	 * whose fields are dates or marked unsearchable, with no filter, gets the table's form without it (the page
+	 * field still needs the form, with the request's values as hidden fields). The note printed while the
+	 * report loaded is removed by a line of script right after the report.
+	 */
+	public function test_the_search_box_shows_only_when_something_can_be_searched() {
+		$sql = 'SELECT id, title, published FROM ' . self::videos() . ' ORDER BY id';
+
+		$_GET = array(
+			'page'   => 'exports-reports-group-1',
+			'report' => '7',
+		);
+
+		$render = function ( $columns ) use ( $sql ) {
+			$admin = $this->report( $sql, 'Search box', array( 'columns' => $columns, 'search' => true ) );
+
+			ob_start();
+			$admin->manage();
+
+			return (string) ob_get_clean();
+		};
+
+		$nothing  = $render(
+			array(
+				'id'        => array( 'search' => false, 'type' => 'number' ),
+				'published' => array( 'type' => 'date' ),
+			)
+		);
+		$a_text   = $render( array( 'id' => array( 'search' => false ), 'title' => array( 'type' => 'text' ) ) );
+		$a_filter = $render( array( 'id' => array( 'search' => false ), 'published' => array( 'type' => 'date', 'filter' => true ) ) );
+		$all      = $render( array() );
+
+		$_GET = array();
+
+		$this->assertStringNotContainsString( 'class="search-box"', $nothing, 'dates and an unsearchable column: no search box' );
+		$this->assertStringContainsString( '<form id="posts-filter"', $nothing, 'the table keeps its form' );
+		$this->assertStringContainsString( 'name="report" value="7"', $nothing, 'with the request carried as hidden fields' );
+		$this->assertStringContainsString( 'class="search-box"', $a_text, 'a text column: the search box' );
+		$this->assertStringContainsString( 'class="search-box"', $a_filter, 'a filter: the search box, with the filter' );
+		$this->assertStringContainsString( 'admin_ui_filter_published_start', $a_filter );
+		$this->assertStringContainsString( 'class="search-box"', $all, 'no field definitions: every column is searched' );
+		$this->assertSame( 1, preg_match( '#<script[^>]*>.*?querySelectorAll\( "\.exports-reports-loading.*?</script>#s', $nothing ), 'the loading note is removed by the script after the report' );
+	}
+
 	public function test_a_posted_export_form_runs_the_export_with_its_nonce() {
 		$_POST = array(
 			'exports_reports_export' => '1',

@@ -134,6 +134,13 @@
 	font-size: 13px;
 }
 
+/* The "Export:" label sits on the centre line of its buttons. */
+.tablenav .actions > strong {
+	display: inline-block;
+	line-height: 30px;
+	vertical-align: top;
+}
+
 /* The pagination's note on a row count kept from an earlier page view. */
 .exports-reports-counted {
 	color: #646970;
