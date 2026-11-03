@@ -246,13 +246,13 @@ class Tests_Export_Formats extends Exports_Reports_Test_Case {
 
 		$_GET = array();
 
-		$this->assertStringNotContainsString( 'class="search-box"', $nothing, 'dates and an unsearchable column: no search box' );
+		$this->assertStringNotContainsString( 'class="search-box exports-reports-filters"', $nothing, 'dates and an unsearchable column: no search box' );
 		$this->assertStringContainsString( '<form id="posts-filter"', $nothing, 'the table keeps its form' );
 		$this->assertStringContainsString( 'name="report" value="7"', $nothing, 'with the request carried as hidden fields' );
-		$this->assertStringContainsString( 'class="search-box"', $a_text, 'a text column: the search box' );
-		$this->assertStringContainsString( 'class="search-box"', $a_filter, 'a filter: the search box, with the filter' );
+		$this->assertStringContainsString( 'class="search-box exports-reports-filters"', $a_text, 'a text column: the search box' );
+		$this->assertStringContainsString( 'class="search-box exports-reports-filters"', $a_filter, 'a filter: the search box, with the filter' );
 		$this->assertStringContainsString( 'admin_ui_filter_published_start', $a_filter );
-		$this->assertStringContainsString( 'class="search-box"', $all, 'no field definitions: every column is searched' );
+		$this->assertStringContainsString( 'class="search-box exports-reports-filters"', $all, 'no field definitions: every column is searched' );
 		$this->assertSame( 1, preg_match( '#<script[^>]*>.*?querySelectorAll\( "\.exports-reports-loading.*?</script>#s', $nothing ), 'the loading note is removed by the script after the report' );
 	}
 

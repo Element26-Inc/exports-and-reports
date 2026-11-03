@@ -77,7 +77,7 @@ $back         = $reordering;
 		if ( $searchable ) {
 			?>
 			<form id="posts-filter" action="" method="get">
-				<p class="search-box">
+				<p class="search-box exports-reports-filters">
 					<?php require __DIR__ . '/list-filters.php'; ?>
 				</p>
 			</form>
@@ -94,7 +94,7 @@ $back         = $reordering;
 		?>
 		<form id="posts-filter" action="" method="get">
 			<?php if ( $searchable ) { ?>
-				<p class="search-box">
+				<p class="search-box exports-reports-filters">
 					<?php require __DIR__ . '/list-filters.php'; ?>
 				</p>
 			<?php } else { ?>

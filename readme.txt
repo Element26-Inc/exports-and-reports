@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.4
+Stable tag: 1.2.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -137,6 +137,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.5 =
+* The bars above and below a report, the report selector and the filter row lay out as flex rows with every control centred on the line, so an admin theme that changes the height of buttons or inputs (Flatty makes buttons 32px tall, say) leaves the "Export:" label, the row count and the page links centred. The count and the page links sat 6px above the buttons on a one-page report before, with or without a theme. The bar under a one-row report no longer ends in a lone separator.
 
 = 1.2.4 =
 * The hash of the file is gone again from the version the stylesheet and the scripts are served with: the plugin's version, which changes with every release, is enough, and the hash cost a read of each file on every admin page.
