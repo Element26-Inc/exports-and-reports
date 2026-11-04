@@ -75,8 +75,8 @@ or MySQL 8; the `EXECUTE IMMEDIATE` case is MariaDB only and is skipped elsewher
   filter value, `exports_reports_export_escape_formulas` turning the formula wrapping off, and
   `exports_reports_export_pdf_engine` selecting TCPDF.
 - `Tests_Request_Handling` (`test-request-handling.php`): the report field editor rendering the saved
-  fields and saving the posted rows in order, unslashed and sanitised; `save()`, `reorder()` and the
-  settings form carrying and verifying their nonces; request values unslashed and sanitised on the way in.
+  fields and saving the posted rows in order, unslashed and sanitized; `save()`, `reorder()` and the
+  settings form carrying and verifying their nonces; request values unslashed and sanitized on the way in.
 
 `tests/phpunit/includes/` holds the base class and the helpers the classes share: the seeded table
 (created before each class, dropped after it), a report definition set up the way `exports_reports_view()`

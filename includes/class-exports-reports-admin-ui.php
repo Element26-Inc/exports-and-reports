@@ -310,7 +310,7 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * A request value, unslashed and sanitised (see clean_input()), or $fallback when it is absent or not among $allowed.
+	 * A request value, unslashed and sanitized (see clean_input()), or $fallback when it is absent or not among $allowed.
 	 *
 	 * @param string            $index    The request key.
 	 * @param mixed             $fallback What to return when the key is absent or not allowed.
@@ -373,7 +373,7 @@ class Exports_Reports_Admin_UI {
 	}
 
 	/**
-	 * The query string, unslashed and sanitised: the state that links and hidden fields carry forward.
+	 * The query string, unslashed and sanitized: the state that links and hidden fields carry forward.
 	 *
 	 * @return array
 	 */
@@ -1535,7 +1535,7 @@ class Exports_Reports_Admin_UI {
 		if ( 1 === $create ) {
 			$action = 'created';
 		}
-		// Each column is sanitised below by its type.
+		// Each column is sanitized below by its type.
 		$posted     = wp_unslash( $_POST );
 		$column_sql = array();
 		$data       = array();
