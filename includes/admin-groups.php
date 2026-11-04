@@ -61,13 +61,13 @@ function exports_reports_groups() {
 		'reorder_order' => '`weight`, `name`',
 		'order'         => '`weight`, `name`', // The Reports menu's order: by weight, ties by name.
 		'order_dir'     => 'ASC',
-		'css'          => EXPORTS_REPORTS_URL . 'assets/css/admin.css',
-		'item'         => __( 'Report Group', 'exports-and-reports' ),
-		'items'        => __( 'Report Groups', 'exports-and-reports' ),
-		'table'        => $wpdb->exports_reports_groups,
-		'columns'      => $columns,
-		'form_columns' => $form_columns,
-		'duplicate'    => true,
+		'css'           => EXPORTS_REPORTS_URL . 'assets/css/admin.css',
+		'item'          => __( 'Report Group', 'exports-and-reports' ),
+		'items'         => __( 'Report Groups', 'exports-and-reports' ),
+		'table'         => $wpdb->exports_reports_groups,
+		'columns'       => $columns,
+		'form_columns'  => $form_columns,
+		'duplicate'     => true,
 	);
 
 	$admin = new Exports_Reports_Admin_UI( $admin_ui );
