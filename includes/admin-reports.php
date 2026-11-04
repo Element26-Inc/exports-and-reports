@@ -117,8 +117,8 @@ function exports_reports_reports() {
 
 	$admin_ui = array(
 		'reorder'       => 'weight',
-		'reorder_order' => '`group` ASC,`weight`',
-		'order'         => '`group` ASC,`weight`',
+		'reorder_order' => '`group` ASC, `weight`, `name`',
+		'order'         => '`group` ASC, `weight`, `name`', // The Reports menu's order within a group: by weight, ties by name.
 		'order_dir'     => 'ASC',
 		'css'           => EXPORTS_REPORTS_URL . 'assets/css/admin.css',
 		'item'          => __( 'Report', 'exports-and-reports' ),

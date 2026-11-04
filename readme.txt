@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -137,6 +137,9 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 8. Manage plugin settings and get useful URLs for API access
 
 == Changelog ==
+
+= 1.2.7 =
+* The Manage Groups and Manage Reports lists sort as the Reports menu does, by weight and then by name, so groups or reports of equal weight no longer show in one order on the list and another in the menu.
 
 = 1.2.6 =
 * Spelling is American English throughout the readme, the release notes and the code comments.

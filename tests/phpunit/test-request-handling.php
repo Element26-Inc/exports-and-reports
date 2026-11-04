@@ -235,6 +235,45 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 	/**
 	 * The management screens (groups, reports) count their own table on every view; only a report view keeps its count.
 	 */
+	/**
+	 * The Manage Groups list sorts as the Reports menu does: by weight, ties by name. Equal weights fell in
+	 * insertion order on the list and alphabetical in the menu, so the two showed different orders.
+	 */
+	public function test_the_management_lists_sort_like_the_menu() {
+		global $wpdb;
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		foreach ( array( array( 'Order A', 0 ), array( 'Order B', 1 ), array( 'Order 0', 0 ) ) as $group ) {
+			$wpdb->insert(
+				$wpdb->exports_reports_groups,
+				array(
+					'name'        => $group[0],
+					'disabled'    => 0,
+					'role_access' => '',
+					'weight'      => $group[1],
+					'created'     => current_time( 'mysql' ),
+					'updated'     => current_time( 'mysql' ),
+				)
+			);
+		}
+
+		$_GET = array( 'page' => 'exports-reports-admin' );
+
+		ob_start();
+		exports_reports_groups();
+		$html = (string) ob_get_clean();
+
+		$_GET = array();
+
+		preg_match_all( '/Order [0AB]/', $html, $seen );
+
+		$menu = $wpdb->get_col( "SELECT `name` FROM {$wpdb->exports_reports_groups} WHERE `name` LIKE 'Order %' ORDER BY `weight`, `name`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		$this->assertSame( array( 'Order 0', 'Order A', 'Order B' ), $menu );
+		$this->assertSame( $menu, array_values( array_unique( $seen[0] ) ), 'the list in the menu\'s order: the later "Order 0" among its equals by name' );
+	}
+
 	public function test_the_management_screens_keep_no_count() {
 		update_option( 'exports_reports_count_cache', 5 );
 
