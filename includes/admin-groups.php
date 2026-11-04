@@ -57,9 +57,10 @@ function exports_reports_groups() {
 	$form_columns['updated']['display']              = false;
 
 	$admin_ui = array(
-		'reorder'      => 'weight',
-		'order'        => '`weight`',
-		'order_dir'    => 'ASC',
+		'reorder'       => 'weight',
+		'reorder_order' => '`weight`, `name`',
+		'order'         => '`weight`, `name`', // The Reports menu's order: by weight, ties by name.
+		'order_dir'     => 'ASC',
 		'css'          => EXPORTS_REPORTS_URL . 'assets/css/admin.css',
 		'item'         => __( 'Report Group', 'exports-and-reports' ),
 		'items'        => __( 'Report Groups', 'exports-and-reports' ),

@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Exports and Reports 1.2.6\n"
+"Project-Id-Version: Exports and Reports 1.2.7\n"
 "Report-Msgid-Bugs-To: https://github.com/Element26-Inc/exports-and-reports/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-04T02:20:57+00:00\n"
+"POT-Creation-Date: 2026-11-04T04:11:12+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: exports-and-reports\n"
@@ -67,11 +67,11 @@ msgstr ""
 msgid "Add the exports_reports_full_access capability to a role for full access to reports, exports_reports_settings for only access to settings, exports_reports_view for access to view all reports, exports_reports_view_group_{ID} for access to view a group and all of the reports within, or exports_reports_view_report_{ID} for access to view a single report"
 msgstr ""
 
-#: includes/admin-groups.php:64
+#: includes/admin-groups.php:65
 msgid "Report Group"
 msgstr ""
 
-#: includes/admin-groups.php:65
+#: includes/admin-groups.php:66
 msgid "Report Groups"
 msgstr ""
 
