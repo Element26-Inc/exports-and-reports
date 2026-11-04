@@ -16,8 +16,9 @@ name: Release zip
 # a tag on a commit whose workflow files differ from the branch the run was started on; such a tag is
 # pushed by hand first (git push origin <sha>:refs/tags/<tag>), and the run uses it.
 #
-# The release notes are the version's section of the readme's changelog, with its upgrade notice: the readme of
-# the commit built, or of notes_ref when given (a draft's notes refreshed after a later correction).
+# The release notes are the readme's changelog sections of every version since the last published release, each
+# with its upgrade notice (bin/release-notes.py): the readme of the commit built, or of notes_ref when given (a
+# draft's notes refreshed after a later correction).
 on:
   workflow_dispatch:
     inputs:
@@ -122,6 +123,8 @@ jobs:
           if-no-files-found: error
 
       - name: Write the release notes from the readme
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           readme=readme.txt
           if [ -n "${{ inputs.notes_ref }}" ]; then
@@ -130,15 +133,12 @@ jobs:
             git show FETCH_HEAD:readme.txt > readme-notes.txt
             readme=readme-notes.txt
           fi
-          awk -v v="${{ steps.version.outputs.version }}" '
-            /^== / { section = $0; on = 0 }
-            section == "== Changelog ==" && $0 == "= " v " =" { on = 1; next }
-            section == "== Changelog ==" && on && /^= / { on = 0 }
-            section == "== Changelog ==" && on { print }
-            section == "== Upgrade Notice ==" && $0 == "= " v " =" { on = 1; next }
-            section == "== Upgrade Notice ==" && on && /^= / { on = 0 }
-            section == "== Upgrade Notice ==" && on && NF { print ""; print "**Upgrade notice:** " $0 }
-          ' "$readme" > notes.md
+          # The notes cover every version since the last published release: the sections of versions that stayed
+          # drafts (or were never built) would otherwise never reach a reader of the releases page.
+          since="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // ""')"
+          since="${since#v}"
+          echo "notes for ${{ steps.version.outputs.version }}, down to (not including) ${since:-the first version}"
+          python3 bin/release-notes.py "$readme" "${{ steps.version.outputs.version }}" "$since" > notes.md
           if ! grep -q '[^[:space:]]' notes.md; then
             echo "::error::$readme has no changelog section for ${{ steps.version.outputs.version }}"
             exit 1

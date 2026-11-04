@@ -140,7 +140,7 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 
 = 1.2.6 =
 * Spelling is American English throughout the readme, the release notes and the code comments.
-* The release workflow takes a notes_ref input: the notes of a draft are rewritten from that ref's readme, so a corrected changelog reaches drafts built earlier.
+* The release notes of a release cover every version since the last published one, each with its upgrade notice, so the changelog of versions that stayed drafts reaches the releases page; the workflow also takes a notes_ref input, with which a draft's notes are rewritten from that ref's readme.
 
 = 1.2.5 =
 * The bars above and below a report, the report selector and the filter row lay out as flex rows with every control centered on the line, so an admin theme that changes the height of buttons or inputs (Flatty makes buttons 32px tall, say) leaves the "Export:" label, the row count and the page links centered. The count and the page links sat 6px above the buttons on a one-page report before, with or without a theme. The bar under a one-row report no longer ends in a lone separator.
