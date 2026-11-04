@@ -5,7 +5,7 @@ Tags: exporting, reporting, csv, pdf, xml
 Requires at least: 5.7
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 1.2.5
+Stable tag: 1.2.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -138,22 +138,26 @@ The plugin's bundled libraries (`vendor/`) are part of the zip and of the reposi
 
 == Changelog ==
 
+= 1.2.6 =
+* Spelling is American English throughout the readme, the release notes and the code comments.
+* The release workflow takes a notes_ref input: the notes of a draft are rewritten from that ref's readme, so a corrected changelog reaches drafts built earlier.
+
 = 1.2.5 =
-* The bars above and below a report, the report selector and the filter row lay out as flex rows with every control centred on the line, so an admin theme that changes the height of buttons or inputs (Flatty makes buttons 32px tall, say) leaves the "Export:" label, the row count and the page links centred. The count and the page links sat 6px above the buttons on a one-page report before, with or without a theme. The bar under a one-row report no longer ends in a lone separator.
+* The bars above and below a report, the report selector and the filter row lay out as flex rows with every control centered on the line, so an admin theme that changes the height of buttons or inputs (Flatty makes buttons 32px tall, say) leaves the "Export:" label, the row count and the page links centered. The count and the page links sat 6px above the buttons on a one-page report before, with or without a theme. The bar under a one-row report no longer ends in a lone separator.
 
 = 1.2.4 =
 * The hash of the file is gone again from the version the stylesheet and the scripts are served with: the plugin's version, which changes with every release, is enough, and the hash cost a read of each file on every admin page.
 
 = 1.2.3 =
 * A report whose fields are none of them searchable (or are dates and times, which the search skips) and has no filter shows no search box: it did nothing but push the table down. The page field of the pagination keeps its form.
-* The "Export:" label sits on the centre line of its buttons.
+* The "Export:" label sits on the center line of its buttons.
 * The "Loading the report…" line goes as soon as the report is in the page, by a line of script printed right after it, instead of waiting for every script of the page to load.
 * The plugin's stylesheet and scripts are served with a hash of the file in their version, so a browser or a proxy fetches a changed file afresh even within one plugin version.
 
 = 1.2.2 =
 * The pagination says when a row count comes from an earlier page view ("counted 3 mins ago"); the Manage Groups and Manage Reports screens keep no count, and the uninstall removes the kept counts.
 * Detect Fields marks text columns searchable and the others not: a LIKE over a date or a number finds nothing worth its cost.
-* The report form's second query is labelled for what it does, "SQL Query for Totals": its row feeds the Totals row under the last page and the totals of the REST data; the row count comes from the report query.
+* The report form's second query is labeled for what it does, "SQL Query for Totals": its row feeds the Totals row under the last page and the totals of the REST data; the row count comes from the report query.
 * The custom-delimiter export is gone. It was reachable only through an address, and no address has written an export since 1.1.2; CSV, TSV and the pipe-separated TXT remain.
 * A Copy button beside the token the Settings page shows once, the Save Settings button through the core helper, and the screenshots retaken.
 

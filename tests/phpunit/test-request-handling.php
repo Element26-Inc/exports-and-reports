@@ -277,7 +277,7 @@ class Tests_Request_Handling extends Exports_Reports_Test_Case {
 	}
 
 	/**
-	 * Request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitised; a value outside
+	 * Request values arrive slashed (wp_magic_quotes) and are read unslashed and sanitized; a value outside
 	 * the allowed list (order_dir=asc) leaves the default; hidden fields carry them unslashed.
 	 */
 	public function test_request_values_are_unslashed_and_sanitised_on_the_way_in() {

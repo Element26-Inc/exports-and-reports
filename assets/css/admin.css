@@ -150,7 +150,7 @@
 }
 
 /* The report selector above a report, when the user may see more than one:
-   a flex row, its label and its select centred on one line whatever height an
+   a flex row, its label and its select centered on one line whatever height an
    admin theme gives the select. */
 .exports-reports-selector {
 	align-items: center;
@@ -164,7 +164,7 @@
 }
 
 /* The filters and the search box: a flex row that wraps, each control
-   centred on the line; the search field and its button wrap as one. */
+   centered on the line; the search field and its button wrap as one. */
 .exports-reports-filters {
 	align-items: center;
 	display: flex;
@@ -239,10 +239,10 @@ select.admin_ui_filter_multiple {
 
 /* The bars with the buttons and the paging stay in place while the table
    scrolls under them. They are flex rows: the buttons on the left, the paging
-   on the right, every control centred on the bar's middle line, so an admin
+   on the right, every control centered on the bar's middle line, so an admin
    theme that changes the height of buttons or inputs leaves labels, counts
-   and page links centred (core sets the bar a fixed height and floats its
-   parts, which centres nothing). */
+   and page links centered (core sets the bar a fixed height and floats its
+   parts, which centers nothing). */
 .exports-reports-table-scroll .tablenav {
 	align-items: center;
 	display: flex;

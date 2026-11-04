@@ -663,7 +663,7 @@ class Exports_Reports_Query {
 	 * SQL_CALC_FOUND_ROWS and the SUM() of each total field in the select list, the search and the filters
 	 * as prepared conditions in the WHERE or HAVING clause (or at the %%name%% placeholder the definition
 	 * wrote for them), the sort column checked against the report's columns, the page's LIMIT. The screen's
-	 * sql_count, order, order_dir and order_from_request settings are normalised on the way.
+	 * sql_count, order, order_dir and order_from_request settings are normalized on the way.
 	 *
 	 * @since 1.0.0 Out of Exports_Reports_Admin_UI::get_data().
 	 * @since 1.0.2 A definition of several statements keeps the ones before the last as they are.

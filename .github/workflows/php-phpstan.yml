@@ -33,9 +33,9 @@ jobs:
           fetch-depth: 0
       # ------------------------------------------------------------------------------
       # The plugin's own changed PHP files (vendor/ is third-party code). A change to the
-      # configuration, the dependencies or this workflow analyses every path in phpstan.neon.
+      # configuration, the dependencies or this workflow analyzes every path in phpstan.neon.
       # ------------------------------------------------------------------------------
-      - name: Decide what to analyse
+      - name: Decide what to analyze
         id: changed-files
         run: |
           changed="$(git diff --name-only --diff-filter=AM ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})"
